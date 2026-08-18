@@ -1,0 +1,16 @@
+:root {
+  --background: #0d0d0d;
+  --surface: #171717;
+  --surface-elevated: #222222;
+
+  --foreground: #f2efe8;
+  --foreground-secondary: #a7a39a;
+  --foreground-muted: #74716b;
+
+  --accent: #a8845b;
+  --accent-hover: #c09a6b;
+
+  --border: #2d2d2d;
+  --success: #68876b;
+  --error: #b85c5c;
+}
