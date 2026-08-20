@@ -1,12 +1,30 @@
+import BookingSection from "@/components/home/BookingSection";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import Hero from "@/components/home/Hero";
+import MeetTheBarber from "@/components/home/MeetTheBarber";
+import SelectedWork from "@/components/home/SelectedWork";
+import Services from "@/components/home/Services";
+import ScrollVideoSection from "@/components/home/ScrollVideoSection";
+import SectionTwo from "@/components/home/SectionTwo";
+import VisitStudio from "@/components/home/VisitStudio";
+
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background text-center">
-      <div className="space-y-2">
-        <p className="text-5xl font-bold tracking-tight text-foreground">1200</p>
-        <p className="text-5xl font-bold tracking-tight text-foreground">
-          Barbershop
-        </p>
-      </div>
-    </main>
+    <>
+      <Header />
+      <main>
+        <ScrollVideoSection>
+          <Hero />
+          <SectionTwo />
+        </ScrollVideoSection>
+        <Services />
+        <MeetTheBarber />
+        <SelectedWork />
+        <BookingSection />
+        <VisitStudio />
+      </main>
+      <Footer />
+    </>
   );
 }
