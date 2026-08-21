@@ -4,7 +4,7 @@ import Footer from "@/components/layout/Footer";
 import Hero from "@/components/home/Hero";
 import MeetTheBarber from "@/components/home/MeetTheBarber";
 import SelectedWork from "@/components/home/SelectedWork";
-import Services from "@/components/home/Services";
+import ServicesSection from "@/components/home/ServicesSection";
 import ScrollVideoSection from "@/components/home/ScrollVideoSection";
 import SectionTwo from "@/components/home/SectionTwo";
 import VisitStudio from "@/components/home/VisitStudio";
@@ -18,7 +18,7 @@ export default function Home() {
           <Hero />
           <SectionTwo />
         </ScrollVideoSection>
-        <Services />
+        <ServicesSection />
         <MeetTheBarber />
         <SelectedWork />
         <BookingSection />
