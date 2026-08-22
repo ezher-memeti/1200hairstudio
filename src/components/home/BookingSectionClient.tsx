@@ -6,35 +6,23 @@ import type {
   SetStateAction,
 } from "react";
 import { useMemo, useState } from "react";
-import { buildTimeGroups } from "@/lib/public/business-hours-utils";
+import {
+  generateSlots,
+  groupTimeSlots,
+  type BookingDateOption,
+  type TimeGroup,
+} from "@/lib/public/booking-availability-utils";
 
 type Service = {
   id: string;
   title: string;
   description: string;
   duration: string;
+  durationMinutes: number;
   price: string;
   image_url: string | null;
 };
-
-type BookingDate = {
-  id: string;
-  day: string;
-  date: string;
-  month: string;
-  fullDate: string;
-  businessHour: {
-    day_of_week: number;
-    is_closed: boolean;
-    open_time: string | null;
-    close_time: string | null;
-  };
-};
-
-type TimeGroup = {
-  label: string;
-  slots: string[];
-};
+type BookingDate = BookingDateOption;
 
 type BookingState = {
   serviceId: string | null;
@@ -285,6 +273,8 @@ function DateTimeStep({
   dates: BookingDate[];
   timeGroups: TimeGroup[];
 }) {
+  const hasAvailableDates = dates.some((date) => date.isAvailable);
+
   return (
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="space-y-3">
@@ -299,11 +289,13 @@ function DateTimeStep({
             <div className="flex min-w-max gap-2.5 sm:gap-3">
               {dates.map((date) => {
                 const isSelected = state.dateId === date.id;
+                const isDisabled = !date.isAvailable;
 
                 return (
                   <button
                     key={date.id}
                     type="button"
+                    disabled={isDisabled}
                     onClick={() =>
                       setState((current) => ({
                         ...current,
@@ -314,7 +306,9 @@ function DateTimeStep({
                     className={`min-w-[5rem] border px-3 py-4 text-center transition-colors sm:min-w-[5.5rem] sm:px-4 ${
                       isSelected
                         ? "border-accent bg-foreground text-background"
-                        : "border-border bg-transparent text-foreground-secondary hover:border-foreground-secondary hover:text-foreground"
+                        : isDisabled
+                          ? "cursor-not-allowed border-border bg-transparent text-foreground-muted opacity-50"
+                          : "border-border bg-transparent text-foreground-secondary hover:border-foreground-secondary hover:text-foreground"
                     }`}
                   >
                     <span className="block font-primary text-[11px] uppercase tracking-[0.26em]">
@@ -325,6 +319,9 @@ function DateTimeStep({
                     </span>
                     <span className="mt-2 block font-primary text-[11px] uppercase tracking-[0.26em]">
                       {date.month}
+                    </span>
+                    <span className="mt-2 block font-primary text-[9px] uppercase tracking-[0.18em]">
+                      {date.isAvailable ? "Available" : "Closed"}
                     </span>
                   </button>
                 );
@@ -338,38 +335,52 @@ function DateTimeStep({
             Available Times
           </p>
 
-          {timeGroups.map((group) => (
-            <div key={group.label} className="space-y-3">
-              <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                {group.label}
+          {!hasAvailableDates ? (
+            <div className="border border-border bg-background px-4 py-5">
+              <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                No booking dates are currently available.
               </p>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
-                {group.slots.map((slot) => {
-                  const isSelected = state.time === slot;
-
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() =>
-                        setState((current) => ({
-                          ...current,
-                          time: slot,
-                        }))
-                      }
-                      className={`min-h-11 border px-3 py-3 font-primary text-xs uppercase tracking-[0.16em] transition-colors sm:px-4 sm:text-sm sm:tracking-[0.18em] ${
-                        isSelected
-                          ? "border-accent bg-foreground text-background"
-                          : "border-border bg-transparent text-foreground-secondary hover:border-foreground-secondary hover:text-foreground"
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
-          ))}
+          ) : timeGroups.length === 0 ? (
+            <div className="border border-border bg-background px-4 py-5">
+              <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                No time slots are available for the selected date and service.
+              </p>
+            </div>
+          ) : (
+            timeGroups.map((group) => (
+              <div key={group.label} className="space-y-3">
+                <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
+                  {group.label}
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
+                  {group.slots.map((slot) => {
+                    const isSelected = state.time === slot;
+
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() =>
+                          setState((current) => ({
+                            ...current,
+                            time: slot,
+                          }))
+                        }
+                        className={`min-h-11 border px-3 py-3 font-primary text-xs uppercase tracking-[0.16em] transition-colors sm:px-4 sm:text-sm sm:tracking-[0.18em] ${
+                          isSelected
+                            ? "border-accent bg-foreground text-background"
+                            : "border-border bg-transparent text-foreground-secondary hover:border-foreground-secondary hover:text-foreground"
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -618,18 +629,22 @@ type BookingSectionClientProps = {
   services: Service[];
   dates: BookingDate[];
   initialTimeGroups: TimeGroup[];
+  loadError: string | null;
 };
 
 export default function BookingSectionClient({
   services,
   dates,
   initialTimeGroups,
+  loadError,
 }: BookingSectionClientProps) {
+  const firstAvailableDateId =
+    dates.find((date) => date.isAvailable)?.id ?? null;
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
   const [state, setState] = useState<BookingState>({
     serviceId: null,
-    dateId: dates[0]?.id ?? null,
+    dateId: firstAvailableDateId,
     time: null,
     firstName: "",
     lastName: "",
@@ -642,10 +657,18 @@ export default function BookingSectionClient({
     services.find((service) => service.id === state.serviceId) ??
     null;
   const selectedDate =
-    dates.find((date) => date.id === state.dateId) ?? dates[0] ?? null;
+    dates.find((date) => date.id === state.dateId) ??
+    dates.find((date) => date.isAvailable) ??
+    null;
   const timeGroups =
-    buildTimeGroups(selectedDate?.businessHour ?? null).length > 0
-      ? buildTimeGroups(selectedDate?.businessHour ?? null)
+    selectedDate && selectedService
+      ? groupTimeSlots(
+          generateSlots(
+            selectedDate.effectiveHours.open_time,
+            selectedDate.effectiveHours.close_time,
+            selectedService.durationMinutes,
+          ),
+        )
       : initialTimeGroups;
 
   const panelContent = useMemo(() => {
@@ -657,7 +680,7 @@ export default function BookingSectionClient({
             setStep(0);
             setState({
               serviceId: null,
-              dateId: dates[0]?.id ?? null,
+              dateId: firstAvailableDateId,
               time: null,
               firstName: "",
               lastName: "",
@@ -706,7 +729,7 @@ export default function BookingSectionClient({
         onNext={() => setConfirmed(true)}
       />
     );
-  }, [confirmed, dates, selectedDate, selectedService, services, state, step, timeGroups]);
+  }, [confirmed, dates, firstAvailableDateId, selectedDate, selectedService, services, state, step, timeGroups]);
 
   return (
     <section id="booking" className="bg-background">
@@ -730,6 +753,32 @@ export default function BookingSectionClient({
 
           <div className="w-full max-w-[620px] xl:justify-self-end">
             <div className="border border-border bg-surface px-4 py-5 sm:px-6 sm:py-7 lg:px-7 lg:py-8">
+              {loadError ? (
+                <div className="border border-border bg-background px-4 py-5">
+                  <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                    {loadError}
+                  </p>
+                </div>
+              ) : null}
+
+              {!loadError && services.length === 0 ? (
+                <div className="border border-border bg-background px-4 py-5">
+                  <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                    No services are available to book right now.
+                  </p>
+                </div>
+              ) : null}
+
+              {!loadError && services.length > 0 && dates.length === 0 ? (
+                <div className="border border-border bg-background px-4 py-5">
+                  <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                    No upcoming booking dates are available right now.
+                  </p>
+                </div>
+              ) : null}
+
+              {!loadError && services.length > 0 && dates.length > 0 ? (
+                <>
               {!confirmed && <BookingProgress step={step} />}
 
               <div className={`${confirmed ? "" : "pt-7 sm:pt-8"}`}>
@@ -745,6 +794,8 @@ export default function BookingSectionClient({
 
                 {panelContent}
               </div>
+                </>
+              ) : null}
             </div>
           </div>
         </div>

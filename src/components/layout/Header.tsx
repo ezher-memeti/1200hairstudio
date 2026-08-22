@@ -1,27 +1,36 @@
 import HeaderClient from "@/components/layout/HeaderClient";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserRole } from "@/lib/auth/customer";
 
-async function getIsAdminUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+type HeaderAuthLink = {
+  label: "LOGIN" | "MY PROFILE" | "ADMIN DASHBOARD";
+  href: "/login" | "/account" | "/admin";
+};
+
+async function getHeaderAuthLink(): Promise<HeaderAuthLink> {
+  const { user, role } = await getCurrentUserRole();
 
   if (!user) {
-    return false;
+    return {
+      label: "LOGIN",
+      href: "/login",
+    };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
+  if (role === "admin") {
+    return {
+      label: "ADMIN DASHBOARD",
+      href: "/admin",
+    };
+  }
 
-  return profile?.role === "admin";
+  return {
+    label: "MY PROFILE",
+    href: "/account",
+  };
 }
 
 export default async function Header() {
-  const isAdminUser = await getIsAdminUser();
+  const authLink = await getHeaderAuthLink();
 
-  return <HeaderClient isAdminUser={isAdminUser} />;
+  return <HeaderClient authLink={authLink} />;
 }
