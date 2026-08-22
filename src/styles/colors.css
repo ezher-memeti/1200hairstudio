@@ -16,6 +16,8 @@
   --error: #b85c5c;
   --font-display: "Bodoni Moda", serif;
   --font-primary: "Manrope", sans-serif;
+  --font-admin-display: "DM Sans", sans-serif;
+  --font-admin-primary: "Manrope", sans-serif;
 }
 
 @theme inline {
@@ -33,4 +35,6 @@
   --color-error: var(--error);
   --font-display: var(--font-display);
   --font-primary: var(--font-primary);
+  --font-admin-display: var(--font-admin-display);
+  --font-admin-primary: var(--font-admin-primary);
 }
