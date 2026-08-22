@@ -1,4 +1,19 @@
-export default function VisitStudio() {
+import { getBusinessHours, getBusinessHourDayLabel, formatBusinessHourRange } from "@/lib/public/business-hours";
+
+const fallbackHours = [
+  { day_of_week: 1, is_closed: false, open_time: "09:00", close_time: "18:00" },
+  { day_of_week: 2, is_closed: false, open_time: "09:00", close_time: "18:00" },
+  { day_of_week: 3, is_closed: false, open_time: "09:00", close_time: "18:00" },
+  { day_of_week: 4, is_closed: false, open_time: "09:00", close_time: "18:00" },
+  { day_of_week: 5, is_closed: false, open_time: "09:00", close_time: "18:00" },
+  { day_of_week: 6, is_closed: false, open_time: "09:00", close_time: "17:00" },
+  { day_of_week: 7, is_closed: true, open_time: null, close_time: null },
+];
+
+export default async function VisitStudio() {
+  const businessHours = await getBusinessHours();
+  const hoursToRender = businessHours.length > 0 ? businessHours : fallbackHours;
+
   return (
     <section id="visit" className="bg-background">
       <div className="page-container page-grid-split items-center py-10 sm:py-12 lg:py-14">
@@ -24,30 +39,30 @@ export default function VisitStudio() {
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-6 border-b border-border pb-3">
-                  <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground">
-                    Mon–Fri
-                  </span>
-                  <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-                    09:00–18:00
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-6 border-b border-border pb-3">
-                  <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground">
-                    Sat
-                  </span>
-                  <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-                    09:00–17:00
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-6">
-                  <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground">
-                    Sun
-                  </span>
-                  <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-muted">
-                    Closed
-                  </span>
-                </div>
+                {hoursToRender.map((hour, index) => {
+                  const isLast = index === hoursToRender.length - 1;
+                  const isClosed = hour.is_closed;
+
+                  return (
+                    <div
+                      key={hour.day_of_week}
+                      className={`flex items-center justify-between gap-6 ${!isLast ? "border-b border-border pb-3" : ""}`}
+                    >
+                      <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground">
+                        {getBusinessHourDayLabel(hour.day_of_week)}
+                      </span>
+                      <span
+                        className={`font-primary text-sm uppercase tracking-[0.22em] ${
+                          isClosed
+                            ? "text-foreground-muted"
+                            : "text-foreground-secondary"
+                        }`}
+                      >
+                        {formatBusinessHourRange(hour)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
