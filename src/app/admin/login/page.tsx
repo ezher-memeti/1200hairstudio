@@ -3,7 +3,7 @@ import { DM_Sans, Manrope } from "next/font/google";
 import LoginForm from "@/components/admin/LoginForm";
 import Footer from "@/components/layout/Footer";
 import Header from "@/components/layout/Header";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserRole } from "@/lib/auth/customer";
 
 const adminDisplayFont = DM_Sans({
   subsets: ["latin"],
@@ -18,13 +18,10 @@ const adminPrimaryFont = Manrope({
 });
 
 export default async function AdminLoginPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, role } = await getCurrentUserRole();
 
   if (user) {
-    redirect("/admin");
+    redirect(role === "admin" ? "/admin" : "/account");
   }
 
   return (

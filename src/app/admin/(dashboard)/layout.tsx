@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { DM_Sans, Manrope } from "next/font/google";
 import AdminShell from "@/components/admin/AdminShell";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/auth/customer";
 
 const adminDisplayFont = DM_Sans({
   subsets: ["latin"],
@@ -18,14 +18,7 @@ const adminPrimaryFont = Manrope({
 export default async function AdminDashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireAdminUser();
 
   return (
     <div

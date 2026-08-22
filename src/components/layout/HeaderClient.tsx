@@ -10,11 +10,14 @@ const navigationLinks = [
 ];
 
 type HeaderClientProps = {
-  isAdminUser: boolean;
+  authLink: {
+    label: "LOGIN" | "MY PROFILE" | "ADMIN DASHBOARD";
+    href: "/login" | "/account" | "/admin";
+  };
 };
 
 export default function HeaderClient({
-  isAdminUser,
+  authLink,
 }: HeaderClientProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -41,14 +44,12 @@ export default function HeaderClient({
               {link.label}
             </a>
           ))}
-          {isAdminUser ? (
-            <a
-              href="/admin"
-              className="text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground lg:text-sm"
-            >
-              Admin Dashboard
-            </a>
-          ) : null}
+          <a
+            href={authLink.href}
+            className="text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground lg:text-sm"
+          >
+            {authLink.label}
+          </a>
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
@@ -96,15 +97,13 @@ export default function HeaderClient({
                 {link.label}
               </a>
             ))}
-            {isAdminUser ? (
-              <a
-                href="/admin"
-                className="rounded-sm px-2 py-3 text-sm uppercase tracking-[0.2em] text-foreground-muted hover:bg-surface hover:text-foreground"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Admin Dashboard
-              </a>
-            ) : null}
+            <a
+              href={authLink.href}
+              className="rounded-sm px-2 py-3 text-sm uppercase tracking-[0.2em] text-foreground-muted hover:bg-surface hover:text-foreground"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              {authLink.label}
+            </a>
             <a
               href="/#booking"
               className="mt-2 inline-flex items-center justify-center border border-border bg-accent px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background hover:bg-accent-hover"
