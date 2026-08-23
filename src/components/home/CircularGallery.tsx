@@ -116,16 +116,20 @@ export default function CircularGallery({
       cloneIndex: number,
       behavior: ScrollBehavior = "smooth",
     ) => {
+      const scroller = scrollRef.current;
       const node = itemRefs.current[cloneIndex];
 
-      if (!node) {
+      if (!scroller || !node) {
         return;
       }
 
-      node.scrollIntoView({
+      const targetLeft =
+        node.offsetLeft -
+        (scroller.clientWidth - node.offsetWidth) / 2;
+
+      scroller.scrollTo({
+        left: Math.max(targetLeft, 0),
         behavior: prefersReducedMotion ? "auto" : behavior,
-        block: "nearest",
-        inline: "center",
       });
     },
     [prefersReducedMotion],
