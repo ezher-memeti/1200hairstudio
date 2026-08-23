@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { CustomerRecord } from "@/lib/customers/types";
+import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors";
 import { createClient } from "@/lib/supabase/server";
 
 export type UserRole = "admin" | "customer" | null;
@@ -9,7 +10,15 @@ export async function getCurrentUserRole() {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+
+  if (error && isStaleRefreshTokenError(error)) {
+    return {
+      user: null as User | null,
+      role: null as UserRole,
+    };
+  }
 
   if (!user) {
     return {
@@ -34,9 +43,10 @@ export async function requireCustomerUser() {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user || (error && isStaleRefreshTokenError(error))) {
     redirect("/login");
   }
 
@@ -64,9 +74,10 @@ export async function requireAdminUser() {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user || (error && isStaleRefreshTokenError(error))) {
     redirect("/admin/login");
   }
 
