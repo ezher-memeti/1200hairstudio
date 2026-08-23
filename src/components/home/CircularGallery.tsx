@@ -25,27 +25,13 @@ type CircularGalleryProps = {
   onInteracted: () => void;
 };
 
-type DisplayItem = WorkItem & {
-  cloneIndex: number;
+type RenderedSlide = WorkItem & {
+  key: string;
   originalIndex: number;
+  isClone: boolean;
 };
 
-const LOOP_SETS = 3;
-const CENTER_SET_INDEX = 1;
-
-function getShortestDistance(value: number, total: number) {
-  const half = total / 2;
-
-  if (value > half) {
-    return value - total;
-  }
-
-  if (value < -half) {
-    return value + total;
-  }
-
-  return value;
-}
+const round = (value: number) => Number(value.toFixed(3));
 
 export default function CircularGallery({
   items,
@@ -53,42 +39,64 @@ export default function CircularGallery({
   onActiveIndexChange,
   onInteracted,
 }: CircularGalleryProps) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const slideRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const scrollFrameRef = useRef<number | null>(null);
+  const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const hasInitializedRef = useRef(false);
-  const lastSettledIndexRef = useRef(activeIndex);
   const metadataTimeoutRef = useRef<number | null>(null);
+  const isCorrectingLoopRef = useRef(false);
+  const activeOriginalIndexRef = useRef(activeIndex);
+  const hasInitializedRef = useRef(false);
+  const isInternalScrollUpdateRef = useRef(false);
+
   const [prefersReducedMotion, setPrefersReducedMotion] =
     useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [sideInset, setSideInset] = useState(0);
-  const [activeCloneIndex, setActiveCloneIndex] = useState(0);
+  const [activeVisualIndex, setActiveVisualIndex] =
+    useState(activeIndex);
   const [scrollerCenter, setScrollerCenter] = useState(0);
   const [cardSpan, setCardSpan] = useState(1);
   const [displayedIndex, setDisplayedIndex] = useState(activeIndex);
   const [metadataPhase, setMetadataPhase] = useState<
     "visible" | "exiting" | "entering"
   >("visible");
-
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
   const totalItems = items.length;
 
-  const displayItems = useMemo<DisplayItem[]>(() => {
-    return Array.from({ length: LOOP_SETS }, (_, setIndex) =>
-      items.map((item, index) => ({
-        ...item,
-        cloneIndex: setIndex * totalItems + index,
-        originalIndex: index,
-      })),
-    ).flat();
-  }, [items, totalItems]);
+  const renderedSlides = useMemo<RenderedSlide[]>(() => {
+    if (items.length === 0) {
+      return [];
+    }
 
-  const getMiddleCloneIndex = useCallback(
-    (index: number) => CENTER_SET_INDEX * totalItems + index,
-    [totalItems],
-  );
+    return [
+      {
+        ...items[items.length - 1],
+        key: `clone-last-${items[items.length - 1].id}`,
+        originalIndex: items.length - 1,
+        isClone: true,
+      },
+      ...items.map((item, index) => ({
+        ...item,
+        key: `real-${item.id}-${index}`,
+        originalIndex: index,
+        isClone: false,
+      })),
+      {
+        ...items[0],
+        key: `clone-first-${items[0].id}`,
+        originalIndex: 0,
+        isClone: true,
+      },
+    ];
+  }, [items]);
 
   useEffect(() => {
+    setHasMounted(true);
+
     const mediaQuery = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     );
@@ -111,21 +119,39 @@ export default function CircularGallery({
     };
   }, []);
 
-  const centerClone = useCallback(
-    (
-      cloneIndex: number,
-      behavior: ScrollBehavior = "smooth",
-    ) => {
-      const scroller = scrollRef.current;
-      const node = itemRefs.current[cloneIndex];
+  const getScrollStep = useCallback(() => {
+    const scroller = scrollerRef.current;
+    const firstSlide = scroller?.firstElementChild as
+      | HTMLElement
+      | null;
 
-      if (!scroller || !node) {
+    if (!scroller || !firstSlide) {
+      return 0;
+    }
+
+    const style = window.getComputedStyle(scroller);
+    const gap = Number.parseFloat(
+      style.columnGap || style.gap || "0",
+    );
+
+    return (
+      firstSlide.offsetWidth +
+      (Number.isFinite(gap) ? gap : 0)
+    );
+  }, []);
+
+  const centerSlide = useCallback(
+    (renderedIndex: number, behavior: ScrollBehavior = "smooth") => {
+      const scroller = scrollerRef.current;
+      const slide = slideRefs.current[renderedIndex];
+
+      if (!scroller || !slide) {
         return;
       }
 
       const targetLeft =
-        node.offsetLeft -
-        (scroller.clientWidth - node.offsetWidth) / 2;
+        slide.offsetLeft -
+        (scroller.clientWidth - slide.offsetWidth) / 2;
 
       scroller.scrollTo({
         left: Math.max(targetLeft, 0),
@@ -135,25 +161,22 @@ export default function CircularGallery({
     [prefersReducedMotion],
   );
 
-  const animateToClone = useCallback(
-    (cloneIndex: number) => {
-      setActiveCloneIndex(cloneIndex);
-      centerClone(cloneIndex, "smooth");
-    },
-    [centerClone],
+  const getRenderedIndexForOriginal = useCallback(
+    (originalIndex: number) => originalIndex + 1,
+    [],
   );
 
-  const measureSideInset = useCallback(() => {
-    const scroller = scrollRef.current;
-    const middleClone = itemRefs.current[getMiddleCloneIndex(0)];
-    const nextMiddleClone = itemRefs.current[getMiddleCloneIndex(1)];
+  const measureLayout = useCallback(() => {
+    const scroller = scrollerRef.current;
+    const firstRealSlide = slideRefs.current[1];
+    const secondRealSlide = slideRefs.current[2];
 
-    if (!scroller || !middleClone) {
+    if (!scroller || !firstRealSlide) {
       return;
     }
 
     const nextInset = Math.max(
-      (scroller.clientWidth - middleClone.offsetWidth) / 2,
+      (scroller.clientWidth - firstRealSlide.offsetWidth) / 2,
       0,
     );
 
@@ -162,117 +185,187 @@ export default function CircularGallery({
       scroller.scrollLeft + scroller.clientWidth / 2,
     );
 
-    if (nextMiddleClone) {
+    if (secondRealSlide) {
       const nextSpan =
-        nextMiddleClone.offsetLeft - middleClone.offsetLeft;
+        secondRealSlide.offsetLeft - firstRealSlide.offsetLeft;
 
       if (nextSpan > 0) {
         setCardSpan(nextSpan);
       }
     }
-  }, [getMiddleCloneIndex]);
+  }, []);
 
-  const recenterIfNeeded = useCallback(() => {
-    const scroller = scrollRef.current;
-    const firstMiddleNode = itemRefs.current[getMiddleCloneIndex(0)];
-    const firstLastSetNode = itemRefs.current[
-      getMiddleCloneIndex(0) + totalItems
-    ];
+  const updateScrollState = useCallback(() => {
+    const scroller = scrollerRef.current;
 
-    if (!scroller || !firstMiddleNode || !firstLastSetNode) {
+    if (!scroller || renderedSlides.length === 0) {
       return;
     }
 
-    const setWidth =
-      firstLastSetNode.offsetLeft - firstMiddleNode.offsetLeft;
-
-    if (setWidth <= 0) {
-      return;
-    }
-
-    const minThreshold = setWidth * 0.5;
-    const maxThreshold = setWidth * 1.5;
-
-    if (scroller.scrollLeft < minThreshold) {
-      scroller.scrollLeft += setWidth;
-    } else if (scroller.scrollLeft > maxThreshold) {
-      scroller.scrollLeft -= setWidth;
-    }
-  }, [getMiddleCloneIndex, totalItems]);
-
-  const updateActiveFromScroll = useCallback(() => {
-    scrollFrameRef.current = null;
-    const scroller = scrollRef.current;
-
-    if (!scroller) {
-      return;
-    }
-
-    recenterIfNeeded();
-
-    const scrollerCenter =
+    const containerCenter =
       scroller.scrollLeft + scroller.clientWidth / 2;
-    setScrollerCenter(scrollerCenter);
-    let closestCloneIndex = activeCloneIndex;
-    let closestDistance = Number.POSITIVE_INFINITY;
 
-    itemRefs.current.forEach((node, index) => {
-      if (!node) {
+    setCanScrollLeft(true);
+    setCanScrollRight(true);
+    setScrollerCenter(containerCenter);
+
+    let closestRenderedIndex = 0;
+    let smallestDistance = Number.POSITIVE_INFINITY;
+
+    slideRefs.current.forEach((slide, index) => {
+      if (!slide) {
         return;
       }
 
-      const cardCenter =
-        node.offsetLeft + node.offsetWidth / 2;
-      const distance = Math.abs(cardCenter - scrollerCenter);
+      const slideCenter =
+        slide.offsetLeft + slide.offsetWidth / 2;
+      const distance = Math.abs(
+        slideCenter - containerCenter,
+      );
 
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestCloneIndex = index;
+      if (distance < smallestDistance) {
+        smallestDistance = distance;
+        closestRenderedIndex = index;
       }
     });
 
-    setActiveCloneIndex(closestCloneIndex);
+    const nextOriginalIndex =
+      renderedSlides[closestRenderedIndex]?.originalIndex ?? 0;
 
-    const nextActiveIndex =
-      closestCloneIndex % totalItems;
+    setActiveVisualIndex(nextOriginalIndex);
 
-    if (lastSettledIndexRef.current !== nextActiveIndex) {
-      lastSettledIndexRef.current = nextActiveIndex;
-      onActiveIndexChange(nextActiveIndex);
+    if (nextOriginalIndex !== activeOriginalIndexRef.current) {
+      activeOriginalIndexRef.current = nextOriginalIndex;
+      isInternalScrollUpdateRef.current = true;
+      onActiveIndexChange(nextOriginalIndex);
     }
-  }, [
-    activeCloneIndex,
-    onActiveIndexChange,
-    recenterIfNeeded,
-    totalItems,
-  ]);
+  }, [onActiveIndexChange, renderedSlides]);
 
-  const handleScroll = useCallback(() => {
-    onInteracted();
+  const handleScrollEnd = useCallback(() => {
+    const scroller = scrollerRef.current;
 
-    if (scrollFrameRef.current !== null) {
-      cancelAnimationFrame(scrollFrameRef.current);
+    if (
+      !scroller ||
+      renderedSlides.length === 0 ||
+      isCorrectingLoopRef.current
+    ) {
+      return;
     }
 
-    scrollFrameRef.current = window.requestAnimationFrame(
-      updateActiveFromScroll,
-    );
-  }, [onInteracted, updateActiveFromScroll]);
+    const containerCenter =
+      scroller.scrollLeft + scroller.clientWidth / 2;
+    let currentRenderedIndex = 0;
+    let smallestDistance = Number.POSITIVE_INFINITY;
 
-  useEffect(() => {
-    const middleIndex = getMiddleCloneIndex(activeIndex);
-    lastSettledIndexRef.current = activeIndex;
+    slideRefs.current.forEach((slide, index) => {
+      if (!slide) {
+        return;
+      }
 
-    if (!hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      setActiveCloneIndex(middleIndex);
+      const slideCenter =
+        slide.offsetLeft + slide.offsetWidth / 2;
+      const distance = Math.abs(
+        slideCenter - containerCenter,
+      );
+
+      if (distance < smallestDistance) {
+        smallestDistance = distance;
+        currentRenderedIndex = index;
+      }
+    });
+
+    if (currentRenderedIndex === 0) {
+      isCorrectingLoopRef.current = true;
+      centerSlide(totalItems, "auto");
       requestAnimationFrame(() => {
-        centerClone(middleIndex, "auto");
+        isCorrectingLoopRef.current = false;
+        setIsScrolling(false);
+        updateScrollState();
       });
       return;
     }
-    animateToClone(middleIndex);
-  }, [activeIndex, animateToClone, centerClone, getMiddleCloneIndex]);
+
+    if (currentRenderedIndex === renderedSlides.length - 1) {
+      isCorrectingLoopRef.current = true;
+      centerSlide(1, "auto");
+      requestAnimationFrame(() => {
+        isCorrectingLoopRef.current = false;
+        setIsScrolling(false);
+        updateScrollState();
+      });
+      return;
+    }
+
+    setIsScrolling(false);
+    updateScrollState();
+  }, [centerSlide, renderedSlides, totalItems, updateScrollState]);
+
+  const handleScroll = useCallback(() => {
+    onInteracted();
+    setIsScrolling(true);
+
+    if (scrollFrameRef.current !== null) {
+      return;
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      updateScrollState();
+    });
+    if (scrollEndTimerRef.current) {
+      clearTimeout(scrollEndTimerRef.current);
+    }
+
+    scrollEndTimerRef.current = setTimeout(() => {
+      handleScrollEnd();
+    }, 160);
+  }, [handleScrollEnd, onInteracted, updateScrollState]);
+
+  const scrollByDirection = useCallback(
+    (direction: "left" | "right") => {
+      const scroller = scrollerRef.current;
+
+      if (!scroller) {
+        return;
+      }
+
+      const step = getScrollStep();
+
+      if (!step) {
+        return;
+      }
+
+      onInteracted();
+      scroller.scrollBy({
+        left: direction === "left" ? -step : step,
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+      });
+    },
+    [getScrollStep, onInteracted, prefersReducedMotion],
+  );
+
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      requestAnimationFrame(() => {
+        centerSlide(getRenderedIndexForOriginal(activeIndex), "auto");
+        activeOriginalIndexRef.current = activeIndex;
+        updateScrollState();
+      });
+      return;
+    }
+
+    if (isInternalScrollUpdateRef.current) {
+      isInternalScrollUpdateRef.current = false;
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      centerSlide(getRenderedIndexForOriginal(activeIndex), "smooth");
+      activeOriginalIndexRef.current = activeIndex;
+      updateScrollState();
+    });
+  }, [activeIndex, centerSlide, getRenderedIndexForOriginal, updateScrollState]);
 
   useEffect(() => {
     if (metadataTimeoutRef.current !== null) {
@@ -312,37 +405,57 @@ export default function CircularGallery({
   }, [activeIndex, displayedIndex, prefersReducedMotion]);
 
   useEffect(() => {
-    measureSideInset();
+    measureLayout();
+    updateScrollState();
 
-    const scroller = scrollRef.current;
+    const scroller = scrollerRef.current;
     if (!scroller || typeof ResizeObserver === "undefined") {
       return;
     }
 
     const observer = new ResizeObserver(() => {
-      measureSideInset();
-      recenterIfNeeded();
+      measureLayout();
+      updateScrollState();
     });
 
     resizeObserverRef.current = observer;
     observer.observe(scroller);
 
-    itemRefs.current.forEach((node) => {
-      if (node) {
-        observer.observe(node);
+    slideRefs.current.forEach((slide) => {
+      if (slide) {
+        observer.observe(slide);
       }
     });
+
+    const handleResize = () => {
+      measureLayout();
+      updateScrollState();
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener(
+      "orientationchange",
+      handleResize,
+    );
 
     return () => {
       observer.disconnect();
       resizeObserverRef.current = null;
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener(
+        "orientationchange",
+        handleResize,
+      );
     };
-  }, [displayItems.length, measureSideInset, recenterIfNeeded]);
+  }, [measureLayout, renderedSlides.length, updateScrollState]);
 
   useEffect(() => {
     return () => {
       if (scrollFrameRef.current !== null) {
         cancelAnimationFrame(scrollFrameRef.current);
+      }
+      if (scrollEndTimerRef.current !== null) {
+        clearTimeout(scrollEndTimerRef.current);
       }
 
       if (metadataTimeoutRef.current !== null) {
@@ -351,34 +464,13 @@ export default function CircularGallery({
     };
   }, []);
 
-  const stepBy = useCallback(
-    (direction: -1 | 1) => {
-      const targetCloneIndex = activeCloneIndex + direction;
-      const targetIndex =
-        ((targetCloneIndex % totalItems) + totalItems) %
-        totalItems;
-
-      onInteracted();
-      setActiveCloneIndex(targetCloneIndex);
-      animateToClone(targetCloneIndex);
-      onActiveIndexChange(targetIndex);
-    },
-    [
-      activeCloneIndex,
-      animateToClone,
-      onActiveIndexChange,
-      onInteracted,
-      totalItems,
-    ],
-  );
-
   const goToPrevious = useCallback(() => {
-    stepBy(-1);
-  }, [stepBy]);
+    scrollByDirection("left");
+  }, [scrollByDirection]);
 
   const goToNext = useCallback(() => {
-    stepBy(1);
-  }, [stepBy]);
+    scrollByDirection("right");
+  }, [scrollByDirection]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -396,37 +488,36 @@ export default function CircularGallery({
   );
 
   const galleryCards = useMemo(() => {
-    return displayItems.map((item) => {
-      const node = itemRefs.current[item.cloneIndex];
+    return renderedSlides.map((item, renderedIndex) => {
+      const visualIndex = item.originalIndex;
+      const slide = slideRefs.current[renderedIndex];
       const fallbackDistance = Math.abs(
-        getShortestDistance(
-          item.cloneIndex - activeCloneIndex,
-          displayItems.length,
-        ),
+        visualIndex - activeVisualIndex,
       );
       const centerDistance =
-        node && scrollerCenter > 0
-          ? (node.offsetLeft + node.offsetWidth / 2 - scrollerCenter) /
+        hasMounted && slide && scrollerCenter > 0
+          ? (slide.offsetLeft + slide.offsetWidth / 2 - scrollerCenter) /
             Math.max(cardSpan, 1)
           : fallbackDistance;
       const absolute = Math.abs(centerDistance);
       const clampedDistance = Math.min(absolute, 2.4);
       const proximity = Math.max(0, 1 - clampedDistance / 2.4);
       const easedProximity = 1 - Math.pow(1 - proximity, 2.1);
-      const translateY =
-        Math.pow(1 - easedProximity, 1.35) * 46;
-      const scale = 0.78 + easedProximity * 0.22;
-      const opacity = 0.4 + easedProximity * 0.6;
-      const blur = prefersReducedMotion
-        ? 0
-        : (1 - easedProximity) * 3;
-      const rotateY = Math.max(
-        -8,
-        Math.min(8, centerDistance * -5),
+      const translateY = round(
+        Math.pow(1 - easedProximity, 1.35) * 46,
       );
-      const translateX = Math.max(
-        -10,
-        Math.min(10, centerDistance * -6),
+      const scale = round(0.78 + easedProximity * 0.22);
+      const opacity = round(0.4 + easedProximity * 0.6);
+      const blur = round(
+        prefersReducedMotion || isScrolling
+          ? 0
+          : (1 - easedProximity) * 1.5,
+      );
+      const rotateY = round(
+        Math.max(-8, Math.min(8, centerDistance * -5)),
+      );
+      const translateX = round(
+        Math.max(-10, Math.min(10, centerDistance * -6)),
       );
       const zIndex = 40 + Math.round(easedProximity * 60);
 
@@ -439,14 +530,18 @@ export default function CircularGallery({
           zIndex,
           transition: prefersReducedMotion
             ? "none"
-            : "transform 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease, filter 420ms ease",
+            : isScrolling
+              ? "none"
+              : "transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease, filter 180ms ease",
         },
       };
     });
   }, [
-    activeCloneIndex,
+    activeVisualIndex,
     cardSpan,
-    displayItems,
+    hasMounted,
+    isScrolling,
+    renderedSlides,
     prefersReducedMotion,
     scrollerCenter,
   ]);
@@ -461,43 +556,44 @@ export default function CircularGallery({
         onKeyDown={handleKeyDown}
       >
         <div
-          ref={scrollRef}
-          className="flex h-[22rem] touch-pan-y items-center overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-none select-none [scrollbar-width:none] [-ms-overflow-style:none] min-[390px]:h-[24rem] sm:h-[28rem] md:h-[31rem] lg:h-[34rem] xl:h-[36rem]"
+          ref={scrollerRef}
           onScroll={handleScroll}
+          className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
           style={{
             paddingInline: `${sideInset}px`,
             scrollbarWidth: "none",
-            msOverflowStyle: "none",
+            scrollBehavior: prefersReducedMotion ? "auto" : "smooth",
           }}
         >
-          {galleryCards.map((item) => (
+          {galleryCards.map((item, renderedIndex) => (
             <button
-              key={`${item.cloneIndex}-${item.id}`}
+              key={item.key}
               ref={(node) => {
-                itemRefs.current[item.cloneIndex] = node;
+                slideRefs.current[renderedIndex] = node;
               }}
               type="button"
               onClick={() => {
                 onInteracted();
-                animateToClone(item.cloneIndex);
+                setIsScrolling(true);
+                isInternalScrollUpdateRef.current = true;
+                centerSlide(renderedIndex, "smooth");
                 onActiveIndexChange(item.originalIndex);
               }}
-              className="flex-none px-2 text-left [transform-style:preserve-3d] [will-change:transform,opacity,filter] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:px-4"
+              className="snap-center flex-none px-2 text-left [transform-style:preserve-3d] [will-change:transform,opacity,filter] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:px-3 lg:px-4"
               aria-pressed={item.originalIndex === activeIndex}
               aria-label={`${item.id} ${item.title}`}
               style={item.style}
             >
-              <div className="w-[74vw] min-w-[220px] max-w-[400px] overflow-hidden rounded-[0.35rem] bg-surface sm:w-[56vw] md:w-[42vw] lg:w-[34vw] lg:max-w-[400px]">
+              <div className="w-[82vw] min-w-[82vw] max-w-[420px] overflow-hidden rounded-[0.35rem] bg-surface sm:w-[380px] sm:min-w-[380px] lg:w-[420px] lg:min-w-[420px]">
                 <div className="relative aspect-[4/5] w-full">
                   <Image
                     src={item.image}
                     alt={item.title}
                     fill
-                    sizes="(min-width: 1024px) 400px, (min-width: 768px) 42vw, 78vw"
+                    sizes="(min-width: 1024px) 420px, (min-width: 640px) 380px, 82vw"
                     className="pointer-events-none object-cover [-webkit-user-drag:none]"
                     priority={
-                      item.originalIndex === activeIndex &&
-                      item.cloneIndex === activeCloneIndex
+                      renderedIndex === getRenderedIndexForOriginal(activeIndex)
                     }
                     draggable={false}
                   />
@@ -537,11 +633,11 @@ export default function CircularGallery({
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-6 pt-1 sm:gap-8">
+        <div className="relative z-20 flex items-center justify-center gap-6 pt-1 sm:gap-8">
           <button
             type="button"
             onClick={goToPrevious}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+            className="inline-flex min-h-12 min-w-12 touch-manipulation items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-foreground-secondary"
             aria-label="Previous work"
           >
             ←
@@ -549,7 +645,7 @@ export default function CircularGallery({
           <button
             type="button"
             onClick={goToNext}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+            className="inline-flex min-h-12 min-w-12 touch-manipulation items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-foreground-secondary"
             aria-label="Next work"
           >
             →
