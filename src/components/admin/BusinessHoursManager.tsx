@@ -212,7 +212,7 @@ export default function BusinessHoursManager({
     <section className="space-y-8">
       <div className="space-y-4">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Settings
+          Site Settings
         </p>
         <div className="space-y-2">
           <h1 className="font-display text-[clamp(2.2rem,5vw,4.25rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">

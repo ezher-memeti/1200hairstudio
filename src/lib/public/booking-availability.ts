@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 
-export { generateSlots, generateUpcomingBookingDates, getEffectiveHours, getServiceBookingDuration, groupTimeSlots } from "@/lib/public/booking-availability-utils";
+export { buildNextAvailabilityPreview, filterPastSlots, findNextAvailableDate, generateSlots, generateUpcomingBookingDates, getCurrentZurichDateTime, getEffectiveHours, getServiceBookingDuration, groupTimeSlots } from "@/lib/public/booking-availability-utils";
 
 export async function getAvailabilityExceptions(dateFrom?: string, dateTo?: string) {
   const supabase = await createClient();

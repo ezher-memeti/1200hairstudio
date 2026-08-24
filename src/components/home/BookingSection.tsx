@@ -4,16 +4,22 @@ import {
   generateSlots,
   generateUpcomingBookingDates,
   getAvailabilityExceptions,
+  getCurrentZurichDateTime,
   getServiceBookingDuration,
   groupTimeSlots,
 } from "@/lib/public/booking-availability";
 import { formatServiceDuration, formatServicePrice, getActiveServices } from "@/lib/public/services";
 
 export default async function BookingSection() {
+  const currentZurich = getCurrentZurichDateTime();
+  const horizonDate = new Date(currentZurich.date);
+  horizonDate.setDate(horizonDate.getDate() + 30);
+  const dateTo = `${horizonDate.getFullYear()}-${String(horizonDate.getMonth() + 1).padStart(2, "0")}-${String(horizonDate.getDate()).padStart(2, "0")}`;
+
   const [services, businessHours, availabilityExceptions] = await Promise.all([
     getActiveServices(),
     getBusinessHours(),
-    getAvailabilityExceptions("2026-08-22", "2026-09-21"),
+    getAvailabilityExceptions(currentZurich.dateKey, dateTo),
   ]);
   const loadError =
     services.length === 0 && businessHours.length === 0
@@ -32,7 +38,7 @@ export default async function BookingSection() {
     businessHours,
     availabilityExceptions,
     {
-      startDate: new Date("2026-08-22T12:00:00"),
+      startDate: currentZurich.date,
       count: 10,
       horizonDays: 30,
     },

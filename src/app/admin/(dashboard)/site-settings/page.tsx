@@ -1,11 +1,5 @@
-import PlaceholderPage from "@/components/admin/PlaceholderPage";
+import { redirect } from "next/navigation";
 
-export default function AdminSiteSettingsPage() {
-  return (
-    <PlaceholderPage
-      label="Site Settings"
-      title="Site Settings"
-      description="Website content controls for Hero, Gallery, Announcements, and other public-facing sections will be added here."
-    />
-  );
+export default function AdminSiteSettingsIndexPage() {
+  redirect("/admin/site-settings/services");
 }

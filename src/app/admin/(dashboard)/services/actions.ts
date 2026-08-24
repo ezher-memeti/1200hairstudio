@@ -361,6 +361,7 @@ export async function upsertService(formData: FormData) {
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);
@@ -384,6 +385,7 @@ export async function toggleServiceVisibility(
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);
@@ -417,6 +419,7 @@ export async function updateServiceOrder(
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);
@@ -449,6 +452,7 @@ export async function removeService(id: string) {
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);

@@ -105,6 +105,7 @@ export async function updateBusinessHours(
     }
 
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/site-settings/business-hours");
     return { error: null };
   } catch (error) {
     return toActionError(error);
