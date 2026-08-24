@@ -35,15 +35,6 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function logCalendarDebug(
-  stage: string,
-  details: Record<string, unknown>,
-) {
-  console.error("[admin/calendar]", {
-    stage,
-    ...details,
-  });
-}
 
 async function requireAdminClient() {
   const supabase = await createClient();
@@ -53,11 +44,6 @@ async function requireAdminClient() {
   } = await supabase.auth.getUser();
 
   if (userError) {
-    logCalendarDebug("auth.getUser.failed", {
-      code: userError.code,
-      message: userError.message,
-      status: userError.status,
-    });
     throw new Error("Unauthorized");
   }
 
@@ -72,18 +58,6 @@ async function requireAdminClient() {
     .maybeSingle();
 
   if (profileError || !profile || profile.role !== "admin") {
-    logCalendarDebug("profiles.lookup.failed", {
-      userId: user.id,
-      profile,
-      profileError: profileError
-        ? {
-            code: profileError.code,
-            message: profileError.message,
-            details: profileError.details,
-            hint: profileError.hint,
-          }
-        : null,
-    });
     throw new Error("Unauthorized");
   }
 
@@ -134,13 +108,6 @@ export async function saveAvailabilityException(
         .eq("date", input.date);
 
       if (error) {
-        logCalendarDebug("availability_exceptions.delete.failed", {
-          date: input.date,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
         return { error: error.message, exception: null };
       }
 
@@ -165,13 +132,6 @@ export async function saveAvailabilityException(
       .single();
 
     if (error) {
-      logCalendarDebug("availability_exceptions.upsert.failed", {
-        values,
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
       return { error: error.message, exception: null };
     }
 
@@ -238,15 +198,6 @@ export async function closeAvailabilityDateRange(
       .select("*");
 
     if (error) {
-      logCalendarDebug("availability_exceptions.range_upsert.failed", {
-        startDate: input.start_date,
-        endDate: input.end_date,
-        count: values.length,
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
       return {
         error: error.message,
         exceptions: [] as AvailabilityExceptionRecord[],

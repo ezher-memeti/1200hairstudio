@@ -50,15 +50,6 @@ function extractStoragePath(imageUrl: string | null | undefined) {
   }
 }
 
-function logAdminAuthDebug(
-  stage: string,
-  details: Record<string, unknown>,
-) {
-  console.error("[site-settings admin auth]", {
-    stage,
-    ...details,
-  });
-}
 
 async function requireAdminClient() {
   const supabase = await createClient();
@@ -68,16 +59,10 @@ async function requireAdminClient() {
   } = await supabase.auth.getUser();
 
   if (userError) {
-    logAdminAuthDebug("auth.getUser.failed", {
-      code: userError.code,
-      message: userError.message,
-      status: userError.status,
-    });
     throw new Error("Unauthorized");
   }
 
   if (!user) {
-    logAdminAuthDebug("auth.user.missing", {});
     throw new Error("Unauthorized");
   }
 
@@ -87,52 +72,19 @@ async function requireAdminClient() {
     .eq("id", user.id)
     .maybeSingle();
 
-  logAdminAuthDebug("profiles.lookup.result", {
-    userId: user.id,
-    profile,
-    profileError: profileError
-      ? {
-          code: profileError.code,
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint,
-        }
-      : null,
-  });
-
   if (profileError) {
-    logAdminAuthDebug("profiles.lookup.failed", {
-      userId: user.id,
-      code: profileError.code,
-      message: profileError.message,
-      details: profileError.details,
-      hint: profileError.hint,
-    });
     throw new Error("Unauthorized");
   }
 
   if (!profile) {
-    logAdminAuthDebug("profiles.lookup.empty", {
-      userId: user.id,
-      note:
-        "No profile row was returned. Confirm public.profiles.id matches auth.users.id and that RLS allows users to read their own profile row.",
-    });
     throw new Error("Unauthorized");
   }
 
   if (profile.id !== user.id) {
-    logAdminAuthDebug("profiles.lookup.mismatch", {
-      userId: user.id,
-      profileId: profile.id,
-    });
     throw new Error("Unauthorized");
   }
 
   if (profile.role !== "admin") {
-    logAdminAuthDebug("profiles.lookup.not-admin", {
-      userId: user.id,
-      role: profile.role,
-    });
     throw new Error("Unauthorized");
   }
 
@@ -223,19 +175,6 @@ export async function upsertService(formData: FormData) {
       .toString()
       .trim();
     const imageFileEntry = formData.get("image");
-
-    logAdminAuthDebug("services.upsert.auth-context", {
-      userId: user?.id ?? null,
-      userError: userError
-        ? {
-            code: userError.code,
-            message: userError.message,
-            status: userError.status,
-          }
-        : null,
-      mode: id ? "update" : "insert",
-      serviceName: name,
-    });
 
     if (!name) {
       return { error: "Service name is required." };
@@ -339,15 +278,6 @@ export async function upsertService(formData: FormData) {
     const { error } = await query;
 
     if (error) {
-      logAdminAuthDebug("services.upsert.query.error", {
-        userId: user?.id ?? null,
-        mode: id ? "update" : "insert",
-        values,
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
       return { error: error.message };
     }
 
@@ -361,6 +291,7 @@ export async function upsertService(formData: FormData) {
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);
@@ -384,6 +315,7 @@ export async function toggleServiceVisibility(
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);
@@ -403,20 +335,13 @@ export async function updateServiceOrder(
         .eq("id", serviceId);
 
       if (error) {
-        logAdminAuthDebug("services.reorder.query.error", {
-          serviceId,
-          sortOrder: index + 1,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
         return { error: error.message };
       }
     }
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);
@@ -449,6 +374,7 @@ export async function removeService(id: string) {
 
     revalidatePath("/");
     revalidatePath("/admin/services");
+    revalidatePath("/admin/site-settings/services");
     return { error: null };
   } catch (error) {
     return toActionError(error);

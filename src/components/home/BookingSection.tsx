@@ -1,19 +1,25 @@
 import BookingSectionClient from "@/components/home/BookingSectionClient";
 import { getBusinessHours } from "@/lib/public/business-hours";
 import {
+  addDaysToDateKey,
   generateSlots,
   generateUpcomingBookingDates,
   getAvailabilityExceptions,
+  getCurrentZurichDateTime,
   getServiceBookingDuration,
   groupTimeSlots,
+  serializeZurichDateTime,
 } from "@/lib/public/booking-availability";
 import { formatServiceDuration, formatServicePrice, getActiveServices } from "@/lib/public/services";
 
 export default async function BookingSection() {
+  const currentZurich = getCurrentZurichDateTime();
+  const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
+
   const [services, businessHours, availabilityExceptions] = await Promise.all([
     getActiveServices(),
     getBusinessHours(),
-    getAvailabilityExceptions("2026-08-22", "2026-09-21"),
+    getAvailabilityExceptions(currentZurich.dateKey, dateTo),
   ]);
   const loadError =
     services.length === 0 && businessHours.length === 0
@@ -32,7 +38,7 @@ export default async function BookingSection() {
     businessHours,
     availabilityExceptions,
     {
-      startDate: new Date("2026-08-22T12:00:00"),
+      startDate: currentZurich.dateKey,
       count: 10,
       horizonDays: 30,
     },
@@ -47,6 +53,10 @@ export default async function BookingSection() {
             firstAvailableDate.effectiveHours.open_time,
             firstAvailableDate.effectiveHours.close_time,
             firstService.durationMinutes,
+            {
+              dateKey: firstAvailableDate.id,
+              currentDateTime: currentZurich,
+            },
           ),
         )
       : [];
@@ -56,6 +66,7 @@ export default async function BookingSection() {
       services={bookingServices}
       dates={bookingDates}
       initialTimeGroups={initialTimeGroups}
+      currentZurich={serializeZurichDateTime(currentZurich)}
       loadError={loadError}
     />
   );

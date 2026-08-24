@@ -29,6 +29,8 @@ const monthLong = [
   "December",
 ] as const;
 
+const ZURICH_TIME_ZONE = "Europe/Zurich";
+
 export type EffectiveHours = {
   date: string;
   day_of_week: number;
@@ -54,6 +56,98 @@ export type TimeGroup = {
   slots: string[];
 };
 
+export type ZurichDateTimeInfo = {
+  year: number;
+  month: number;
+  day: number;
+  weekday: number;
+  hours: number;
+  minutes: number;
+  dateKey: string;
+  date: Date;
+};
+
+export type SerializedZurichDateTimeInfo = Omit<ZurichDateTimeInfo, "date">;
+
+export type NextAvailabilityPreview = {
+  dateKey: string;
+  label: "TODAY" | "TOMORROW" | string;
+  weekday: string;
+  dayNumber: string;
+  month: string;
+  year: string;
+  fullDateLabel: string;
+  status: string;
+  slots: string[];
+  effectiveHours: EffectiveHours;
+};
+
+function getZurichParts(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZURICH_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short",
+  });
+
+  const parts = formatter.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  const weekdayToken = get("weekday").toLowerCase();
+  const weekdayMap: Record<string, number> = {
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
+    sun: 7,
+  };
+
+  return {
+    year: Number(get("year")),
+    month: Number(get("month")),
+    day: Number(get("day")),
+    hours: Number(get("hour")),
+    minutes: Number(get("minute")),
+    weekday: weekdayMap[weekdayToken] ?? 1,
+  };
+}
+
+export function getCurrentZurichDateTime(date = new Date()): ZurichDateTimeInfo {
+  const parts = getZurichParts(date);
+  const zonedDate = createDateAtNoon(parts.year, parts.month - 1, parts.day);
+
+  return {
+    ...parts,
+    dateKey: toDateKey(zonedDate),
+    date: zonedDate,
+  };
+}
+
+export function serializeZurichDateTime(
+  value: ZurichDateTimeInfo,
+): SerializedZurichDateTimeInfo {
+  const { date: _date, ...serialized } = value;
+  return serialized;
+}
+
+export function hydrateZurichDateTime(
+  value: SerializedZurichDateTimeInfo,
+): ZurichDateTimeInfo {
+  const zonedDate = createDateAtNoon(value.year, value.month - 1, value.day);
+
+  return {
+    ...value,
+    date: zonedDate,
+  };
+}
+
 export function createDateAtNoon(year: number, monthIndex: number, day: number) {
   return new Date(year, monthIndex, day, 12, 0, 0, 0);
 }
@@ -73,6 +167,22 @@ export function toDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+export function addDaysToDateKey(dateKey: string, days: number) {
+  const date = parseDateKey(dateKey);
+
+  if (!date) {
+    throw new Error("Invalid Zurich date key.");
+  }
+
+  const nextDate = createDateAtNoon(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + days,
+  );
+
+  return toDateKey(nextDate);
 }
 
 export function getWeekdayNumber(date: Date) {
@@ -135,7 +245,7 @@ export function generateUpcomingBookingDates(
   businessHours: BusinessHourRecord[],
   exceptions: AvailabilityExceptionRecord[],
   options?: {
-    startDate?: Date;
+    startDate?: string;
     count?: number;
     horizonDays?: number;
   },
@@ -144,7 +254,8 @@ export function generateUpcomingBookingDates(
     exceptions.map((exception) => [exception.date, exception]),
   );
   const dates: BookingDateOption[] = [];
-  const startDate = options?.startDate ?? new Date("2026-08-22T12:00:00");
+  const startDateKey = options?.startDate ?? getCurrentZurichDateTime().dateKey;
+  const startDate = parseDateKey(startDateKey) ?? getCurrentZurichDateTime().date;
   const count = options?.count ?? 10;
   const horizonDays = options?.horizonDays ?? 30;
 
@@ -189,6 +300,10 @@ export function generateSlots(
   openTime: string | null,
   closeTime: string | null,
   serviceDuration: number,
+  options?: {
+    dateKey?: string;
+    currentDateTime?: ZurichDateTimeInfo;
+  },
 ) {
   if (!openTime || !closeTime || serviceDuration <= 0) {
     return [] as string[];
@@ -212,7 +327,193 @@ export function generateSlots(
     slots.push(`${String(hourPart).padStart(2, "0")}:${String(minutePart).padStart(2, "0")}`);
   }
 
-  return slots;
+  if (!options?.dateKey) {
+    return slots;
+  }
+
+  const currentZurich = options.currentDateTime ?? getCurrentZurichDateTime();
+  return filterPastSlots(slots, options.dateKey, currentZurich);
+}
+
+export function filterPastSlots(
+  slots: string[],
+  dateKey: string,
+  currentZurich: ZurichDateTimeInfo,
+) {
+  if (dateKey !== currentZurich.dateKey) {
+    return slots;
+  }
+
+  const currentMinutes = currentZurich.hours * 60 + currentZurich.minutes;
+
+  return slots.filter((slot) => {
+    const [hoursPart, minutesPart] = slot.split(":").map(Number);
+    return hoursPart * 60 + minutesPart > currentMinutes;
+  });
+}
+
+export function findNextAvailableDate(
+  businessHours: BusinessHourRecord[],
+  exceptions: AvailabilityExceptionRecord[],
+  serviceDuration: number,
+  options?: {
+    startDate?: string;
+    horizonDays?: number;
+    currentDateTime?: ZurichDateTimeInfo;
+  },
+) {
+  const exceptionsByDate = new Map(
+    exceptions.map((exception) => [exception.date, exception]),
+  );
+  const currentZurich = options?.currentDateTime ?? getCurrentZurichDateTime();
+  const startDateKey = options?.startDate ?? currentZurich.dateKey;
+  const startDate = parseDateKey(startDateKey) ?? currentZurich.date;
+  const horizonDays = options?.horizonDays ?? 30;
+
+  for (let offset = 0; offset < horizonDays; offset += 1) {
+    const nextDate = createDateAtNoon(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate() + offset,
+    );
+    const effectiveHours = getEffectiveHours(nextDate, businessHours, exceptionsByDate);
+
+    if (effectiveHours.is_closed || !effectiveHours.open_time || !effectiveHours.close_time) {
+      continue;
+    }
+
+    const rawSlots = generateSlots(
+      effectiveHours.open_time,
+      effectiveHours.close_time,
+      serviceDuration,
+      {
+        dateKey: effectiveHours.date,
+        currentDateTime: currentZurich,
+      },
+    );
+    const availableSlots = rawSlots;
+
+    if (availableSlots.length > 0) {
+      return {
+        date: nextDate,
+        effectiveHours,
+        slots: availableSlots,
+      };
+    }
+  }
+
+  return null;
+}
+
+export function getAvailabilityStatus(
+  effectiveHours: EffectiveHours,
+  currentZurich: ZurichDateTimeInfo,
+  referenceDateKey: string,
+) {
+  const closeTime = formatBusinessHourTime(effectiveHours.close_time);
+  const openTime = formatBusinessHourTime(effectiveHours.open_time);
+
+  if (effectiveHours.date === currentZurich.dateKey) {
+    if (effectiveHours.is_closed || !closeTime) {
+      return "CLOSED TODAY";
+    }
+
+    return `OPEN TODAY · UNTIL ${closeTime}`;
+  }
+
+  if (referenceDateKey !== currentZurich.dateKey && effectiveHours.date !== currentZurich.dateKey) {
+    const tomorrowDate = createDateAtNoon(
+      currentZurich.date.getFullYear(),
+      currentZurich.date.getMonth(),
+      currentZurich.date.getDate() + 1,
+    );
+
+    if (effectiveHours.date === toDateKey(tomorrowDate) && openTime) {
+      return `OPENS TOMORROW · ${openTime}`;
+    }
+  }
+
+  return closeTime ? `OPEN · UNTIL ${closeTime}` : "NO AVAILABILITY";
+}
+
+export function getRelativeDateLabel(
+  targetDate: Date,
+  currentZurich: ZurichDateTimeInfo,
+) {
+  const differenceInDays = Math.round(
+    (createDateAtNoon(
+      targetDate.getFullYear(),
+      targetDate.getMonth(),
+      targetDate.getDate(),
+    ).getTime() - currentZurich.date.getTime()) /
+      (1000 * 60 * 60 * 24),
+  );
+
+  if (differenceInDays === 0) {
+    return "TODAY";
+  }
+
+  if (differenceInDays === 1) {
+    return "TOMORROW";
+  }
+
+  return weekdayLong[getWeekdayNumber(targetDate) - 1].toUpperCase();
+}
+
+export function buildNextAvailabilityPreview(
+  businessHours: BusinessHourRecord[],
+  exceptions: AvailabilityExceptionRecord[],
+  services: Pick<ServiceRecord, "duration_min" | "is_active">[],
+  options?: {
+    currentDateTime?: ZurichDateTimeInfo;
+    horizonDays?: number;
+    visibleSlotsCount?: number;
+  },
+): NextAvailabilityPreview | null {
+  const activeServices = services.filter((service) => service.is_active);
+  const previewService = activeServices[0] ?? null;
+
+  if (!previewService) {
+    return null;
+  }
+
+  const currentZurich = options?.currentDateTime ?? getCurrentZurichDateTime();
+  const nextAvailable = findNextAvailableDate(
+    businessHours,
+    exceptions,
+    getServiceBookingDuration(previewService),
+    {
+      startDate: currentZurich.dateKey,
+      horizonDays: options?.horizonDays ?? 30,
+      currentDateTime: currentZurich,
+    },
+  );
+
+  if (!nextAvailable) {
+    return null;
+  }
+
+  const visibleSlots = nextAvailable.slots.slice(0, options?.visibleSlotsCount ?? 3);
+  const weekday = getWeekdayNumber(nextAvailable.date);
+  const dayNumber = String(nextAvailable.date.getDate()).padStart(2, "0");
+  const monthIndex = nextAvailable.date.getMonth();
+
+  return {
+    dateKey: nextAvailable.effectiveHours.date,
+    label: getRelativeDateLabel(nextAvailable.date, currentZurich),
+    weekday: weekdayLong[weekday - 1].toUpperCase(),
+    dayNumber,
+    month: monthLong[monthIndex].toUpperCase(),
+    year: String(nextAvailable.date.getFullYear()),
+    fullDateLabel: `${weekdayLong[weekday - 1].toUpperCase()}, ${dayNumber} ${monthLong[monthIndex].toUpperCase()} ${nextAvailable.date.getFullYear()}`,
+    status: getAvailabilityStatus(
+      nextAvailable.effectiveHours,
+      currentZurich,
+      nextAvailable.effectiveHours.date,
+    ),
+    slots: visibleSlots,
+    effectiveHours: nextAvailable.effectiveHours,
+  };
 }
 
 export function groupTimeSlots(slots: string[]) {

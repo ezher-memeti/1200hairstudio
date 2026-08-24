@@ -17,23 +17,6 @@ export default async function AdminCalendarPage() {
         .order("date", { ascending: true }),
     ]);
 
-  if (hoursError) {
-    console.error("[admin/calendar] business_hours.query.error", {
-      code: hoursError.code,
-      message: hoursError.message,
-      details: hoursError.details,
-      hint: hoursError.hint,
-    });
-  }
-
-  if (exceptionsError) {
-    console.error("[admin/calendar] availability_exceptions.query.error", {
-      code: exceptionsError.code,
-      message: exceptionsError.message,
-      details: exceptionsError.details,
-      hint: exceptionsError.hint,
-    });
-  }
 
   const loadError = hoursError
     ? `Business hours query failed: ${hoursError.message}${hoursError.code ? ` [${hoursError.code}]` : ""}`

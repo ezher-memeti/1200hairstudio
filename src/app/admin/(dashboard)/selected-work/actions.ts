@@ -1,0 +1,354 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import {
+  acceptedSelectedWorkImageTypes,
+  maxSelectedWorkImageBytes,
+} from "@/config/selected-work-ui";
+import { SELECTED_WORK_IMAGE_BUCKET } from "@/config/selected-work-storage";
+
+const ACCEPTED_IMAGE_TYPES = new Set<string>(acceptedSelectedWorkImageTypes);
+
+function sanitizeFileNameSegment(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function resolveStorageObjectPath(imageReference: string | null | undefined) {
+  const normalizedReference = imageReference?.trim();
+
+  if (!normalizedReference) {
+    return null;
+  }
+
+  if (!normalizedReference.startsWith("http://") && !normalizedReference.startsWith("https://")) {
+    return normalizedReference;
+  }
+
+  try {
+    const url = new URL(normalizedReference);
+    const marker = `/object/public/${SELECTED_WORK_IMAGE_BUCKET}/`;
+    const markerIndex = url.pathname.indexOf(marker);
+
+    if (markerIndex === -1) {
+      return null;
+    }
+
+    return decodeURIComponent(
+      url.pathname.slice(markerIndex + marker.length),
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function requireAdminClient() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw new Error("Unauthorized");
+  }
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile || profile.id !== user.id || profile.role !== "admin") {
+    throw new Error("Unauthorized");
+  }
+
+  return supabase;
+}
+
+function toActionError(error: unknown) {
+  if (error instanceof Error) {
+    return { error: error.message };
+  }
+
+  return { error: "Unexpected server error." };
+}
+
+async function uploadSelectedWorkImage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  file: File,
+  title: string,
+) {
+  if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Use a JPG, JPEG, PNG, or WebP image.");
+  }
+
+  if (file.size > maxSelectedWorkImageBytes) {
+    throw new Error("Image must be 8 MB or smaller.");
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const filePath = `selected-work/${sanitizeFileNameSegment(title) || "selected-work"}-${crypto.randomUUID()}.${extension}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error: uploadError } = await supabase.storage
+    .from(SELECTED_WORK_IMAGE_BUCKET)
+    .upload(filePath, arrayBuffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage
+    .from(SELECTED_WORK_IMAGE_BUCKET)
+    .getPublicUrl(filePath);
+
+  return { path: filePath, publicUrl };
+}
+
+async function removeStoredImage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  imageReference: string | null | undefined,
+) {
+  const normalizedReference = imageReference?.trim();
+
+  if (!normalizedReference) {
+    return;
+  }
+
+  const filePath = resolveStorageObjectPath(normalizedReference);
+
+  if (!filePath) {
+    throw new Error("Unable to determine the Selected Work storage path.");
+  }
+
+  const normalizedPath = filePath.replace(/^\/+/, "");
+
+  const { data: objectExists, error: existsError } = await supabase.storage
+    .from(SELECTED_WORK_IMAGE_BUCKET)
+    .exists(normalizedPath);
+
+  if (existsError) {
+    throw new Error(existsError.message);
+  }
+
+  if (!objectExists) {
+    throw new Error(
+      `Selected Work image was not found in storage: ${normalizedPath}`,
+    );
+  }
+
+  const { data: removedFiles, error: removeError } = await supabase.storage
+    .from(SELECTED_WORK_IMAGE_BUCKET)
+    .remove([normalizedPath]);
+
+  if (removeError) {
+    throw new Error(removeError.message);
+  }
+
+  if (!removedFiles || removedFiles.length === 0) {
+    throw new Error(
+      `Supabase did not delete the Selected Work image: ${normalizedPath}`,
+    );
+  }
+}
+export async function upsertSelectedWork(formData: FormData) {
+  try {
+    const supabase = await requireAdminClient();
+    const id = (formData.get("id") ?? "").toString().trim() || undefined;
+    const title = (formData.get("title") ?? "").toString().trim() || null;
+    const description = (formData.get("description") ?? "").toString().trim() || null;
+    const isActive = (formData.get("isActive") ?? "false") === "true";
+    const currentImageUrl = (formData.get("currentImageUrl") ?? "")
+      .toString()
+      .trim();
+    const imageFileEntry = formData.get("image");
+
+    let imageUrl = currentImageUrl || null;
+    let uploadedImagePath: string | null = null;
+
+    if (!id && !(imageFileEntry instanceof File && imageFileEntry.size > 0)) {
+      return { error: "Select an image for this work item." };
+    }
+
+    if (imageFileEntry instanceof File && imageFileEntry.size > 0) {
+      const uploaded = await uploadSelectedWorkImage(
+        supabase,
+        imageFileEntry,
+        title ?? "selected-work",
+      );
+      uploadedImagePath = uploaded.path;
+      const {
+        data: { publicUrl },
+      } = supabase.storage
+        .from(SELECTED_WORK_IMAGE_BUCKET)
+        .getPublicUrl(uploaded.path);
+
+      imageUrl = publicUrl;
+    }
+
+    if (!imageUrl) {
+      return { error: "An image is required." };
+    }
+
+    if (id) {
+      const previousImageUrl = currentImageUrl || null;
+      const didReplaceImage = Boolean(
+        uploadedImagePath && previousImageUrl && previousImageUrl !== imageUrl,
+      );
+
+      const { error } = await supabase
+        .from("selected_work")
+        .update({
+          title,
+          description,
+          image_url: imageUrl,
+          is_active: isActive,
+        })
+        .eq("id", id);
+
+      if (error) {
+        if (uploadedImagePath) {
+          await supabase.storage
+            .from(SELECTED_WORK_IMAGE_BUCKET)
+            .remove([uploadedImagePath]);
+        }
+
+        throw new Error(error.message);
+      }
+
+      if (didReplaceImage) {
+        await removeStoredImage(supabase, previousImageUrl);
+      }
+    } else {
+      const { data: highestOrderItem } = await supabase
+        .from("selected_work")
+        .select("sort_order")
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextSortOrder = (highestOrderItem?.sort_order ?? 0) + 1;
+
+      const { error } = await supabase.from("selected_work").insert({
+        title,
+        description,
+        image_url: imageUrl,
+        is_active: isActive,
+        sort_order: nextSortOrder,
+      });
+
+      if (error) {
+        if (uploadedImagePath) {
+          await supabase.storage
+            .from(SELECTED_WORK_IMAGE_BUCKET)
+            .remove([uploadedImagePath]);
+        }
+
+        throw new Error(error.message);
+      }
+    }
+
+    revalidatePath("/");
+    revalidatePath("/admin/selected-work");
+    revalidatePath("/admin/site-settings/selected-work");
+
+    return { success: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function toggleSelectedWorkVisibility(
+  id: string,
+  isActive: boolean,
+) {
+  try {
+    const supabase = await requireAdminClient();
+    const { error } = await supabase
+      .from("selected_work")
+      .update({ is_active: isActive })
+      .eq("id", id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/");
+    revalidatePath("/admin/selected-work");
+    revalidatePath("/admin/site-settings/selected-work");
+    return { success: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function removeSelectedWork(id: string) {
+  try {
+    const supabase = await requireAdminClient();
+    const { data: existingItem, error: fetchError } = await supabase
+      .from("selected_work")
+      .select("image_url")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw new Error(fetchError.message);
+    }
+
+    await removeStoredImage(supabase, existingItem?.image_url);
+
+    const { error } = await supabase
+      .from("selected_work")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/");
+    revalidatePath("/admin/selected-work");
+    revalidatePath("/admin/site-settings/selected-work");
+    return { success: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function updateSelectedWorkOrder(ids: string[]) {
+  try {
+    const supabase = await requireAdminClient();
+
+    for (const [index, id] of ids.entries()) {
+      const { error } = await supabase
+        .from("selected_work")
+        .update({ sort_order: index + 1 })
+        .eq("id", id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    }
+
+    revalidatePath("/");
+    revalidatePath("/admin/selected-work");
+    revalidatePath("/admin/site-settings/selected-work");
+    return { success: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
