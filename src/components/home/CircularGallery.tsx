@@ -134,8 +134,6 @@ export default function CircularGallery({
   const [metadataPhase, setMetadataPhase] = useState<
     "visible" | "exiting" | "entering"
   >("visible");
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
 
   const totalItems = items.length;
@@ -258,8 +256,6 @@ export default function CircularGallery({
 
     const containerCenter = scroller.scrollLeft + scroller.clientWidth / 2;
 
-    setCanScrollLeft(true);
-    setCanScrollRight(true);
     setScrollerCenter(containerCenter);
 
     let closestRenderedIndex = 0;

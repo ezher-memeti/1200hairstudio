@@ -67,6 +67,8 @@ export type ZurichDateTimeInfo = {
   date: Date;
 };
 
+export type SerializedZurichDateTimeInfo = Omit<ZurichDateTimeInfo, "date">;
+
 export type NextAvailabilityPreview = {
   dateKey: string;
   label: "TODAY" | "TOMORROW" | string;
@@ -128,6 +130,24 @@ export function getCurrentZurichDateTime(date = new Date()): ZurichDateTimeInfo 
   };
 }
 
+export function serializeZurichDateTime(
+  value: ZurichDateTimeInfo,
+): SerializedZurichDateTimeInfo {
+  const { date: _date, ...serialized } = value;
+  return serialized;
+}
+
+export function hydrateZurichDateTime(
+  value: SerializedZurichDateTimeInfo,
+): ZurichDateTimeInfo {
+  const zonedDate = createDateAtNoon(value.year, value.month - 1, value.day);
+
+  return {
+    ...value,
+    date: zonedDate,
+  };
+}
+
 export function createDateAtNoon(year: number, monthIndex: number, day: number) {
   return new Date(year, monthIndex, day, 12, 0, 0, 0);
 }
@@ -147,6 +167,22 @@ export function toDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+export function addDaysToDateKey(dateKey: string, days: number) {
+  const date = parseDateKey(dateKey);
+
+  if (!date) {
+    throw new Error("Invalid Zurich date key.");
+  }
+
+  const nextDate = createDateAtNoon(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + days,
+  );
+
+  return toDateKey(nextDate);
 }
 
 export function getWeekdayNumber(date: Date) {
@@ -209,7 +245,7 @@ export function generateUpcomingBookingDates(
   businessHours: BusinessHourRecord[],
   exceptions: AvailabilityExceptionRecord[],
   options?: {
-    startDate?: Date;
+    startDate?: string;
     count?: number;
     horizonDays?: number;
   },
@@ -218,7 +254,8 @@ export function generateUpcomingBookingDates(
     exceptions.map((exception) => [exception.date, exception]),
   );
   const dates: BookingDateOption[] = [];
-  const startDate = options?.startDate ?? getCurrentZurichDateTime().date;
+  const startDateKey = options?.startDate ?? getCurrentZurichDateTime().dateKey;
+  const startDate = parseDateKey(startDateKey) ?? getCurrentZurichDateTime().date;
   const count = options?.count ?? 10;
   const horizonDays = options?.horizonDays ?? 30;
 
@@ -263,6 +300,10 @@ export function generateSlots(
   openTime: string | null,
   closeTime: string | null,
   serviceDuration: number,
+  options?: {
+    dateKey?: string;
+    currentDateTime?: ZurichDateTimeInfo;
+  },
 ) {
   if (!openTime || !closeTime || serviceDuration <= 0) {
     return [] as string[];
@@ -286,7 +327,12 @@ export function generateSlots(
     slots.push(`${String(hourPart).padStart(2, "0")}:${String(minutePart).padStart(2, "0")}`);
   }
 
-  return slots;
+  if (!options?.dateKey) {
+    return slots;
+  }
+
+  const currentZurich = options.currentDateTime ?? getCurrentZurichDateTime();
+  return filterPastSlots(slots, options.dateKey, currentZurich);
 }
 
 export function filterPastSlots(
@@ -311,7 +357,7 @@ export function findNextAvailableDate(
   exceptions: AvailabilityExceptionRecord[],
   serviceDuration: number,
   options?: {
-    startDate?: Date;
+    startDate?: string;
     horizonDays?: number;
     currentDateTime?: ZurichDateTimeInfo;
   },
@@ -320,7 +366,8 @@ export function findNextAvailableDate(
     exceptions.map((exception) => [exception.date, exception]),
   );
   const currentZurich = options?.currentDateTime ?? getCurrentZurichDateTime();
-  const startDate = options?.startDate ?? currentZurich.date;
+  const startDateKey = options?.startDate ?? currentZurich.dateKey;
+  const startDate = parseDateKey(startDateKey) ?? currentZurich.date;
   const horizonDays = options?.horizonDays ?? 30;
 
   for (let offset = 0; offset < horizonDays; offset += 1) {
@@ -339,8 +386,12 @@ export function findNextAvailableDate(
       effectiveHours.open_time,
       effectiveHours.close_time,
       serviceDuration,
+      {
+        dateKey: effectiveHours.date,
+        currentDateTime: currentZurich,
+      },
     );
-    const availableSlots = filterPastSlots(rawSlots, effectiveHours.date, currentZurich);
+    const availableSlots = rawSlots;
 
     if (availableSlots.length > 0) {
       return {
@@ -432,7 +483,7 @@ export function buildNextAvailabilityPreview(
     exceptions,
     getServiceBookingDuration(previewService),
     {
-      startDate: currentZurich.date,
+      startDate: currentZurich.dateKey,
       horizonDays: options?.horizonDays ?? 30,
       currentDateTime: currentZurich,
     },

@@ -38,6 +38,38 @@ type FormState = {
   currentImageUrl: string;
 };
 
+function SelectedWorkThumbnail({
+  imageUrl,
+  alt,
+}: {
+  imageUrl: string | null;
+  alt: string;
+}) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const shouldShowImage = Boolean(imageUrl?.trim()) && !hasImageError;
+
+  return (
+    <div className="relative h-20 w-16 shrink-0 overflow-hidden border border-border bg-background sm:h-24 sm:w-[4.5rem]">
+      {shouldShowImage ? (
+        <img
+          src={imageUrl ?? ""}
+          alt={alt}
+          className="h-full w-full object-cover object-center"
+          draggable={false}
+          onError={() => setHasImageError(true)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center px-2 text-center">
+          <span className="font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-muted">
+            No image
+          </span>
+        </div>
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-black/10" />
+    </div>
+  );
+}
+
 const blankForm: FormState = {
   title: "",
   description: "",
@@ -600,27 +632,34 @@ export default function SelectedWorkManager({
             }}
           >
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                  <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-                    {item.title || "Untitled Work"}
-                  </h2>
-                  <span className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    Order {item.sort_order}
-                  </span>
-                </div>
+              <div className="flex items-start gap-4 sm:gap-5">
+                <SelectedWorkThumbnail
+                  imageUrl={item.image_url}
+                  alt={item.title || "Selected work thumbnail"}
+                />
 
-                <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                  {item.description || "No description set."}
-                </p>
+                <div className="min-w-0 space-y-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
+                      {item.title || "Untitled Work"}
+                    </h2>
+                    <span className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
+                      Order {item.sort_order}
+                    </span>
+                  </div>
 
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    {item.image_url ? "Image uploaded" : "No image"}
+                  <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
+                    {item.description || "No description set."}
                   </p>
-                  <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    {item.is_active ? "Visible on website" : "Hidden from website"}
-                  </p>
+
+                  <div className="flex flex-wrap gap-x-6 gap-y-2">
+                    <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
+                      {item.image_url ? "Image uploaded" : "No image"}
+                    </p>
+                    <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
+                      {item.is_active ? "Visible on website" : "Hidden from website"}
+                    </p>
+                  </div>
                 </div>
               </div>
 

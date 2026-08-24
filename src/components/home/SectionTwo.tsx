@@ -1,6 +1,7 @@
 import SectionTwoClient from "@/components/home/SectionTwoClient";
 import { getAvailabilityExceptions } from "@/lib/public/booking-availability";
 import {
+  addDaysToDateKey,
   buildNextAvailabilityPreview,
   getCurrentZurichDateTime,
 } from "@/lib/public/booking-availability";
@@ -10,9 +11,7 @@ import { getActiveServices } from "@/lib/public/services";
 export default async function SectionTwo() {
   const currentZurich = getCurrentZurichDateTime();
   const dateFrom = currentZurich.dateKey;
-  const horizonDate = new Date(currentZurich.date);
-  horizonDate.setDate(horizonDate.getDate() + 30);
-  const dateTo = `${horizonDate.getFullYear()}-${String(horizonDate.getMonth() + 1).padStart(2, "0")}-${String(horizonDate.getDate()).padStart(2, "0")}`;
+  const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
 
   try {
     const [businessHours, exceptions, services] = await Promise.all([

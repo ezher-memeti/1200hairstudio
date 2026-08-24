@@ -10,15 +10,6 @@ type BusinessHourUpdate = {
   close_time: string | null;
 };
 
-function logSettingsDebug(
-  stage: string,
-  details: Record<string, unknown>,
-) {
-  console.error("[settings business-hours]", {
-    stage,
-    ...details,
-  });
-}
 
 async function requireAdminClient() {
   const supabase = await createClient();
@@ -28,11 +19,6 @@ async function requireAdminClient() {
   } = await supabase.auth.getUser();
 
   if (userError) {
-    logSettingsDebug("auth.getUser.failed", {
-      code: userError.code,
-      message: userError.message,
-      status: userError.status,
-    });
     throw new Error("Unauthorized");
   }
 
@@ -47,18 +33,6 @@ async function requireAdminClient() {
     .maybeSingle();
 
   if (profileError || !profile || profile.role !== "admin") {
-    logSettingsDebug("profiles.lookup.failed", {
-      userId: user.id,
-      profile,
-      profileError: profileError
-        ? {
-            code: profileError.code,
-            message: profileError.message,
-            details: profileError.details,
-            hint: profileError.hint,
-          }
-        : null,
-    });
     throw new Error("Unauthorized");
   }
 
@@ -92,14 +66,6 @@ export async function updateBusinessHours(
         .eq("id", update.id);
 
       if (error) {
-        logSettingsDebug("business-hours.update.failed", {
-          id: update.id,
-          values,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
         return { error: error.message };
       }
     }

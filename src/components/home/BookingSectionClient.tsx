@@ -10,7 +10,9 @@ import {
   generateSlots,
   groupTimeSlots,
   type BookingDateOption,
+  type SerializedZurichDateTimeInfo,
   type TimeGroup,
+  hydrateZurichDateTime,
 } from "@/lib/public/booking-availability-utils";
 
 type Service = {
@@ -629,6 +631,7 @@ type BookingSectionClientProps = {
   services: Service[];
   dates: BookingDate[];
   initialTimeGroups: TimeGroup[];
+  currentZurich: SerializedZurichDateTimeInfo;
   loadError: string | null;
 };
 
@@ -636,8 +639,13 @@ export default function BookingSectionClient({
   services,
   dates,
   initialTimeGroups,
+  currentZurich,
   loadError,
 }: BookingSectionClientProps) {
+  const currentZurichDateTime = useMemo(
+    () => hydrateZurichDateTime(currentZurich),
+    [currentZurich],
+  );
   const firstAvailableDateId =
     dates.find((date) => date.isAvailable)?.id ?? null;
   const [step, setStep] = useState(0);
@@ -667,6 +675,10 @@ export default function BookingSectionClient({
             selectedDate.effectiveHours.open_time,
             selectedDate.effectiveHours.close_time,
             selectedService.durationMinutes,
+            {
+              dateKey: selectedDate.id,
+              currentDateTime: currentZurichDateTime,
+            },
           ),
         )
       : initialTimeGroups;

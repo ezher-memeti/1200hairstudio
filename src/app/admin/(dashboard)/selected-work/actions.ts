@@ -18,14 +18,20 @@ function sanitizeFileNameSegment(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function extractStoragePath(imageUrl: string | null | undefined) {
-  if (!imageUrl) {
+function resolveStorageObjectPath(imageReference: string | null | undefined) {
+  const normalizedReference = imageReference?.trim();
+
+  if (!normalizedReference) {
     return null;
   }
 
+  if (!normalizedReference.startsWith("http://") && !normalizedReference.startsWith("https://")) {
+    return normalizedReference;
+  }
+
   try {
-    const url = new URL(imageUrl);
-    const marker = `/${SELECTED_WORK_IMAGE_BUCKET}/`;
+    const url = new URL(normalizedReference);
+    const marker = `/object/public/${SELECTED_WORK_IMAGE_BUCKET}/`;
     const markerIndex = url.pathname.indexOf(marker);
 
     if (markerIndex === -1) {
@@ -40,16 +46,6 @@ function extractStoragePath(imageUrl: string | null | undefined) {
   }
 }
 
-function logAdminAuthDebug(
-  stage: string,
-  details: Record<string, unknown>,
-) {
-  console.error("[selected-work admin auth]", {
-    stage,
-    ...details,
-  });
-}
-
 async function requireAdminClient() {
   const supabase = await createClient();
   const {
@@ -58,16 +54,10 @@ async function requireAdminClient() {
   } = await supabase.auth.getUser();
 
   if (userError) {
-    logAdminAuthDebug("auth.getUser.failed", {
-      code: userError.code,
-      message: userError.message,
-      status: userError.status,
-    });
     throw new Error("Unauthorized");
   }
 
   if (!user) {
-    logAdminAuthDebug("auth.user.missing", {});
     throw new Error("Unauthorized");
   }
 
@@ -76,19 +66,6 @@ async function requireAdminClient() {
     .select("id, role")
     .eq("id", user.id)
     .maybeSingle();
-
-  logAdminAuthDebug("profiles.lookup.result", {
-    userId: user.id,
-    profile,
-    profileError: profileError
-      ? {
-          code: profileError.code,
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint,
-        }
-      : null,
-  });
 
   if (profileError || !profile || profile.id !== user.id || profile.role !== "admin") {
     throw new Error("Unauthorized");
@@ -144,19 +121,50 @@ async function uploadSelectedWorkImage(
 
 async function removeStoredImage(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  imageUrl: string | null | undefined,
+  imageReference: string | null | undefined,
 ) {
-  const filePath = extractStoragePath(imageUrl);
+  const normalizedReference = imageReference?.trim();
 
-  if (!filePath) {
+  if (!normalizedReference) {
     return;
   }
 
-  await supabase.storage
-    .from(SELECTED_WORK_IMAGE_BUCKET)
-    .remove([filePath]);
-}
+  const filePath = resolveStorageObjectPath(normalizedReference);
 
+  if (!filePath) {
+    throw new Error("Unable to determine the Selected Work storage path.");
+  }
+
+  const normalizedPath = filePath.replace(/^\/+/, "");
+
+  const { data: objectExists, error: existsError } = await supabase.storage
+    .from(SELECTED_WORK_IMAGE_BUCKET)
+    .exists(normalizedPath);
+
+  if (existsError) {
+    throw new Error(existsError.message);
+  }
+
+  if (!objectExists) {
+    throw new Error(
+      `Selected Work image was not found in storage: ${normalizedPath}`,
+    );
+  }
+
+  const { data: removedFiles, error: removeError } = await supabase.storage
+    .from(SELECTED_WORK_IMAGE_BUCKET)
+    .remove([normalizedPath]);
+
+  if (removeError) {
+    throw new Error(removeError.message);
+  }
+
+  if (!removedFiles || removedFiles.length === 0) {
+    throw new Error(
+      `Supabase did not delete the Selected Work image: ${normalizedPath}`,
+    );
+  }
+}
 export async function upsertSelectedWork(formData: FormData) {
   try {
     const supabase = await requireAdminClient();
@@ -170,6 +178,7 @@ export async function upsertSelectedWork(formData: FormData) {
     const imageFileEntry = formData.get("image");
 
     let imageUrl = currentImageUrl || null;
+    let uploadedImagePath: string | null = null;
 
     if (!id && !(imageFileEntry instanceof File && imageFileEntry.size > 0)) {
       return { error: "Select an image for this work item." };
@@ -181,6 +190,7 @@ export async function upsertSelectedWork(formData: FormData) {
         imageFileEntry,
         title ?? "selected-work",
       );
+      uploadedImagePath = uploaded.path;
       const {
         data: { publicUrl },
       } = supabase.storage
@@ -188,10 +198,6 @@ export async function upsertSelectedWork(formData: FormData) {
         .getPublicUrl(uploaded.path);
 
       imageUrl = publicUrl;
-
-      if (id && currentImageUrl && currentImageUrl !== imageUrl) {
-        await removeStoredImage(supabase, currentImageUrl);
-      }
     }
 
     if (!imageUrl) {
@@ -199,6 +205,11 @@ export async function upsertSelectedWork(formData: FormData) {
     }
 
     if (id) {
+      const previousImageUrl = currentImageUrl || null;
+      const didReplaceImage = Boolean(
+        uploadedImagePath && previousImageUrl && previousImageUrl !== imageUrl,
+      );
+
       const { error } = await supabase
         .from("selected_work")
         .update({
@@ -210,7 +221,17 @@ export async function upsertSelectedWork(formData: FormData) {
         .eq("id", id);
 
       if (error) {
+        if (uploadedImagePath) {
+          await supabase.storage
+            .from(SELECTED_WORK_IMAGE_BUCKET)
+            .remove([uploadedImagePath]);
+        }
+
         throw new Error(error.message);
+      }
+
+      if (didReplaceImage) {
+        await removeStoredImage(supabase, previousImageUrl);
       }
     } else {
       const { data: highestOrderItem } = await supabase
@@ -231,6 +252,12 @@ export async function upsertSelectedWork(formData: FormData) {
       });
 
       if (error) {
+        if (uploadedImagePath) {
+          await supabase.storage
+            .from(SELECTED_WORK_IMAGE_BUCKET)
+            .remove([uploadedImagePath]);
+        }
+
         throw new Error(error.message);
       }
     }
@@ -282,6 +309,8 @@ export async function removeSelectedWork(id: string) {
       throw new Error(fetchError.message);
     }
 
+    await removeStoredImage(supabase, existingItem?.image_url);
+
     const { error } = await supabase
       .from("selected_work")
       .delete()
@@ -290,8 +319,6 @@ export async function removeSelectedWork(id: string) {
     if (error) {
       throw new Error(error.message);
     }
-
-    await removeStoredImage(supabase, existingItem?.image_url);
 
     revalidatePath("/");
     revalidatePath("/admin/selected-work");
