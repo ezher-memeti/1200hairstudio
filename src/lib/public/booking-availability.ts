@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 
-export { addDaysToDateKey, buildNextAvailabilityPreview, filterPastSlots, findNextAvailableDate, generateSlots, generateUpcomingBookingDates, getCurrentZurichDateTime, getEffectiveHours, getServiceBookingDuration, groupTimeSlots, hydrateZurichDateTime, serializeZurichDateTime } from "@/lib/public/booking-availability-utils";
+export { addDaysToDateKey, createBookingDateOption, generateUpcomingDateOptions, getCurrentZurichDateTime, getServiceBookingDuration, groupTimeSlots, parseDateKey } from "@/lib/public/booking-availability-utils";
 
 export async function getAvailabilityExceptions(dateFrom?: string, dateTo?: string) {
   const supabase = await createClient();
