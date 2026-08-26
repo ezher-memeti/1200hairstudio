@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { updateAdminAppointment } from "@/app/actions/appointments";
+import {
+  deleteAdminAppointment,
+  updateAdminAppointment,
+} from "@/app/actions/appointments";
 import { formatZurichTime } from "@/lib/appointments/availability";
 import type { AdminAppointmentDetail, AppointmentStatus } from "@/lib/appointments/types";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
@@ -46,6 +49,12 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
   cancelled: "Cancelled",
   no_show: "No Show",
 };
+
+const WEEK_SLOT_WIDTH = 88;
+const WEEK_TIMELINE_MIN_WIDTH = 280;
+const WEEK_COLUMN_WIDTH = 168;
+const WEEK_ROW_HEIGHT = 54;
+const WEEK_NORMALIZED_HEIGHT = 520;
 
 function parseDateKey(dateKey: string) {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -144,6 +153,15 @@ function getSlotLabel(totalMinutes: number) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function getMinutesFromTimeString(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
 }
 
 function assignLanes<T extends { startMinutes: number; endMinutes: number }>(items: T[]) {
@@ -344,6 +362,27 @@ export default function AdminAppointmentsView({
     });
   }
 
+  function removeAppointment() {
+    if (!selectedDetail) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await deleteAdminAppointment(selectedDetail.id);
+
+      if (result.error) {
+        setFeedback(result.error);
+        return;
+      }
+
+      setAppointmentState((current) =>
+        current.filter((appointment) => appointment.id !== selectedDetail.id),
+      );
+      setSelectedAppointmentId(null);
+      router.refresh();
+    });
+  }
+
   return (
     <section className="space-y-8">
       <div className="space-y-4">
@@ -425,140 +464,152 @@ export default function AdminAppointmentsView({
       {view === "week" ? (
         <div className="border border-border bg-surface">
           <div className="overflow-x-auto">
-            <div
-              className="grid min-w-max"
-              style={{
-                gridTemplateColumns: `minmax(172px, 172px) repeat(${slotTimes.length}, minmax(92px, 92px))`,
-              }}
-            >
-              <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-surface px-4 py-4" />
-              {slotTimes.map((slot) => (
-                <div
-                  key={slot}
-                  className="sticky top-0 z-20 border-b border-r border-border bg-surface px-3 py-4 text-center font-admin-primary text-xs uppercase tracking-[0.2em] text-foreground-secondary"
-                >
-                  {getSlotLabel(slot)}
-                </div>
-              ))}
-
-              {weekDates.map((dateKey, rowIndex) => {
+            <div className="flex min-w-max items-start gap-0">
+              {weekDates.map((dateKey, columnIndex) => {
                 const effectiveHours = effectiveHoursByDate.get(dateKey)!;
-                const dayAppointments = appointmentsByDate.get(dateKey) ?? [];
-                const laneCount = Math.max(...dayAppointments.map((item) => item.laneCount), 1);
-                const rowHeight = effectiveHours.is_closed ? 88 : Math.max(96, laneCount * 72);
-                const dayStart = effectiveHours.open_time
-                  ? (() => {
-                      const [hour, minute] = effectiveHours.open_time.split(":").map(Number);
-                      return hour * 60 + minute;
-                    })()
-                  : null;
-                const dayEnd = effectiveHours.close_time
-                  ? (() => {
-                      const [hour, minute] = effectiveHours.close_time.split(":").map(Number);
-                      return hour * 60 + minute;
-                    })()
-                  : null;
+                const dayStart = getMinutesFromTimeString(effectiveHours.open_time);
+                const dayEnd = getMinutesFromTimeString(effectiveHours.close_time);
+                const isClosed =
+                  effectiveHours.is_closed ||
+                  dayStart === null ||
+                  dayEnd === null ||
+                  dayEnd <= dayStart;
+                const dayAppointments = (appointmentsByDate.get(dateKey) ?? []).filter(
+                  (appointment) =>
+                    !isClosed &&
+                    appointment.startMinutes >= dayStart &&
+                    appointment.endMinutes <= dayEnd,
+                );
+                const totalOpenMinutes =
+                  !isClosed && dayStart !== null && dayEnd !== null ? dayEnd - dayStart : 0;
+                const localSlotCount =
+                  !isClosed && dayStart !== null && dayEnd !== null
+                    ? Math.max(1, totalOpenMinutes / SLOT_MINUTES)
+                    : 0;
 
                 return (
-                  <div key={dateKey} className="contents">
+                  <div
+                    key={dateKey}
+                    className="shrink-0 border-r border-border last:border-r-0"
+                    style={{ width: `${WEEK_COLUMN_WIDTH}px` }}
+                  >
                     <div
-                      className={`sticky left-0 z-20 border-b border-r border-border px-4 py-4 ${
+                      className={`sticky top-0 z-20 border-b border-border px-4 py-4 ${
                         dateKey === todayDateKey ? "bg-accent/10" : "bg-surface"
                       }`}
-                      style={{ height: rowHeight }}
                     >
-                      <p className="font-admin-display text-xl uppercase tracking-[-0.04em] text-foreground">
-                        {WEEKDAY_NAMES[rowIndex]}
+                      <p className="font-admin-display text-lg uppercase tracking-[-0.04em] text-foreground">
+                        {WEEKDAY_NAMES[columnIndex]}
                       </p>
                       <p className="mt-1 font-admin-primary text-sm text-foreground-secondary">
                         {formatDayLabel(dateKey)}
                       </p>
                       <p className="mt-2 font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                        {effectiveHours.is_closed
-                          ? effectiveHours.reason || "Closed"
-                          : `${effectiveHours.open_time?.slice(0, 5)}-${effectiveHours.close_time?.slice(0, 5)}`}
+                        {isClosed
+                          ? "Closed"
+                          : `${effectiveHours.open_time?.slice(0, 5) ?? "--:--"}-${
+                              effectiveHours.close_time?.slice(0, 5) ?? "--:--"
+                            }`}
                       </p>
                     </div>
 
-                    <div
-                      className={`relative col-span-full border-b border-border ${
-                        dateKey === todayDateKey ? "bg-accent/5" : "bg-background/40"
-                      }`}
-                      style={{
-                        gridColumn: `2 / span ${slotTimes.length}`,
-                        height: rowHeight,
-                      }}
-                    >
+                    {isClosed ? (
                       <div
-                        className="absolute inset-0 grid"
-                        style={{
-                          gridTemplateColumns: `repeat(${slotTimes.length}, minmax(92px, 92px))`,
-                        }}
+                        className="flex items-center justify-center bg-background/70 px-4 text-center"
+                        style={{ height: `${WEEK_NORMALIZED_HEIGHT}px` }}
                       >
-                        {slotTimes.map((slot) => {
-                          const outsideWorkingHours =
-                            effectiveHours.is_closed ||
-                            dayStart === null ||
-                            dayEnd === null ||
-                            slot < dayStart ||
-                            slot >= dayEnd;
+                        <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
+                          {effectiveHours.reason || "Closed"}
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        className={`relative bg-background/35 ${
+                          dateKey === todayDateKey ? "bg-accent/5" : ""
+                        }`}
+                        style={{ height: `${WEEK_NORMALIZED_HEIGHT}px` }}
+                      >
+                        {Array.from({ length: localSlotCount + 1 }, (_, index) => {
+                          const minutes = dayStart! + index * SLOT_MINUTES;
+                          const top =
+                            totalOpenMinutes > 0
+                              ? (index * SLOT_MINUTES * WEEK_NORMALIZED_HEIGHT) / totalOpenMinutes
+                              : 0;
+                          const isFullHour = minutes % 60 === 0;
+                          const isLast = index === localSlotCount;
 
                           return (
                             <div
-                              key={slot}
-                              className={`border-r border-border ${
-                                outsideWorkingHours ? "bg-background/70" : "bg-transparent"
-                              }`}
-                            />
+                              key={`${dateKey}-tick-${minutes}`}
+                              className="absolute inset-x-0"
+                              style={{ top: `${top}px` }}
+                            >
+                              <div
+                                className={`border-t ${isFullHour ? "border-border/60" : "border-border/25"}`}
+                              />
+                              {!isLast && isFullHour ? (
+                                <span className="absolute left-2 top-1 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-muted">
+                                  {getSlotLabel(minutes)}
+                                </span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+
+                        {dayAppointments.map((appointment) => {
+                          const offsetMinutes = appointment.startMinutes - dayStart!;
+                          const durationMinutes = appointment.endMinutes - appointment.startMinutes;
+                          const top =
+                            totalOpenMinutes > 0
+                              ? (offsetMinutes * WEEK_NORMALIZED_HEIGHT) / totalOpenMinutes
+                              : 0;
+                          const height = Math.max(
+                            44,
+                            totalOpenMinutes > 0
+                              ? (durationMinutes * WEEK_NORMALIZED_HEIGHT) / totalOpenMinutes - 6
+                              : 44,
+                          );
+                          const lanes = Math.max(appointment.laneCount, 1);
+                          const laneWidth = `calc((100% - ${(lanes + 1) * 4}px) / ${lanes})`;
+                          const showStatus = height >= 110;
+                          const showService = height >= 72;
+
+                          return (
+                            <button
+                              key={appointment.id}
+                              type="button"
+                              onClick={() => setSelectedAppointmentId(appointment.id)}
+                              className={`absolute z-10 overflow-hidden border px-2 py-2 text-left shadow-[0_8px_24px_rgba(0,0,0,0.16)] transition-transform hover:-translate-y-0.5 ${getStatusTone(
+                                appointment.status,
+                              )}`}
+                              style={{
+                                left: `calc(${appointment.lane} * ${laneWidth} + ${(appointment.lane + 1) * 4}px)`,
+                                width: laneWidth,
+                                top: `${top + 3}px`,
+                                height: `${height}px`,
+                              }}
+                            >
+                              <p className="truncate font-admin-display text-xs uppercase tracking-[-0.03em]">
+                                {appointment.customer_name}
+                              </p>
+                              {showService ? (
+                                <p className="truncate font-admin-primary text-[10px] uppercase tracking-[0.14em] opacity-90">
+                                  {appointment.service_name}
+                                </p>
+                              ) : null}
+                              <p className="truncate font-admin-primary text-[10px] opacity-80">
+                                {appointment.time_label}
+                              </p>
+                              {showStatus ? (
+                                <p className="truncate font-admin-primary text-[10px] uppercase tracking-[0.14em] opacity-75">
+                                  {STATUS_LABELS[appointment.status]}
+                                </p>
+                              ) : null}
+                            </button>
                           );
                         })}
                       </div>
-
-                      {effectiveHours.is_closed ? (
-                        <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
-                          <p className="font-admin-primary text-sm uppercase tracking-[0.22em] text-foreground-muted">
-                            {effectiveHours.reason || "Closed / non-working day"}
-                          </p>
-                        </div>
-                      ) : null}
-
-                      {dayAppointments.map((appointment) => {
-                        const columnStart =
-                          Math.max(0, Math.floor((appointment.startMinutes - timeRange.start) / SLOT_MINUTES)) + 1;
-                        const span = Math.max(
-                          1,
-                          Math.ceil((appointment.endMinutes - appointment.startMinutes) / SLOT_MINUTES),
-                        );
-
-                        return (
-                          <button
-                            key={appointment.id}
-                            type="button"
-                            onClick={() => setSelectedAppointmentId(appointment.id)}
-                            className={`absolute overflow-hidden border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 ${getStatusTone(
-                              appointment.status,
-                            )}`}
-                            style={{
-                              left: `${(columnStart - 1) * 92}px`,
-                              width: `${span * 92 - 6}px`,
-                              top: `${appointment.lane * 68 + 10}px`,
-                              height: "58px",
-                            }}
-                          >
-                            <p className="truncate font-admin-display text-sm uppercase tracking-[-0.03em]">
-                              {appointment.customer_name}
-                            </p>
-                            <p className="truncate font-admin-primary text-[11px] uppercase tracking-[0.16em] opacity-90">
-                              {appointment.service_name}
-                            </p>
-                            <p className="truncate font-admin-primary text-[11px] opacity-80">
-                              {appointment.time_label}
-                              {span >= 2 ? ` • ${STATUS_LABELS[appointment.status]}` : ""}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -574,13 +625,17 @@ export default function AdminAppointmentsView({
               getEffectiveHours(parseDateKey(selectedDate), businessHours, exceptionsByDate);
             const dayAppointments = appointmentsByDate.get(selectedDate) ?? [];
             const laneCount = Math.max(...dayAppointments.map((item) => item.laneCount), 1);
-            const timelineStart = effectiveHours.open_time
-              ? Math.min(timeRange.start, dayAppointments[0]?.startMinutes ?? timeRange.start)
-              : timeRange.start;
-            const timelineEnd = effectiveHours.close_time
-              ? Math.max(timeRange.end, dayAppointments.at(-1)?.endMinutes ?? timeRange.end)
-              : timeRange.end;
-            const slotCount = Math.max(1, (timelineEnd - timelineStart) / SLOT_MINUTES);
+            const timelineStart = getMinutesFromTimeString(effectiveHours.open_time);
+            const timelineEnd = getMinutesFromTimeString(effectiveHours.close_time);
+            const isClosed =
+              effectiveHours.is_closed ||
+              timelineStart === null ||
+              timelineEnd === null ||
+              timelineEnd <= timelineStart;
+            const slotCount =
+              !isClosed && timelineStart !== null && timelineEnd !== null
+                ? Math.max(1, (timelineEnd - timelineStart) / SLOT_MINUTES)
+                : 0;
 
             return (
               <div className="space-y-4">
@@ -600,73 +655,73 @@ export default function AdminAppointmentsView({
                   </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <div className="relative min-w-[680px] border border-border bg-background/40">
-                    <div
-                      className="grid"
-                      style={{
-                        gridTemplateColumns: `96px repeat(${laneCount}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {Array.from({ length: slotCount + 1 }, (_, index) => {
-                        const minutes = timelineStart + index * SLOT_MINUTES;
-                        return (
-                          <div key={minutes} className="contents">
-                            <div className="border-b border-r border-border px-4 py-3 font-admin-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">
-                              {index < slotCount ? getSlotLabel(minutes) : ""}
+                {isClosed ? (
+                  <div className="flex min-h-[132px] items-center justify-center border border-border bg-background/40 px-4 text-center">
+                    <p className="font-admin-primary text-sm uppercase tracking-[0.22em] text-foreground-muted">
+                      {effectiveHours.reason || "Closed"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <div className="relative min-w-[680px] border border-border bg-background/40">
+                      <div
+                        className="grid"
+                        style={{
+                          gridTemplateColumns: `96px repeat(${laneCount}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {Array.from({ length: slotCount + 1 }, (_, index) => {
+                          const minutes = timelineStart! + index * SLOT_MINUTES;
+                          return (
+                            <div key={minutes} className="contents">
+                              <div className="border-b border-r border-border px-4 py-3 font-admin-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">
+                                {index < slotCount ? getSlotLabel(minutes) : ""}
+                              </div>
+                              <div
+                                className="col-span-full border-b border-border"
+                                style={{ gridColumn: `2 / span ${laneCount}`, minHeight: "52px" }}
+                              />
                             </div>
-                            <div
-                              className="col-span-full border-b border-border"
-                              style={{ gridColumn: `2 / span ${laneCount}`, minHeight: "52px" }}
-                            />
-                          </div>
+                          );
+                        })}
+                      </div>
+
+                      {dayAppointments.map((appointment) => {
+                        const top = ((appointment.startMinutes - timelineStart!) / SLOT_MINUTES) * 52 + 1;
+                        const height =
+                          ((appointment.endMinutes - appointment.startMinutes) / SLOT_MINUTES) * 52 - 4;
+                        const laneWidth = `calc((100% - 96px) / ${laneCount})`;
+
+                        return (
+                          <button
+                            key={appointment.id}
+                            type="button"
+                            onClick={() => setSelectedAppointmentId(appointment.id)}
+                            className={`absolute overflow-hidden border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 ${getStatusTone(
+                              appointment.status,
+                            )}`}
+                            style={{
+                              left: `calc(96px + (${appointment.lane} * ${laneWidth}) + 4px)`,
+                              width: `calc(${laneWidth} - 8px)`,
+                              top: `${top}px`,
+                              height: `${Math.max(height, 48)}px`,
+                            }}
+                          >
+                            <p className="truncate font-admin-display text-sm uppercase tracking-[-0.03em]">
+                              {appointment.customer_name}
+                            </p>
+                            <p className="truncate font-admin-primary text-[11px] uppercase tracking-[0.16em]">
+                              {appointment.service_name}
+                            </p>
+                            <p className="truncate font-admin-primary text-[11px] opacity-80">
+                              {appointment.time_label}
+                            </p>
+                          </button>
                         );
                       })}
                     </div>
-
-                    {effectiveHours.is_closed ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/70 px-4 text-center">
-                        <p className="font-admin-primary text-sm uppercase tracking-[0.22em] text-foreground-muted">
-                          {effectiveHours.reason || "Closed / non-working day"}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {dayAppointments.map((appointment) => {
-                      const top = ((appointment.startMinutes - timelineStart) / SLOT_MINUTES) * 52 + 1;
-                      const height =
-                        ((appointment.endMinutes - appointment.startMinutes) / SLOT_MINUTES) * 52 - 4;
-                      const laneWidth = `calc((100% - 96px) / ${laneCount})`;
-
-                      return (
-                        <button
-                          key={appointment.id}
-                          type="button"
-                          onClick={() => setSelectedAppointmentId(appointment.id)}
-                          className={`absolute overflow-hidden border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 ${getStatusTone(
-                            appointment.status,
-                          )}`}
-                          style={{
-                            left: `calc(96px + (${appointment.lane} * ${laneWidth}) + 4px)`,
-                            width: `calc(${laneWidth} - 8px)`,
-                            top: `${top}px`,
-                            height: `${Math.max(height, 48)}px`,
-                          }}
-                        >
-                          <p className="truncate font-admin-display text-sm uppercase tracking-[-0.03em]">
-                            {appointment.customer_name}
-                          </p>
-                          <p className="truncate font-admin-primary text-[11px] uppercase tracking-[0.16em]">
-                            {appointment.service_name}
-                          </p>
-                          <p className="truncate font-admin-primary text-[11px] opacity-80">
-                            {appointment.time_label}
-                          </p>
-                        </button>
-                      );
-                    })}
                   </div>
-                </div>
+                )}
               </div>
             );
           })()}
@@ -839,6 +894,20 @@ export default function AdminAppointmentsView({
                 className="inline-flex min-h-11 items-center justify-center border border-border bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
               >
                 Save Notes
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  if (!window.confirm("Permanently remove this appointment? This cannot be undone.")) {
+                    return;
+                  }
+
+                  removeAppointment();
+                }}
+                className="inline-flex min-h-11 items-center justify-center border border-rose-500/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
+              >
+                Remove Appointment
               </button>
             </div>
 

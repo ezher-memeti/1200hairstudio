@@ -108,3 +108,21 @@ export async function updateAdminAppointment(
     return { error: toErrorMessage(error) };
   }
 }
+
+export async function deleteAdminAppointment(appointmentId: string) {
+  try {
+    const supabase = await requireAdminClient();
+    const { error } = await supabase.from("appointments").delete().eq("id", appointmentId);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    revalidatePath("/admin/appointments");
+    revalidatePath("/account");
+    revalidatePath("/admin/calendar");
+    return { error: null };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
