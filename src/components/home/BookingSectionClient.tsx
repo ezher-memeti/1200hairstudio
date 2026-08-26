@@ -5,14 +5,14 @@ import type {
   ReactNode,
   SetStateAction,
 } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { bookAppointment } from "@/app/actions/appointments";
 import {
-  generateSlots,
   groupTimeSlots,
   type BookingDateOption,
-  type SerializedZurichDateTimeInfo,
   type TimeGroup,
-  hydrateZurichDateTime,
 } from "@/lib/public/booking-availability-utils";
 
 type Service = {
@@ -30,6 +30,7 @@ type BookingState = {
   serviceId: string | null;
   dateId: string | null;
   time: string | null;
+  bookingMode: "account" | "guest";
   firstName: string;
   lastName: string;
   phone: string;
@@ -402,14 +403,19 @@ function DateTimeStep({
 }
 
 function DetailsStep({
+  authRole,
   state,
   setState,
   onBack,
   onNext,
-}: Pick<StepProps, "state" | "setState" | "onBack" | "onNext">) {
+}: Pick<StepProps, "state" | "setState" | "onBack" | "onNext"> & {
+  authRole: "admin" | "customer" | null;
+}) {
   const [showNote, setShowNote] = useState(
     Boolean(state.note),
   );
+  const guestModeRequired = authRole !== "customer";
+  const canEditDetails = authRole === "customer" || state.bookingMode === "guest";
 
   const isValid =
     state.firstName.trim() &&
@@ -424,6 +430,38 @@ function DetailsStep({
           Almost Yours.
         </h3>
       </div>
+
+      {guestModeRequired ? (
+        <div className="space-y-4 border border-border bg-background px-4 py-5 sm:px-5">
+          <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
+            Continue your booking
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/login"
+              className="inline-flex min-h-12 items-center justify-center border border-border px-4 py-3 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:border-foreground-secondary hover:text-foreground sm:text-sm"
+            >
+              Login / Continue with Account
+            </Link>
+            <button
+              type="button"
+              onClick={() =>
+                setState((current) => ({
+                  ...current,
+                  bookingMode: "guest",
+                }))
+              }
+              className={`inline-flex min-h-12 items-center justify-center border px-4 py-3 font-primary text-xs uppercase tracking-[0.18em] transition-colors sm:text-sm ${
+                state.bookingMode === "guest"
+                  ? "border-accent bg-accent text-background"
+                  : "border-border text-foreground-secondary hover:border-foreground-secondary hover:text-foreground"
+              }`}
+            >
+              Continue as Guest
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
         {[
@@ -445,6 +483,7 @@ function DetailsStep({
                   [key]: event.target.value,
                 }))
               }
+              disabled={!canEditDetails}
               className="w-full border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
             />
           </label>
@@ -486,7 +525,7 @@ function DetailsStep({
         </StepButton>
         <StepButton
           onClick={onNext}
-          disabled={!isValid}
+          disabled={!canEditDetails || !isValid}
         >
           Review →
         </StepButton>
@@ -628,60 +667,112 @@ function BookingConfirmation({
 }
 
 type BookingSectionClientProps = {
+  authRole: "admin" | "customer" | null;
+  customerProfile: {
+    fullName: string;
+    email: string;
+    phone: string;
+  } | null;
   services: Service[];
   dates: BookingDate[];
-  initialTimeGroups: TimeGroup[];
-  currentZurich: SerializedZurichDateTimeInfo;
+  slotMap: Record<
+    string,
+    Record<string, { time: string; slot_start: string; slot_end: string }[]>
+  >;
   loadError: string | null;
 };
 
 export default function BookingSectionClient({
+  authRole,
+  customerProfile,
   services,
   dates,
-  initialTimeGroups,
-  currentZurich,
+  slotMap,
   loadError,
 }: BookingSectionClientProps) {
-  const currentZurichDateTime = useMemo(
-    () => hydrateZurichDateTime(currentZurich),
-    [currentZurich],
-  );
+  const router = useRouter();
+  const [isSubmitting, startSubmitTransition] = useTransition();
+  const [submitFeedback, setSubmitFeedback] = useState("");
   const firstAvailableDateId =
     dates.find((date) => date.isAvailable)?.id ?? null;
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
+  const initialNameParts = customerProfile?.fullName.trim().split(/\s+/) ?? [];
+  const initialFirstName = initialNameParts[0] ?? "";
+  const initialLastName = initialNameParts.slice(1).join(" ");
   const [state, setState] = useState<BookingState>({
     serviceId: null,
     dateId: firstAvailableDateId,
     time: null,
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
+    bookingMode: authRole === "customer" ? "account" : "guest",
+    firstName: initialFirstName,
+    lastName: initialLastName,
+    phone: customerProfile?.phone ?? "",
+    email: customerProfile?.email ?? "",
     note: "",
   });
 
   const selectedService =
     services.find((service) => service.id === state.serviceId) ??
     null;
+  const visibleDates = useMemo(
+    () =>
+      dates.map((date) => ({
+        ...date,
+        isAvailable: Boolean(
+          selectedService && slotMap[selectedService.id]?.[date.id]?.length,
+        ),
+      })),
+    [dates, selectedService, slotMap],
+  );
   const selectedDate =
-    dates.find((date) => date.id === state.dateId) ??
-    dates.find((date) => date.isAvailable) ??
+    visibleDates.find((date) => date.id === state.dateId) ??
+    visibleDates.find((date) => date.isAvailable) ??
     null;
-  const timeGroups =
-    selectedDate && selectedService
-      ? groupTimeSlots(
-          generateSlots(
-            selectedDate.effectiveHours.open_time,
-            selectedDate.effectiveHours.close_time,
-            selectedService.durationMinutes,
-            {
-              dateKey: selectedDate.id,
-              currentDateTime: currentZurichDateTime,
-            },
-          ),
-        )
-      : initialTimeGroups;
+  const timeGroups = useMemo(
+    () =>
+      selectedDate && selectedService
+        ? groupTimeSlots(
+            (slotMap[selectedService.id]?.[selectedDate.id] ?? []).map(
+              (slot) => slot.time,
+            ),
+          )
+        : [],
+    [selectedDate, selectedService, slotMap],
+  );
+
+  const handleConfirmBooking = useCallback(async () => {
+    if (!selectedService || !selectedDate || !state.time) {
+      setSubmitFeedback("Choose a service, date, and time.");
+      return;
+    }
+
+    setSubmitFeedback("");
+    startSubmitTransition(async () => {
+      const formData = new FormData();
+      formData.set("serviceId", selectedService.id);
+      formData.set("dateKey", selectedDate.id);
+      formData.set("startTime", state.time ?? "");
+      formData.set("bookingMode", state.bookingMode);
+      formData.set("firstName", state.firstName);
+      formData.set("lastName", state.lastName);
+      formData.set("email", state.email);
+      formData.set("phone", state.phone);
+      formData.set("note", state.note);
+
+      const result = await bookAppointment(formData);
+
+      if (result.error) {
+        setSubmitFeedback(result.error);
+        router.refresh();
+        return;
+      }
+
+      setConfirmed(true);
+      setSubmitFeedback("");
+      router.refresh();
+    });
+  }, [router, selectedDate, selectedService, state]);
 
   const panelContent = useMemo(() => {
     if (confirmed) {
@@ -694,10 +785,11 @@ export default function BookingSectionClient({
               serviceId: null,
               dateId: firstAvailableDateId,
               time: null,
-              firstName: "",
-              lastName: "",
-              phone: "",
-              email: "",
+              bookingMode: authRole === "customer" ? "account" : "guest",
+              firstName: initialFirstName,
+              lastName: initialLastName,
+              phone: customerProfile?.phone ?? "",
+              email: customerProfile?.email ?? "",
               note: "",
             });
           }}
@@ -723,25 +815,21 @@ export default function BookingSectionClient({
 
     if (step === 1) {
       return (
-        <DateTimeStep
-          {...sharedProps}
-          dates={dates}
-          timeGroups={timeGroups}
-        />
+        <DateTimeStep {...sharedProps} dates={visibleDates} timeGroups={timeGroups} />
       );
     }
 
     if (step === 2) {
-      return <DetailsStep {...sharedProps} />;
+      return <DetailsStep {...sharedProps} authRole={authRole} />;
     }
 
     return (
       <ReviewStep
         {...sharedProps}
-        onNext={() => setConfirmed(true)}
+        onNext={handleConfirmBooking}
       />
     );
-  }, [confirmed, dates, firstAvailableDateId, selectedDate, selectedService, services, state, step, timeGroups]);
+  }, [authRole, confirmed, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, initialFirstName, initialLastName, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
 
   return (
     <section id="booking" className="bg-background">
@@ -803,6 +891,24 @@ export default function BookingSectionClient({
                     />
                   </div>
                 )}
+
+                {!confirmed && submitFeedback ? (
+                  <div className="pb-6">
+                    <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                      {submitFeedback}
+                    </p>
+                    {authRole !== "customer" ? (
+                      <div className="pt-4">
+                        <Link
+                          href="/login"
+                          className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-3 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:border-foreground-secondary hover:text-foreground"
+                        >
+                          Login to Book
+                        </Link>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {panelContent}
               </div>

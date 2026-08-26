@@ -2,16 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import type { CustomerAppointmentSummary } from "@/lib/appointments/types";
 import type { CustomerRecord } from "@/lib/customers/types";
 import { createClient } from "@/lib/supabase/client";
 import { updateCustomerAccount } from "@/app/account/actions";
 
 type CustomerAccountViewProps = {
   customer: CustomerRecord;
+  pastAppointments: CustomerAppointmentSummary[];
+  upcomingAppointments: CustomerAppointmentSummary[];
 };
 
 export default function CustomerAccountView({
   customer,
+  pastAppointments,
+  upcomingAppointments,
 }: CustomerAccountViewProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(customer.full_name);
@@ -136,12 +141,44 @@ export default function CustomerAccountView({
             Upcoming Appointments
           </p>
           <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
-            Nothing Scheduled Yet
+            {upcomingAppointments.length > 0
+              ? "Your Next Sessions"
+              : "Nothing Scheduled Yet"}
           </h2>
           <p className="max-w-lg font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-            Your upcoming sessions will appear here once appointment booking is connected.
+            {upcomingAppointments.length > 0
+              ? "Your confirmed sessions appear here in Zurich local time."
+              : "Your upcoming sessions will appear here after your first booking."}
           </p>
         </div>
+
+        {upcomingAppointments.length > 0 ? (
+          <div className="space-y-4">
+            {upcomingAppointments.map((appointment) => (
+              <div
+                key={appointment.id}
+                className="border border-border bg-surface px-5 py-5 sm:px-6"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-2">
+                    <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
+                      {appointment.service_name}
+                    </p>
+                    <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                      {appointment.date_label}
+                    </p>
+                    <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
+                      {appointment.time_label}
+                    </p>
+                  </div>
+                  <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
+                    {appointment.status.replace("_", " ")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <a
           href="/#booking"
@@ -149,6 +186,49 @@ export default function CustomerAccountView({
         >
           Book a Session
         </a>
+      </section>
+
+      <section className="space-y-6 border-t border-border pt-8">
+        <div className="space-y-2">
+          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
+            Past Appointments
+          </p>
+          <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
+            Session History
+          </h2>
+        </div>
+
+        {pastAppointments.length > 0 ? (
+          <div className="space-y-4">
+            {pastAppointments.map((appointment) => (
+              <div
+                key={appointment.id}
+                className="border border-border bg-background px-5 py-5 sm:px-6"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-2">
+                    <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
+                      {appointment.service_name}
+                    </p>
+                    <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                      {appointment.date_label}
+                    </p>
+                    <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
+                      {appointment.time_label}
+                    </p>
+                  </div>
+                  <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
+                    {appointment.status.replace("_", " ")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="max-w-lg font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
+            Past sessions will appear here after completed appointments.
+          </p>
+        )}
       </section>
     </div>
   );
