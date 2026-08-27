@@ -4,8 +4,10 @@ import { requireAdminUser } from "@/lib/auth/customer";
 import {
   getAdminAppointmentsInRange,
   getAdminBusinessHours,
+  getAdminCustomerOptions,
   getAvailabilityExceptionsInRange,
 } from "@/lib/appointments/queries";
+import { getActiveServices } from "@/lib/public/services";
 
 type SearchParams = {
   view?: string;
@@ -64,13 +66,15 @@ export default async function AdminAppointmentsPage({
   const rangeStart = view === "day" ? selectedDate : weekStart;
   const rangeEnd = view === "day" ? selectedDate : weekEnd;
 
-  const [appointments, businessHours, exceptions] = await Promise.all([
+  const [appointments, businessHours, exceptions, customers, services] = await Promise.all([
     getAdminAppointmentsInRange(
       getUtcIsoForZurichDateTime(rangeStart, "00:00"),
       getUtcIsoForZurichDateTime(addDays(rangeEnd, 1), "00:00"),
     ),
     getAdminBusinessHours(),
     getAvailabilityExceptionsInRange(weekStart, weekEnd),
+    getAdminCustomerOptions(),
+    getActiveServices(),
   ]);
 
   return (
@@ -80,6 +84,8 @@ export default async function AdminAppointmentsPage({
       appointments={appointments}
       businessHours={businessHours}
       exceptions={exceptions}
+      customers={customers}
+      services={services}
       todayDateKey={todayDateKey}
     />
   );

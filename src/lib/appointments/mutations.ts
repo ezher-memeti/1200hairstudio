@@ -10,6 +10,7 @@ import {
   getUtcIsoForZurichDateTime,
 } from "@/lib/appointments/availability";
 
+import { sendBookingConfirmationEmail } from "@/lib/email/gmail";
 import { getAvailableSlots } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,10 +21,11 @@ function toFullName(firstName: string, lastName: string) {
     .trim();
 }
 
-type AppointmentRequestInput = {
+export type AppointmentRequestInput = {
   serviceId: string;
   dateKey: string;
   startTime: string;
+  excludeAppointmentId?: string;
   note?: string;
   firstName?: string;
   lastName?: string;
@@ -31,13 +33,13 @@ type AppointmentRequestInput = {
   phone?: string;
 };
 
-async function validateAppointmentRequest(
+export async function validateAppointmentRequest(
   supabase: Awaited<ReturnType<typeof createClient>>,
   input: AppointmentRequestInput,
 ) {
   const { data: service, error: serviceError } = await supabase
     .from("services")
-    .select("id, duration_min, duration_max, is_active")
+    .select("id, name, price, duration_min, duration_max, is_active")
     .eq("id", input.serviceId)
     .maybeSingle();
 
@@ -66,6 +68,9 @@ async function validateAppointmentRequest(
   const availableSlots = await getAvailableSlots(
     service.id,
     input.dateKey,
+    input.excludeAppointmentId
+      ? { excludeAppointmentId: input.excludeAppointmentId }
+      : undefined,
   );
 
   const selectedStartMs = new Date(
@@ -141,6 +146,24 @@ function getAppointmentInsertErrorMessage(
   }
 
   return "Unable to create the appointment right now. Please try again.";
+}
+
+export async function sendConfirmationEmailSafely(details: {
+  to: string;
+  customerName: string;
+  serviceName: string;
+  startAt: string;
+  endAt: string;
+  price: number;
+}) {
+  try {
+    await sendBookingConfirmationEmail(details);
+  } catch (error) {
+    console.error("BOOKING CONFIRMATION EMAIL ERROR", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      details,
+    });
+  }
 }
 
 export async function createAppointment(
@@ -233,6 +256,19 @@ export async function createAppointment(
         );
       }
     }
+
+    const recipientEmail = customer.email || user.email || "";
+
+    if (recipientEmail) {
+      await sendConfirmationEmailSafely({
+        to: recipientEmail,
+        customerName: fullName || customer.full_name || "Customer",
+        serviceName: service.name,
+        startAt,
+        endAt,
+        price: service.price,
+      });
+    }
   } else {
     if (!fullName) {
       return {
@@ -277,6 +313,15 @@ export async function createAppointment(
           ),
       };
     }
+
+    await sendConfirmationEmailSafely({
+      to: email,
+      customerName: fullName,
+      serviceName: service.name,
+      startAt,
+      endAt,
+      price: service.price,
+    });
   }
 
   revalidatePath("/");
