@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { updateCustomerAccount } from "@/app/account/actions";
 
 type CustomerAccountViewProps = {
-  customer: CustomerRecord;
+  customer: Pick<CustomerRecord, "id" | "full_name" | "email" | "phone">;
   pastAppointments: CustomerAppointmentSummary[];
   upcomingAppointments: CustomerAppointmentSummary[];
 };

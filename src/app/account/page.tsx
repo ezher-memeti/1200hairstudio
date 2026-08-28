@@ -28,7 +28,12 @@ export default async function AccountPage() {
       <main className="bg-background">
         <section className="page-container py-12 sm:py-16 lg:py-20">
           <CustomerAccountView
-            customer={customer}
+            customer={{
+              id: customer.id,
+              full_name: customer.full_name,
+              email: customer.email,
+              phone: customer.phone,
+            }}
             upcomingAppointments={upcomingAppointments}
             pastAppointments={pastAppointments}
           />

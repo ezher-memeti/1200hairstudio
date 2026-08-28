@@ -11,6 +11,8 @@ import {
 } from "@/lib/appointments/availability";
 
 import { sendBookingConfirmationEmail } from "@/lib/email/gmail";
+import { resolveCustomerByEmail } from "@/lib/customers/mutations";
+import type { CustomerRecord } from "@/lib/customers/types";
 import { getAvailableSlots } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
 
@@ -291,10 +293,26 @@ export async function createAppointment(
       };
     }
 
+    let guestCustomer: CustomerRecord;
+    try {
+      guestCustomer = await resolveCustomerByEmail(supabase, {
+        profileId: null,
+        fullName,
+        email,
+        phone,
+        isRegistered: false,
+      });
+    } catch (error) {
+      console.error("GUEST CUSTOMER RESOLUTION ERROR", error);
+      return {
+        error: "Unable to prepare your booking right now. Please try again.",
+      };
+    }
+
     const { error: insertError } = await supabase
       .from("appointments")
       .insert({
-        customer_id: null,
+        customer_id: guestCustomer.id,
         service_id: service.id,
         start_at: startAt,
         end_at: endAt,
@@ -328,6 +346,7 @@ export async function createAppointment(
   revalidatePath("/account");
   revalidatePath("/admin/appointments");
   revalidatePath("/admin/calendar");
+  revalidatePath("/admin/customers");
 
   return {
     error: null,

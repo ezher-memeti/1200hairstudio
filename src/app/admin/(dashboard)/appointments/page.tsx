@@ -12,6 +12,9 @@ import { getActiveServices } from "@/lib/public/services";
 type SearchParams = {
   view?: string;
   date?: string;
+  new?: string;
+  customerId?: string;
+  appointmentId?: string;
 };
 
 function isValidDateKey(value: string) {

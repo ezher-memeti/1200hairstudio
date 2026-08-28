@@ -119,12 +119,12 @@ export async function getAdminAppointmentSummaries() {
     return {
       ...appointment,
       customer_name:
-        appointment.customer_name ?? customer?.full_name ?? appointment.guest_name ?? "Guest",
+        customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Guest",
       customer_email:
-        appointment.customer_email ?? customer?.email ?? appointment.guest_email ?? "",
+        customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
       customer_phone:
-        appointment.customer_phone ?? customer?.phone ?? appointment.guest_phone ?? "",
-      booking_type: appointment.customer_id ? "customer" : "guest",
+        customer?.phone ?? appointment.customer_phone ?? appointment.guest_phone ?? "",
+      booking_type: customer?.is_registered ? "customer" : "guest",
       service_name: service?.name ?? "Service",
       date_label: formatZurichDate(appointment.start_at),
       time_label: formatZurichTimeRange(appointment.start_at, appointment.end_at),
@@ -174,12 +174,12 @@ async function enrichAdminAppointments(
     return {
       ...appointment,
       customer_name:
-        appointment.customer_name ?? customer?.full_name ?? appointment.guest_name ?? "Guest",
+        customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Guest",
       customer_email:
-        appointment.customer_email ?? customer?.email ?? appointment.guest_email ?? "",
+        customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
       customer_phone:
-        appointment.customer_phone ?? customer?.phone ?? appointment.guest_phone ?? "",
-      booking_type: (appointment.customer_id ? "customer" : "guest") as "customer" | "guest",
+        customer?.phone ?? appointment.customer_phone ?? appointment.guest_phone ?? "",
+      booking_type: (customer?.is_registered ? "customer" : "guest") as "customer" | "guest",
       service_name: service?.name ?? "Service",
       date_label: formatZurichDate(appointment.start_at),
       time_label: formatZurichTimeRange(appointment.start_at, appointment.end_at),

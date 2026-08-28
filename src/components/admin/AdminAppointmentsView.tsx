@@ -330,6 +330,15 @@ export default function AdminAppointmentsView({
     setAppointmentState(appointments);
   }, [appointments]);
 
+  useEffect(() => {
+    const appointmentId = searchParams.get("appointmentId");
+    if (!appointmentId || !appointments.some((appointment) => appointment.id === appointmentId)) {
+      return;
+    }
+
+    setSelectedAppointmentId(appointmentId);
+  }, [appointments, searchParams]);
+
   const appointmentsByDate = useMemo(() => buildAppointments(appointmentState), [appointmentState]);
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const weekStart = weekDates[0];
@@ -364,6 +373,36 @@ export default function AdminAppointmentsView({
       dateKey: selectedDate,
     }));
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") {
+      return;
+    }
+
+    const customerId = searchParams.get("customerId");
+    const customer = customers.find((item) => item.id === customerId);
+    setCreateForm({
+      customerId: customer?.id ?? null,
+      customerSearch: customer?.full_name ?? "",
+      customerName: customer?.full_name ?? "",
+      customerEmail: customer?.email ?? "",
+      customerPhone: customer?.phone ?? "",
+      serviceId: "",
+      dateKey: selectedDate,
+      startTime: "",
+      notes: "",
+      sendConfirmationEmail: true,
+    });
+    setAvailableSlots([]);
+    setSlotsError("");
+    setCreateFeedback("");
+    setIsCreateOpen(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("new");
+    params.delete("customerId");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [customers, pathname, router, searchParams, selectedDate]);
 
   const effectiveHoursByDate = useMemo(
     () =>

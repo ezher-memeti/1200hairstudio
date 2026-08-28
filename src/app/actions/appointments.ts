@@ -7,6 +7,7 @@ import {
 } from "@/lib/appointments/mutations";
 import type { AppointmentStatus } from "@/lib/appointments/types";
 import { sendBookingConfirmationEmail } from "@/lib/email/gmail";
+import { resolveCustomerByEmail } from "@/lib/customers/mutations";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
 
@@ -101,8 +102,16 @@ export async function updateAdminAppointment(
         .maybeSingle();
 
       if (lookupError || !currentAppointment) {
-        return { error: lookupError?.message ?? "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
+        return { error: "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
       }
+
+      const { data: appointmentCustomer } = currentAppointment.customer_id
+        ? await supabase
+            .from("customers")
+            .select("full_name, email")
+            .eq("id", currentAppointment.customer_id)
+            .maybeSingle()
+        : { data: null };
 
       const validation = await validateAppointmentRequest(supabase, {
         serviceId: input.serviceId,
@@ -135,10 +144,12 @@ export async function updateAdminAppointment(
       }
 
       const customerName =
+        appointmentCustomer?.full_name ??
         currentAppointment.customer_name ??
         currentAppointment.guest_name ??
         "Customer";
       const customerEmail =
+        appointmentCustomer?.email ??
         currentAppointment.customer_email ??
         currentAppointment.guest_email ??
         "";
@@ -167,6 +178,7 @@ export async function updateAdminAppointment(
 
       revalidatePath("/admin/appointments");
       revalidatePath("/admin/calendar");
+      revalidatePath("/admin/customers");
       revalidatePath("/account");
       return { error: null, emailError, emailStatus };
     }
@@ -195,6 +207,7 @@ export async function updateAdminAppointment(
     }
 
     revalidatePath("/admin/appointments");
+    revalidatePath("/admin/customers");
     revalidatePath("/account");
     return { error: null };
   } catch (error) {
@@ -221,8 +234,16 @@ export async function removeAdminAppointment(input: {
       .maybeSingle();
 
     if (lookupError || !appointment) {
-      return { error: lookupError?.message ?? "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
+      return { error: "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
     }
+
+    const { data: appointmentCustomer } = appointment.customer_id
+      ? await supabase
+          .from("customers")
+          .select("full_name, email")
+          .eq("id", appointment.customer_id)
+          .maybeSingle()
+      : { data: null };
 
     const { data: service } = await supabase
       .from("services")
@@ -237,10 +258,12 @@ export async function removeAdminAppointment(input: {
     }
 
     const customerName =
+      appointmentCustomer?.full_name ??
       appointment.customer_name ??
       appointment.guest_name ??
       "Customer";
     const customerEmail =
+      appointmentCustomer?.email ??
       appointment.customer_email ??
       appointment.guest_email ??
       "";
@@ -268,6 +291,7 @@ export async function removeAdminAppointment(input: {
     }
 
     revalidatePath("/admin/appointments");
+    revalidatePath("/admin/customers");
     revalidatePath("/account");
     revalidatePath("/admin/calendar");
     return { error: null, emailError, emailStatus };
@@ -332,7 +356,8 @@ export async function createAdminAppointment(input: {
       : { data: null, error: null };
 
     if (customerLookupError) {
-      return { error: customerLookupError.message, emailError: null, emailStatus: "skipped" as const };
+      console.error("ADMIN CUSTOMER LOOKUP ERROR", customerLookupError);
+      return { error: "Unable to load the selected customer.", emailError: null, emailStatus: "skipped" as const };
     }
 
     const customerName = (
@@ -357,6 +382,10 @@ export async function createAdminAppointment(input: {
       return { error: "Customer name is required.", emailError: null };
     }
 
+    if (!selectedCustomerId && !customerEmail) {
+      return { error: "Customer email is required for a new customer.", emailError: null };
+    }
+
     const validation = await validateAppointmentRequest(supabase, {
       serviceId: input.serviceId,
       dateKey: input.dateKey,
@@ -367,10 +396,22 @@ export async function createAdminAppointment(input: {
       return { error: validation.error ?? "This service is not available right now.", emailError: null };
     }
 
+    let appointmentCustomerId = selectedCustomerId;
+    if (!appointmentCustomerId) {
+      const customer = await resolveCustomerByEmail(supabase, {
+        profileId: null,
+        fullName: customerName,
+        email: customerEmail,
+        phone: customerPhone,
+        isRegistered: false,
+      });
+      appointmentCustomerId = customer.id;
+    }
+
     const { error: insertError } = await supabase
       .from("appointments")
       .insert({
-        customer_id: selectedCustomerId,
+        customer_id: appointmentCustomerId,
         service_id: validation.service.id,
         booking_source: "admin",
         customer_name: customerName,
@@ -388,7 +429,8 @@ export async function createAdminAppointment(input: {
       .single();
 
     if (insertError) {
-      return { error: insertError.message, emailError: null, emailStatus: "skipped" as const };
+      console.error("ADMIN APPOINTMENT INSERT ERROR", insertError);
+      return { error: "Unable to create the appointment right now.", emailError: null, emailStatus: "skipped" as const };
     }
 
     let emailError: string | null = null;
@@ -414,6 +456,7 @@ export async function createAdminAppointment(input: {
 
     revalidatePath("/admin/appointments");
     revalidatePath("/admin/calendar");
+    revalidatePath("/admin/customers");
     revalidatePath("/account");
 
     return {

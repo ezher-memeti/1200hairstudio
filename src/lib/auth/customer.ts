@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { CustomerRecord } from "@/lib/customers/types";
+import {
+  normalizeCustomerEmail,
+  resolveCustomerByEmail,
+} from "@/lib/customers/mutations";
 import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors";
 import { createClient } from "@/lib/supabase/server";
 
@@ -118,7 +122,37 @@ export async function ensureCustomerRecord(
   }
 
   if (existingCustomer) {
-    return existingCustomer as CustomerRecord;
+    const customer = existingCustomer as CustomerRecord;
+    const updates: Partial<Pick<CustomerRecord, "full_name" | "phone" | "is_registered">> = {};
+    const normalizedFullName = fullName?.trim();
+    const normalizedPhone = phone?.trim();
+
+    if (!customer.is_registered) {
+      updates.is_registered = true;
+    }
+    if (normalizedFullName) {
+      updates.full_name = normalizedFullName;
+    }
+    if (normalizedPhone) {
+      updates.phone = normalizedPhone;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return customer;
+    }
+
+    const { data: updatedCustomer, error: updateError } = await supabase
+      .from("customers")
+      .update(updates)
+      .eq("id", customer.id)
+      .select("*")
+      .single();
+
+    if (updateError || !updatedCustomer) {
+      throw new Error("Unable to update customer account.");
+    }
+
+    return updatedCustomer as CustomerRecord;
   }
 
   const fallbackFullName =
@@ -134,20 +168,16 @@ export async function ensureCustomerRecord(
       : "") ||
     "";
 
-  const { data: insertedCustomer, error: insertError } = await supabase
-    .from("customers")
-    .insert({
-      profile_id: user.id,
-      full_name: fallbackFullName,
-      email: user.email ?? "",
-      phone: fallbackPhone,
-    })
-    .select("*")
-    .single();
-
-  if (insertError) {
+  const email = normalizeCustomerEmail(user.email ?? "");
+  if (!email) {
     throw new Error("Unable to create customer account.");
   }
 
-  return insertedCustomer as CustomerRecord;
+  return resolveCustomerByEmail(supabase, {
+    profileId: user.id,
+    fullName: fallbackFullName,
+    email,
+    phone: fallbackPhone,
+    isRegistered: true,
+  });
 }
