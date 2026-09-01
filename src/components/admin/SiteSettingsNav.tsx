@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 const siteSettingsItems = [
   { label: "Services", href: "/admin/site-settings/services" },
@@ -28,7 +29,7 @@ export default function SiteSettingsNav() {
             const isActive = pathname === item.href;
 
             return (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`block border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] transition-colors ${
@@ -38,7 +39,7 @@ export default function SiteSettingsNav() {
                 }`}
               >
                 {item.label}
-              </a>
+              </Link>
             );
           })}
         </div>
@@ -51,7 +52,7 @@ export default function SiteSettingsNav() {
               const isActive = pathname === item.href;
 
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   className={`inline-flex min-h-11 items-center justify-center whitespace-nowrap border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] transition-colors ${
@@ -61,7 +62,7 @@ export default function SiteSettingsNav() {
                   }`}
                 >
                   {item.label}
-                </a>
+                </Link>
               );
             })}
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import LogoutButton from "@/components/admin/LogoutButton";
 
@@ -30,12 +31,12 @@ export default function AdminShell({
       <div className="lg:grid lg:min-h-screen lg:grid-cols-[18rem_minmax(0,1fr)]">
         <aside className="hidden border-r border-border bg-background-secondary lg:flex lg:flex-col">
           <div className="flex h-full flex-col px-6 py-8">
-            <a
+            <Link
               href="/admin"
               className="font-display text-lg font-semibold uppercase tracking-[0.28em] text-foreground"
             >
               1200
-            </a>
+            </Link>
 
             <nav className="mt-10 flex flex-1 flex-col gap-2" aria-label="Admin">
               {navigationItems.map((item) => {
@@ -45,7 +46,7 @@ export default function AdminShell({
                     : pathname.startsWith(item.href);
 
                 return (
-                  <a
+                  <Link
                     key={item.href}
                     href={item.href}
                     className={`border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] transition-colors ${
@@ -55,18 +56,18 @@ export default function AdminShell({
                     }`}
                   >
                     {item.label}
-                  </a>
+                  </Link>
                 );
               })}
             </nav>
 
             <div className="space-y-3 pt-6">
-              <a
+              <Link
                 href="/"
                 className="inline-flex w-full items-center justify-center border border-border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-muted transition-colors hover:bg-surface hover:text-foreground"
               >
                 View Website ↗
-              </a>
+              </Link>
               <LogoutButton fullWidth />
             </div>
           </div>
@@ -75,12 +76,12 @@ export default function AdminShell({
         <div className="min-w-0">
           <header className="border-b border-border bg-background/95 backdrop-blur-sm lg:hidden">
             <div className="page-container flex items-center justify-between py-4">
-              <a
+              <Link
                 href="/admin"
                 className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground"
               >
                 1200
-              </a>
+              </Link>
 
               <button
                 type="button"
@@ -109,7 +110,7 @@ export default function AdminShell({
                           : pathname.startsWith(item.href);
 
                       return (
-                        <a
+                        <Link
                           key={item.href}
                           href={item.href}
                           onClick={() => setIsMenuOpen(false)}
@@ -120,19 +121,19 @@ export default function AdminShell({
                           }`}
                         >
                           {item.label}
-                        </a>
+                        </Link>
                       );
                     })}
                   </nav>
 
                   <div className="pt-4">
-                    <a
+                    <Link
                       href="/"
                       onClick={() => setIsMenuOpen(false)}
                       className="inline-flex w-full items-center justify-center border border-border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-muted transition-colors hover:bg-surface hover:text-foreground"
                     >
                       View Website ↗
-                    </a>
+                    </Link>
                   </div>
 
                   <div className="pt-4">
