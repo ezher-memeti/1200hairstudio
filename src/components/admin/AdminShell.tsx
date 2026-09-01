@@ -9,6 +9,7 @@ const navigationItems = [
   { label: "Calendar", href: "/admin/calendar" },
   { label: "Appointments", href: "/admin/appointments" },
   { label: "Customers", href: "/admin/customers" },
+  { label: "Marketing", href: "/admin/marketing" },
   { label: "Site Settings", href: "/admin/site-settings" },
   { label: "Finance", href: "/admin/finance" },
   { label: "Settings", href: "/admin/settings" },
