@@ -5,6 +5,15 @@ import {
   closeAvailabilityDateRange,
   saveAvailabilityException,
 } from "@/app/admin/(dashboard)/calendar/actions";
+import {
+  addMonthsToDateKey,
+  formatDateKey,
+  getMonthGridDateKeys,
+  getMonthStartDateKey,
+  getTodayDateKeyInZurich,
+  getWeekdayNumberFromDateKey,
+  parseDateKeyToUtcDate,
+} from "@/lib/appointments/date-utils";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
 import {
@@ -50,34 +59,27 @@ const monthNames = [
   "December",
 ] as const;
 
-const today = new Date("2026-08-22T12:00:00");
-
 function getDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
 function createDateAtNoon(year: number, monthIndex: number, day: number) {
-  return new Date(year, monthIndex, day, 12, 0, 0, 0);
+  return new Date(Date.UTC(year, monthIndex, day, 12, 0, 0, 0));
 }
 
 function getStartOfMonth(date: Date) {
-  return createDateAtNoon(date.getFullYear(), date.getMonth(), 1);
-}
-
-function addMonths(date: Date, delta: number) {
-  return createDateAtNoon(date.getFullYear(), date.getMonth() + delta, 1);
-}
-
-function getWeekdayNumber(date: Date) {
-  const day = date.getDay();
-  return day === 0 ? 7 : day;
+  return createDateAtNoon(date.getUTCFullYear(), date.getUTCMonth(), 1);
 }
 
 function formatLongDate(date: Date) {
-  return `${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  return formatDateKey(getDateKey(date), {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatShortException(exception: AvailabilityExceptionRecord) {
@@ -130,6 +132,8 @@ export default function AdminAvailabilityCalendar({
   initialExceptions,
   loadError,
 }: AdminAvailabilityCalendarProps) {
+  const todayDateKey = useMemo(() => getTodayDateKeyInZurich(), []);
+  const today = useMemo(() => parseDateKeyToUtcDate(todayDateKey) ?? new Date(), [todayDateKey]);
   const businessHours = useMemo(
     () =>
       initialBusinessHours
@@ -138,7 +142,7 @@ export default function AdminAvailabilityCalendar({
     [initialBusinessHours],
   );
   const [exceptions, setExceptions] = useState(initialExceptions);
-  const [visibleMonth, setVisibleMonth] = useState(getStartOfMonth(today));
+  const [visibleMonthKey, setVisibleMonthKey] = useState(getMonthStartDateKey(todayDateKey));
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [isRangeEditorOpen, setIsRangeEditorOpen] = useState(false);
   const [editorState, setEditorState] = useState<EditorState>({
@@ -148,8 +152,8 @@ export default function AdminAvailabilityCalendar({
     reason: "",
   });
   const [rangeEditorState, setRangeEditorState] = useState<RangeEditorState>({
-    startDate: getDateKey(today),
-    endDate: getDateKey(today),
+    startDate: todayDateKey,
+    endDate: todayDateKey,
     reason: "",
   });
   const [feedback, setFeedback] = useState("");
@@ -188,8 +192,8 @@ export default function AdminAvailabilityCalendar({
     [exceptions],
   );
 
-  const selectedDate = selectedDateKey ? new Date(`${selectedDateKey}T12:00:00`) : null;
-  const selectedWeekday = selectedDate ? getWeekdayNumber(selectedDate) : null;
+  const selectedDate = selectedDateKey ? parseDateKeyToUtcDate(selectedDateKey) : null;
+  const selectedWeekday = selectedDateKey ? getWeekdayNumberFromDateKey(selectedDateKey) : null;
   const normalHours =
     selectedWeekday === null
       ? undefined
@@ -208,30 +212,19 @@ export default function AdminAvailabilityCalendar({
   }, [normalHours, selectedDateKey, selectedException]);
 
   const calendarDays = useMemo(() => {
-    const firstOfMonth = getStartOfMonth(visibleMonth);
-    const monthIndex = firstOfMonth.getMonth();
-    const offset = getWeekdayNumber(firstOfMonth) - 1;
-    const gridStart = createDateAtNoon(
-      firstOfMonth.getFullYear(),
-      firstOfMonth.getMonth(),
-      1 - offset,
-    );
+    const monthPrefix = visibleMonthKey.slice(0, 7);
 
-    return Array.from({ length: 42 }, (_, index) => {
-      const date = createDateAtNoon(
-        gridStart.getFullYear(),
-        gridStart.getMonth(),
-        gridStart.getDate() + index,
-      );
+    return getMonthGridDateKeys(visibleMonthKey).map((dateKey) => {
+      const date = parseDateKeyToUtcDate(dateKey) ?? today;
 
       return {
         date,
-        key: getDateKey(date),
-        isCurrentMonth: date.getMonth() === monthIndex,
-        isToday: getDateKey(date) === getDateKey(today),
+        key: dateKey,
+        isCurrentMonth: dateKey.slice(0, 7) === monthPrefix,
+        isToday: dateKey === todayDateKey,
       };
     });
-  }, [visibleMonth]);
+  }, [today, todayDateKey, visibleMonthKey]);
 
   function openDateEditor(dateKey: string) {
     setSelectedDateKey(dateKey);
@@ -246,8 +239,8 @@ export default function AdminAvailabilityCalendar({
   function openRangeEditor() {
     setIsRangeEditorOpen(true);
     setRangeEditorState({
-      startDate: selectedDateKey ?? getDateKey(today),
-      endDate: selectedDateKey ?? getDateKey(today),
+      startDate: selectedDateKey ?? todayDateKey,
+      endDate: selectedDateKey ?? todayDateKey,
       reason: "",
     });
     setRangeFeedback("");
@@ -380,20 +373,30 @@ export default function AdminAvailabilityCalendar({
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <button
             type="button"
-            onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
+            onClick={() => setVisibleMonthKey((current) => addMonthsToDateKey(current, -1))}
             className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
           >
             ← Prev
           </button>
           <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-            {monthNames[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
+            {formatDateKey(visibleMonthKey, { month: "long", year: "numeric" })}
           </h2>
           <button
             type="button"
-            onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+            onClick={() => setVisibleMonthKey((current) => addMonthsToDateKey(current, 1))}
             className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
           >
             Next →
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setVisibleMonthKey(getMonthStartDateKey(todayDateKey));
+              setSelectedDateKey(null);
+            }}
+            className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
+          >
+            Today
           </button>
           <button
             type="button"
@@ -450,7 +453,7 @@ export default function AdminAvailabilityCalendar({
                       day.isToday ? "text-accent" : ""
                     }`}
                   >
-                    {day.date.getDate()}
+                    {formatDateKey(day.key, { day: "numeric" })}
                   </span>
                   {day.isToday ? (
                     <span className="font-primary text-[9px] uppercase tracking-[0.22em] text-accent sm:text-[10px]">

@@ -36,6 +36,7 @@ type BookingState = {
   phone: string;
   email: string;
   note: string;
+  marketingEmailConsent: boolean;
 };
 
 type StepProps = {
@@ -538,11 +539,12 @@ function ReviewStep({
   selectedService,
   selectedDate,
   state,
+  setState,
   onBack,
   onNext,
 }: Pick<
   StepProps,
-  "selectedService" | "selectedDate" | "state" | "onBack" | "onNext"
+  "selectedService" | "selectedDate" | "state" | "setState" | "onBack" | "onNext"
 >) {
   if (!selectedService || !selectedDate || !state.time) {
     return null;
@@ -554,6 +556,27 @@ function ReviewStep({
         <h3 className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-4xl">
           Your Session.
         </h3>
+      </div>
+
+      <div className="space-y-3 border-t border-border pt-6">
+        <label className="flex cursor-pointer items-start gap-3 text-left">
+          <input
+            type="checkbox"
+            checked={state.marketingEmailConsent}
+            onChange={(event) => setState((current) => ({ ...current, marketingEmailConsent: event.target.checked }))}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+          />
+          <span className="font-primary text-xs leading-5 text-foreground-muted sm:text-sm">
+            I would like to receive news and special offers from 1200 Hairstudio by email.
+          </span>
+        </label>
+        <p className="pl-7 font-primary text-[11px] leading-5 text-foreground-muted">
+          Optional and separate from your booking. Read our{" "}
+          <Link href="/privacy" className="underline underline-offset-4 transition-colors hover:text-foreground">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </div>
 
       <div className="space-y-6">
@@ -710,6 +733,7 @@ export default function BookingSectionClient({
     phone: customerProfile?.phone ?? "",
     email: customerProfile?.email ?? "",
     note: "",
+    marketingEmailConsent: false,
   });
 
   const selectedService =
@@ -759,6 +783,7 @@ export default function BookingSectionClient({
       formData.set("email", state.email);
       formData.set("phone", state.phone);
       formData.set("note", state.note);
+      if (state.marketingEmailConsent) formData.set("marketingEmailConsent", "on");
 
       const result = await bookAppointment(formData);
 
@@ -791,6 +816,7 @@ export default function BookingSectionClient({
               phone: customerProfile?.phone ?? "",
               email: customerProfile?.email ?? "",
               note: "",
+              marketingEmailConsent: false,
             });
           }}
           service={selectedService}

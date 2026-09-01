@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import {
   AUTH_GENERIC_SIGNUP_EXISTS_RESPONSE,
@@ -32,6 +33,7 @@ export default function PublicRegisterForm() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [marketingEmailConsent, setMarketingEmailConsent] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,6 +74,7 @@ export default function PublicRegisterForm() {
         data: {
           full_name: fullName,
           phone,
+          marketing_email_consent: marketingEmailConsent,
         },
       },
     });
@@ -206,6 +209,27 @@ export default function PublicRegisterForm() {
           </a>
         </div>
       ) : null}
+
+      <div className="space-y-3 border-t border-border pt-5">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={marketingEmailConsent}
+            onChange={(event) => setMarketingEmailConsent(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+          />
+          <span className="font-primary text-xs leading-5 text-foreground-muted sm:text-sm">
+            I would like to receive news, offers and promotions from 1200 Hairstudio by email.
+          </span>
+        </label>
+        <p className="pl-7 font-primary text-[11px] leading-5 text-foreground-muted">
+          Optional and separate from account creation. Read our{" "}
+          <Link href="/privacy" className="underline underline-offset-4 transition-colors hover:text-foreground">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      </div>
 
       <div className="flex flex-col gap-4">
         <button

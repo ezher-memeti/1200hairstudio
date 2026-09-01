@@ -9,6 +9,7 @@ import {
 } from "@/lib/appointments/availability";
 import type {
   AdminAppointmentDetail,
+  AdminCustomerOption,
   AdminAppointmentSummary,
   AppointmentRecord,
   CustomerAppointmentSummary,
@@ -118,12 +119,12 @@ export async function getAdminAppointmentSummaries() {
     return {
       ...appointment,
       customer_name:
-        customer?.full_name ?? appointment.guest_name ?? "Guest",
+        customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Guest",
       customer_email:
-        customer?.email ?? appointment.guest_email ?? "",
+        customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
       customer_phone:
-        customer?.phone ?? appointment.guest_phone ?? "",
-      booking_type: appointment.customer_id ? "customer" : "guest",
+        customer?.phone ?? appointment.customer_phone ?? appointment.guest_phone ?? "",
+      booking_type: customer?.is_registered ? "customer" : "guest",
       service_name: service?.name ?? "Service",
       date_label: formatZurichDate(appointment.start_at),
       time_label: formatZurichTimeRange(appointment.start_at, appointment.end_at),
@@ -172,10 +173,13 @@ async function enrichAdminAppointments(
 
     return {
       ...appointment,
-      customer_name: customer?.full_name ?? appointment.guest_name ?? "Guest",
-      customer_email: customer?.email ?? appointment.guest_email ?? "",
-      customer_phone: customer?.phone ?? appointment.guest_phone ?? "",
-      booking_type: (appointment.customer_id ? "customer" : "guest") as "customer" | "guest",
+      customer_name:
+        customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Guest",
+      customer_email:
+        customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
+      customer_phone:
+        customer?.phone ?? appointment.customer_phone ?? appointment.guest_phone ?? "",
+      booking_type: (customer?.is_registered ? "customer" : "guest") as "customer" | "guest",
       service_name: service?.name ?? "Service",
       date_label: formatZurichDate(appointment.start_at),
       time_label: formatZurichTimeRange(appointment.start_at, appointment.end_at),
@@ -227,4 +231,18 @@ export async function getAvailabilityExceptionsInRange(startDateKey: string, end
   }
 
   return (data ?? []) as AvailabilityExceptionRecord[];
+}
+
+export async function getAdminCustomerOptions() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, full_name, email, phone")
+    .order("full_name", { ascending: true });
+
+  if (error) {
+    return [] as AdminCustomerOption[];
+  }
+
+  return (data ?? []) as AdminCustomerOption[];
 }

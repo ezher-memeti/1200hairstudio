@@ -4,14 +4,22 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
-  deleteAdminAppointment,
+  createAdminAppointment,
+  getAdminAvailableSlotTimes,
+  removeAdminAppointment,
   updateAdminAppointment,
 } from "@/app/actions/appointments";
 import { formatZurichTime } from "@/lib/appointments/availability";
-import type { AdminAppointmentDetail, AppointmentStatus } from "@/lib/appointments/types";
+import type {
+  AdminAppointmentDetail,
+  AdminCustomerOption,
+  AppointmentStatus,
+} from "@/lib/appointments/types";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
+import type { AvailableSlotDisplay } from "@/lib/public/available-slots";
 import { getEffectiveHours, toDateKey } from "@/lib/public/booking-availability-utils";
+import type { ServiceRecord } from "@/lib/services/types";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -21,6 +29,8 @@ type Props = {
   appointments: AdminAppointmentDetail[];
   businessHours: BusinessHourRecord[];
   exceptions: AvailabilityExceptionRecord[];
+  customers: AdminCustomerOption[];
+  services: ServiceRecord[];
   todayDateKey: string;
 };
 
@@ -50,11 +60,35 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
   no_show: "No Show",
 };
 
-const WEEK_SLOT_WIDTH = 88;
-const WEEK_TIMELINE_MIN_WIDTH = 280;
 const WEEK_COLUMN_WIDTH = 168;
 const WEEK_ROW_HEIGHT = 54;
 const WEEK_NORMALIZED_HEIGHT = 520;
+
+function formatServicePrice(price: number) {
+  return `CHF ${price.toFixed(0)}`;
+}
+
+type CreateFormState = {
+  customerId: string | null;
+  customerSearch: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  serviceId: string;
+  dateKey: string;
+  startTime: string;
+  notes: string;
+  sendConfirmationEmail: boolean;
+};
+
+type EditFormState = {
+  appointmentId: string;
+  serviceId: string;
+  dateKey: string;
+  startTime: string;
+  notes: string;
+  sendNotification: boolean;
+};
 
 function parseDateKey(dateKey: string) {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -249,6 +283,8 @@ export default function AdminAppointmentsView({
   appointments,
   businessHours,
   exceptions,
+  customers,
+  services,
   todayDateKey,
 }: Props) {
   const router = useRouter();
@@ -256,9 +292,35 @@ export default function AdminAppointmentsView({
   const searchParams = useSearchParams();
   const [appointmentState, setAppointmentState] = useState(appointments);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isRemoveOpen, setIsRemoveOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateFormState>({
+    customerId: null,
+    customerSearch: "",
+    customerName: "",
+    customerEmail: "",
+    customerPhone: "",
+    serviceId: "",
+    dateKey: selectedDate,
+    startTime: "",
+    notes: "",
+    sendConfirmationEmail: true,
+  });
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [createFeedback, setCreateFeedback] = useState("");
+  const [editFeedback, setEditFeedback] = useState("");
+  const [removeFeedback, setRemoveFeedback] = useState("");
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlotDisplay[]>([]);
+  const [editAvailableSlots, setEditAvailableSlots] = useState<AvailableSlotDisplay[]>([]);
+  const [slotsError, setSlotsError] = useState("");
+  const [editSlotsError, setEditSlotsError] = useState("");
+  const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [draftNotes, setDraftNotes] = useState("");
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [isCreatePending, startCreateTransition] = useTransition();
+  const [isEditPending, startEditTransition] = useTransition();
 
   const exceptionsByDate = useMemo(
     () => new Map(exceptions.map((exception) => [exception.date, exception])),
@@ -267,6 +329,15 @@ export default function AdminAppointmentsView({
   useEffect(() => {
     setAppointmentState(appointments);
   }, [appointments]);
+
+  useEffect(() => {
+    const appointmentId = searchParams.get("appointmentId");
+    if (!appointmentId || !appointments.some((appointment) => appointment.id === appointmentId)) {
+      return;
+    }
+
+    setSelectedAppointmentId(appointmentId);
+  }, [appointments, searchParams]);
 
   const appointmentsByDate = useMemo(() => buildAppointments(appointmentState), [appointmentState]);
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
@@ -279,6 +350,59 @@ export default function AdminAppointmentsView({
     setDraftNotes(selectedDetail?.notes ?? "");
     setFeedback("");
   }, [selectedDetail]);
+
+  useEffect(() => {
+    if (!selectedDetail || !isEditOpen) {
+      return;
+    }
+
+    setEditForm({
+      appointmentId: selectedDetail.id,
+      serviceId: selectedDetail.service_id,
+      dateKey: getDateKeyFromIso(selectedDetail.start_at),
+      startTime: formatZurichTime(selectedDetail.start_at),
+      notes: selectedDetail.notes ?? "",
+      sendNotification: true,
+    });
+    setEditFeedback("");
+  }, [isEditOpen, selectedDetail]);
+
+  useEffect(() => {
+    setCreateForm((current) => ({
+      ...current,
+      dateKey: selectedDate,
+    }));
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") {
+      return;
+    }
+
+    const customerId = searchParams.get("customerId");
+    const customer = customers.find((item) => item.id === customerId);
+    setCreateForm({
+      customerId: customer?.id ?? null,
+      customerSearch: customer?.full_name ?? "",
+      customerName: customer?.full_name ?? "",
+      customerEmail: customer?.email ?? "",
+      customerPhone: customer?.phone ?? "",
+      serviceId: "",
+      dateKey: selectedDate,
+      startTime: "",
+      notes: "",
+      sendConfirmationEmail: true,
+    });
+    setAvailableSlots([]);
+    setSlotsError("");
+    setCreateFeedback("");
+    setIsCreateOpen(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("new");
+    params.delete("customerId");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [customers, pathname, router, searchParams, selectedDate]);
 
   const effectiveHoursByDate = useMemo(
     () =>
@@ -318,6 +442,98 @@ export default function AdminAppointmentsView({
     }
     return slots;
   }, [timeRange]);
+
+  const selectedService = useMemo(
+    () => services.find((service) => service.id === createForm.serviceId) ?? null,
+    [createForm.serviceId, services],
+  );
+
+  const filteredCustomers = useMemo(() => {
+    const query = createForm.customerSearch.trim().toLowerCase();
+
+    if (!query) {
+      return customers.slice(0, 8);
+    }
+
+    return customers
+      .filter((customer) =>
+        [customer.full_name, customer.email, customer.phone]
+          .some((value) => value.toLowerCase().includes(query)),
+      )
+      .slice(0, 8);
+  }, [createForm.customerSearch, customers]);
+
+  useEffect(() => {
+    if (!isCreateOpen || !createForm.serviceId || !createForm.dateKey) {
+      setAvailableSlots([]);
+      setSlotsError("");
+      return;
+    }
+
+    startCreateTransition(async () => {
+      const result = await getAdminAvailableSlotTimes({
+        serviceId: createForm.serviceId,
+        dateKey: createForm.dateKey,
+      });
+
+      setAvailableSlots(result.slots);
+      setSlotsError(result.error ?? "");
+      setCreateForm((current) => {
+        const currentStillValid = result.slots.some((slot) => slot.time === current.startTime);
+        return {
+          ...current,
+          startTime: currentStillValid ? current.startTime : result.slots[0]?.time ?? "",
+        };
+      });
+    });
+  }, [createForm.dateKey, createForm.serviceId, isCreateOpen]);
+
+  useEffect(() => {
+    if (!isEditOpen || !editForm?.serviceId || !editForm.dateKey || !editForm.appointmentId) {
+      setEditAvailableSlots([]);
+      setEditSlotsError("");
+      return;
+    }
+
+    startEditTransition(async () => {
+      const result = await getAdminAvailableSlotTimes({
+        serviceId: editForm.serviceId,
+        dateKey: editForm.dateKey,
+        excludeAppointmentId: editForm.appointmentId,
+      });
+
+      setEditAvailableSlots(result.slots);
+      setEditSlotsError(result.error ?? "");
+      setEditForm((current) => {
+        if (!current) {
+          return current;
+        }
+        const currentStillValid = result.slots.some((slot) => slot.time === current.startTime);
+        return {
+          ...current,
+          startTime: currentStillValid ? current.startTime : result.slots[0]?.time ?? current.startTime,
+        };
+      });
+    });
+  }, [editForm?.appointmentId, editForm?.dateKey, editForm?.serviceId, isEditOpen]);
+
+  function resetCreateForm() {
+    setCreateForm({
+      customerId: null,
+      customerSearch: "",
+      customerName: "",
+      customerEmail: "",
+      customerPhone: "",
+      serviceId: "",
+      dateKey: selectedDate,
+      startTime: "",
+      notes: "",
+      sendConfirmationEmail: true,
+    });
+    setAvailableSlots([]);
+    setSlotsError("");
+    setCreateFeedback("");
+  }
 
   function updateQuery(nextView: ViewMode, nextDate: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -368,16 +584,161 @@ export default function AdminAppointmentsView({
     }
 
     startTransition(async () => {
-      const result = await deleteAdminAppointment(selectedDetail.id);
+      const result = await removeAdminAppointment({
+        appointmentId: selectedDetail.id,
+        sendNotification: sendCancellationEmail,
+      });
 
       if (result.error) {
-        setFeedback(result.error);
+        setRemoveFeedback(result.error);
         return;
       }
 
       setAppointmentState((current) =>
         current.filter((appointment) => appointment.id !== selectedDetail.id),
       );
+      setFeedback(
+        result.emailStatus === "sent"
+          ? "Appointment removed and cancellation email sent."
+          : result.emailStatus === "failed"
+            ? `Appointment removed, but cancellation email failed${result.emailError ? `: ${result.emailError}` : "."}`
+            : sendCancellationEmail
+              ? "Appointment removed. Cancellation email skipped because no customer email was available."
+              : "Appointment removed without email.",
+      );
+      setSelectedAppointmentId(null);
+      setIsRemoveOpen(false);
+      router.refresh();
+    });
+  }
+
+  function openCreateModal() {
+    resetCreateForm();
+    setIsCreateOpen(true);
+  }
+
+  function closeCreateModal() {
+    setIsCreateOpen(false);
+    setCreateForm({
+      customerId: null,
+      customerSearch: "",
+      customerName: "",
+      customerEmail: "",
+      customerPhone: "",
+      serviceId: "",
+      dateKey: selectedDate,
+      startTime: "",
+      notes: "",
+      sendConfirmationEmail: true,
+    });
+    setAvailableSlots([]);
+    setSlotsError("");
+  }
+
+  function selectCustomer(customer: AdminCustomerOption) {
+    setCreateForm((current) => ({
+      ...current,
+      customerId: customer.id,
+      customerSearch: customer.full_name,
+      customerName: customer.full_name,
+      customerEmail: customer.email,
+      customerPhone: customer.phone,
+    }));
+  }
+
+  function openEditModal() {
+    if (!selectedDetail) {
+      return;
+    }
+
+    setIsEditOpen(true);
+    setEditFeedback("");
+  }
+
+  function closeEditModal() {
+    setIsEditOpen(false);
+    setEditForm(null);
+    setEditAvailableSlots([]);
+    setEditSlotsError("");
+  }
+
+  function openRemoveModal() {
+    setIsRemoveOpen(true);
+    setSendCancellationEmail(true);
+    setRemoveFeedback("");
+  }
+
+  function closeRemoveModal() {
+    setIsRemoveOpen(false);
+    setRemoveFeedback("");
+  }
+
+  function submitCreateAppointment() {
+    startCreateTransition(async () => {
+      setCreateFeedback("");
+
+      const result = await createAdminAppointment({
+        customerId: createForm.customerId,
+        customerName: createForm.customerName,
+        customerEmail: createForm.customerEmail,
+        customerPhone: createForm.customerPhone,
+        serviceId: createForm.serviceId,
+        dateKey: createForm.dateKey,
+        startTime: createForm.startTime,
+        notes: createForm.notes,
+        sendConfirmationEmail: createForm.sendConfirmationEmail,
+      });
+
+      if (result.error) {
+        setCreateFeedback(result.error);
+        return;
+      }
+
+      setCreateFeedback(
+        result.emailStatus === "sent"
+          ? "Appointment created and confirmation email sent."
+          : result.emailStatus === "failed"
+            ? `Appointment created, but confirmation email failed${result.emailError ? `: ${result.emailError}` : "."}`
+            : createForm.sendConfirmationEmail
+              ? "Appointment created. Confirmation email skipped because no customer email was available."
+              : "Appointment created. Confirmation email was not sent.",
+      );
+      closeCreateModal();
+      router.refresh();
+    });
+  }
+
+  function submitEditAppointment() {
+    if (!editForm) {
+      return;
+    }
+
+    startEditTransition(async () => {
+      setEditFeedback("");
+      const result = await updateAdminAppointment({
+        appointmentId: editForm.appointmentId,
+        serviceId: editForm.serviceId,
+        dateKey: editForm.dateKey,
+        startTime: editForm.startTime,
+        notes: editForm.notes,
+        sendNotification: editForm.sendNotification,
+      });
+
+      if (result.error) {
+        setEditFeedback(result.error);
+        return;
+      }
+
+      setFeedback(
+        result.emailStatus === "sent"
+          ? "Appointment updated and notification email sent."
+          : result.emailStatus === "failed"
+            ? `Appointment updated, but notification email could not be sent${result.emailError ? `: ${result.emailError}` : "."}`
+            : editForm.sendNotification
+              ? "Appointment updated. Notification email skipped because no customer email was available."
+              : "Appointment updated without email.",
+      );
+      closeEditModal();
       setSelectedAppointmentId(null);
       router.refresh();
     });
@@ -419,7 +780,22 @@ export default function AdminAppointmentsView({
             })}
           </div>
         </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
+          >
+            + New Appointment
+          </button>
+        </div>
       </div>
+
+      {createFeedback && !isCreateOpen ? (
+        <div className="border border-border bg-surface px-5 py-4">
+          <p className="font-admin-primary text-sm text-foreground-secondary">{createFeedback}</p>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4 border border-border bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="space-y-1">
@@ -876,6 +1252,14 @@ export default function AdminAppointmentsView({
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={openEditModal}
+                className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:text-foreground-muted"
+              >
+                Edit
+              </button>
               {(["confirmed", "completed", "cancelled", "no_show"] as const).map((status) => (
                 <button
                   key={status}
@@ -898,13 +1282,7 @@ export default function AdminAppointmentsView({
               <button
                 type="button"
                 disabled={isPending}
-                onClick={() => {
-                  if (!window.confirm("Permanently remove this appointment? This cannot be undone.")) {
-                    return;
-                  }
-
-                  removeAppointment();
-                }}
+                onClick={openRemoveModal}
                 className="inline-flex min-h-11 items-center justify-center border border-rose-500/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
               >
                 Remove Appointment
@@ -916,6 +1294,491 @@ export default function AdminAppointmentsView({
                 {feedback}
               </p>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {isEditOpen && selectedDetail && editForm ? (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
+          <div className="w-full max-w-2xl border border-border bg-surface px-5 py-6 sm:px-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
+                  Appointments
+                </p>
+                <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
+                  Edit Appointment
+                </h2>
+                <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
+                  Update service, date, time, and notes for this appointment.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="inline-flex h-11 w-11 items-center justify-center border border-border text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
+                aria-label="Close appointment editor"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div className="space-y-4">
+                <div className="border border-border bg-background/35 px-4 py-4">
+                  <p className="font-admin-display text-xl uppercase tracking-[-0.04em] text-foreground">
+                    {selectedDetail.customer_name}
+                  </p>
+                  <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
+                    {selectedDetail.customer_email || "No email"} • {selectedDetail.customer_phone || "No phone"}
+                  </p>
+                </div>
+
+                <label className="space-y-2">
+                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                    Service
+                  </span>
+                  <select
+                    value={editForm.serviceId}
+                    onChange={(event) =>
+                      setEditForm((current) =>
+                        current ? { ...current, serviceId: event.target.value } : current,
+                      )
+                    }
+                    className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                  >
+                    {services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name} · {service.duration_max ?? service.duration_min} min · {formatServicePrice(service.price)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                      Date
+                    </span>
+                    <input
+                      type="date"
+                      value={editForm.dateKey}
+                      onChange={(event) =>
+                        setEditForm((current) =>
+                          current ? { ...current, dateKey: event.target.value } : current,
+                        )
+                      }
+                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                      Time
+                    </span>
+                    <select
+                      value={editForm.startTime}
+                      onChange={(event) =>
+                        setEditForm((current) =>
+                          current ? { ...current, startTime: event.target.value } : current,
+                        )
+                      }
+                      disabled={isEditPending}
+                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted focus:border-foreground-secondary"
+                    >
+                      {editAvailableSlots.map((slot) => (
+                        <option key={slot.slot_start} value={slot.time}>
+                          {slot.time}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="space-y-2">
+                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                    Notes
+                  </span>
+                  <textarea
+                    rows={6}
+                    value={editForm.notes}
+                    onChange={(event) =>
+                      setEditForm((current) =>
+                        current ? { ...current, notes: event.target.value } : current,
+                      )
+                    }
+                    className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
+                    placeholder="Optional internal notes"
+                  />
+                </label>
+
+                <label className="inline-flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={editForm.sendNotification}
+                    onChange={(event) =>
+                      setEditForm((current) =>
+                        current ? { ...current, sendNotification: event.target.checked } : current,
+                      )
+                    }
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
+                    Send update email
+                  </span>
+                </label>
+
+                {editSlotsError ? (
+                  <div className="border border-border bg-background/35 px-4 py-3">
+                    <p className="font-admin-primary text-sm text-foreground-secondary">
+                      {editSlotsError}
+                    </p>
+                  </div>
+                ) : null}
+
+                {editFeedback ? (
+                  <div className="border border-border bg-background/35 px-4 py-3">
+                    <p className="font-admin-primary text-sm text-foreground-secondary">
+                      {editFeedback}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isEditPending}
+                onClick={submitEditAppointment}
+                className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
+              >
+                {isEditPending ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isRemoveOpen && selectedDetail ? (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
+          <div className="w-full max-w-xl border border-border bg-surface px-5 py-6 sm:px-6">
+            <div className="space-y-2">
+              <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
+                Appointments
+              </p>
+              <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
+                Remove Appointment
+              </h2>
+              <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
+                This permanently removes the appointment. You can optionally notify the customer by email.
+              </p>
+            </div>
+
+            <div className="mt-6 border border-border bg-background/35 px-4 py-4">
+              <p className="font-admin-display text-xl uppercase tracking-[-0.04em] text-foreground">
+                {selectedDetail.customer_name}
+              </p>
+              <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
+                {selectedDetail.service_name} • {selectedDetail.date_label} • {selectedDetail.time_label}
+              </p>
+            </div>
+
+            <label className="mt-6 inline-flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={sendCancellationEmail}
+                onChange={(event) => setSendCancellationEmail(event.target.checked)}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
+              <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
+                Send cancellation email
+              </span>
+            </label>
+
+            {removeFeedback ? (
+              <div className="mt-4 border border-border bg-background/35 px-4 py-3">
+                <p className="font-admin-primary text-sm text-foreground-secondary">
+                  {removeFeedback}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeRemoveModal}
+                className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={removeAppointment}
+                className="inline-flex min-h-12 items-center justify-center border border-rose-500/40 px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
+              >
+                {isPending ? "Removing..." : "Remove Appointment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isCreateOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
+          <div className="w-full max-w-3xl border border-border bg-surface px-5 py-6 sm:px-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
+                  Appointments
+                </p>
+                <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
+                  New Appointment
+                </h2>
+                <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
+                  Create a confirmed appointment for an existing customer or a manual guest.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                className="inline-flex h-11 w-11 items-center justify-center border border-border text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
+                aria-label="Close appointment creator"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div className="space-y-4">
+                <label className="space-y-2">
+                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                    Search Existing Customer
+                  </span>
+                  <input
+                    type="text"
+                    value={createForm.customerSearch}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        customerId: null,
+                        customerSearch: event.target.value,
+                      }))
+                    }
+                    className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
+                    placeholder="Search by name, email, or phone"
+                  />
+                </label>
+
+                <div className="max-h-52 space-y-2 overflow-y-auto border border-border bg-background/35 p-2">
+                  {filteredCustomers.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onClick={() => selectCustomer(customer)}
+                      className="block w-full border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-background"
+                    >
+                      <p className="font-admin-display text-lg uppercase tracking-[-0.04em] text-foreground">
+                        {customer.full_name}
+                      </p>
+                      <p className="font-admin-primary text-sm text-foreground-secondary">
+                        {customer.email || "No email"} • {customer.phone || "No phone"}
+                      </p>
+                    </button>
+                  ))}
+                  {filteredCustomers.length === 0 ? (
+                    <p className="px-3 py-4 font-admin-primary text-sm text-foreground-secondary">
+                      No matching customer. You can still create a manual appointment below.
+                    </p>
+                  ) : null}
+                </div>
+
+                <label className="space-y-2">
+                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                    Customer Name
+                  </span>
+                  <input
+                    type="text"
+                    value={createForm.customerName}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({ ...current, customerName: event.target.value }))
+                    }
+                    className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                  />
+                </label>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                      Customer Email
+                    </span>
+                    <input
+                      type="email"
+                      value={createForm.customerEmail}
+                      onChange={(event) =>
+                        setCreateForm((current) => ({ ...current, customerEmail: event.target.value }))
+                      }
+                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                      Customer Phone
+                    </span>
+                    <input
+                      type="tel"
+                      value={createForm.customerPhone}
+                      onChange={(event) =>
+                        setCreateForm((current) => ({ ...current, customerPhone: event.target.value }))
+                      }
+                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="space-y-2">
+                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                    Service
+                  </span>
+                  <select
+                    value={createForm.serviceId}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({ ...current, serviceId: event.target.value }))
+                    }
+                    className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                  >
+                    <option value="">Select service</option>
+                    {services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name} · {service.duration_max ?? service.duration_min} min · {formatServicePrice(service.price)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                      Date
+                    </span>
+                    <input
+                      type="date"
+                      value={createForm.dateKey}
+                      onChange={(event) =>
+                        setCreateForm((current) => ({ ...current, dateKey: event.target.value }))
+                      }
+                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                      Time
+                    </span>
+                    <select
+                      value={createForm.startTime}
+                      onChange={(event) =>
+                        setCreateForm((current) => ({ ...current, startTime: event.target.value }))
+                      }
+                      disabled={!createForm.serviceId || !createForm.dateKey || isCreatePending}
+                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted focus:border-foreground-secondary"
+                    >
+                      <option value="">
+                        {isCreatePending ? "Loading..." : "Select available time"}
+                      </option>
+                      {availableSlots.map((slot) => (
+                        <option key={slot.slot_start} value={slot.time}>
+                          {slot.time}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {selectedService ? (
+                  <div className="border border-border bg-background/35 px-4 py-4">
+                    <p className="font-admin-display text-xl uppercase tracking-[-0.04em] text-foreground">
+                      {selectedService.name}
+                    </p>
+                    <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
+                      Duration {selectedService.duration_max ?? selectedService.duration_min} min • {formatServicePrice(selectedService.price)}
+                    </p>
+                  </div>
+                ) : null}
+
+                {slotsError ? (
+                  <div className="border border-border bg-background/35 px-4 py-3">
+                    <p className="font-admin-primary text-sm text-foreground-secondary">{slotsError}</p>
+                  </div>
+                ) : null}
+
+                <label className="space-y-2">
+                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
+                    Notes
+                  </span>
+                  <textarea
+                    rows={5}
+                    value={createForm.notes}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
+                    placeholder="Optional internal notes"
+                  />
+                </label>
+
+                <label className="inline-flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={createForm.sendConfirmationEmail}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        sendConfirmationEmail: event.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
+                    Send confirmation email
+                  </span>
+                </label>
+
+                {createFeedback ? (
+                  <div className="border border-border bg-background/35 px-4 py-3">
+                    <p className="font-admin-primary text-sm text-foreground-secondary">{createFeedback}</p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isCreatePending}
+                onClick={submitCreateAppointment}
+                className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
+              >
+                {isCreatePending ? "Creating..." : "Create Appointment"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

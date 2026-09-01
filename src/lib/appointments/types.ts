@@ -8,6 +8,10 @@ export type AppointmentRecord = {
   id: string;
   customer_id: string | null;
   service_id: string;
+  booking_source?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
   start_at: string;
   end_at: string;
   status: AppointmentStatus;
@@ -41,3 +45,10 @@ export type AdminAppointmentSummary = AppointmentRecord & {
 };
 
 export type AdminAppointmentDetail = AdminAppointmentSummary;
+
+export type AdminCustomerOption = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+};

@@ -41,3 +41,49 @@ export async function updateCustomerAccount(formData: FormData) {
     return { error: toErrorMessage(error) };
   }
 }
+
+export async function subscribeToMarketingEmails() {
+  try {
+    const { supabase, user } = await requireCustomerUser();
+    const consentedAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("customers")
+      .update({
+        marketing_email_consent: true,
+        marketing_email_consented_at: consentedAt,
+        marketing_email_consent_source: "account_preferences",
+        marketing_email_unsubscribed_at: null,
+      })
+      .eq("profile_id", user.id)
+      .select("marketing_email_consent, marketing_email_consented_at, marketing_email_consent_source, marketing_email_unsubscribed_at")
+      .single();
+
+    if (error || !data) return { error: "Unable to update email preferences right now.", preference: null };
+    revalidatePath("/account");
+    return { error: null, preference: data };
+  } catch (error) {
+    return { error: toErrorMessage(error), preference: null };
+  }
+}
+
+export async function unsubscribeFromMarketingEmails() {
+  try {
+    const { supabase, user } = await requireCustomerUser();
+    const unsubscribedAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("customers")
+      .update({
+        marketing_email_consent: false,
+        marketing_email_unsubscribed_at: unsubscribedAt,
+      })
+      .eq("profile_id", user.id)
+      .select("marketing_email_consent, marketing_email_consented_at, marketing_email_consent_source, marketing_email_unsubscribed_at")
+      .single();
+
+    if (error || !data) return { error: "Unable to update email preferences right now.", preference: null };
+    revalidatePath("/account");
+    return { error: null, preference: data };
+  } catch (error) {
+    return { error: toErrorMessage(error), preference: null };
+  }
+}

@@ -5,10 +5,11 @@ import { useState, useTransition } from "react";
 import type { CustomerAppointmentSummary } from "@/lib/appointments/types";
 import type { CustomerRecord } from "@/lib/customers/types";
 import { createClient } from "@/lib/supabase/client";
-import { updateCustomerAccount } from "@/app/account/actions";
+import { subscribeToMarketingEmails, unsubscribeFromMarketingEmails, updateCustomerAccount } from "@/app/account/actions";
+import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
 
 type CustomerAccountViewProps = {
-  customer: CustomerRecord;
+  customer: Pick<CustomerRecord, "id" | "full_name" | "email" | "phone" | "marketing_email_consent" | "marketing_email_consented_at" | "marketing_email_consent_source" | "marketing_email_unsubscribed_at">;
   pastAppointments: CustomerAppointmentSummary[];
   upcomingAppointments: CustomerAppointmentSummary[];
 };
@@ -24,6 +25,31 @@ export default function CustomerAccountView({
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [marketingPreference, setMarketingPreference] = useState({
+    marketing_email_consent: customer.marketing_email_consent,
+    marketing_email_consented_at: customer.marketing_email_consented_at,
+    marketing_email_consent_source: customer.marketing_email_consent_source,
+    marketing_email_unsubscribed_at: customer.marketing_email_unsubscribed_at,
+  });
+  const [marketingFeedback, setMarketingFeedback] = useState("");
+  const [isMarketingPending, startMarketingTransition] = useTransition();
+  const [showUnsubscribeConfirmation, setShowUnsubscribeConfirmation] = useState(false);
+  const marketingStatus = getMarketingConsentStatus({ email: customer.email, ...marketingPreference });
+
+  function updateMarketingPreference(action: "subscribe" | "unsubscribe") {
+    setMarketingFeedback("");
+    startMarketingTransition(async () => {
+      const result = action === "subscribe" ? await subscribeToMarketingEmails() : await unsubscribeFromMarketingEmails();
+      if (result.error || !result.preference) {
+        setMarketingFeedback(result.error ?? "Unable to update email preferences.");
+        return;
+      }
+      setMarketingPreference(result.preference);
+      setShowUnsubscribeConfirmation(false);
+      setMarketingFeedback(action === "subscribe" ? "You are now subscribed." : "You have been unsubscribed.");
+      router.refresh();
+    });
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,6 +158,22 @@ export default function CustomerAccountView({
               </button>
             </div>
           </form>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 border-t border-border pt-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start lg:gap-12">
+        <div className="space-y-3">
+          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">Email Preferences</p>
+          <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">News & Offers</h2>
+          <p className="max-w-xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">Manage promotional email preferences separately from important appointment confirmations, changes and reminders.</p>
+        </div>
+        <div className="border border-border bg-surface p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="font-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Marketing Email</p><p className="mt-2 font-display text-2xl uppercase tracking-[-0.04em] text-foreground">{marketingStatus === "subscribed" ? "Subscribed" : "Not Subscribed"}</p>{marketingStatus === "subscribed" && marketingPreference.marketing_email_consented_at ? <p className="mt-2 font-primary text-xs text-foreground-muted">Since {new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", day: "2-digit", month: "short", year: "numeric" }).format(new Date(marketingPreference.marketing_email_consented_at))}</p> : null}</div>
+            {marketingStatus === "subscribed" ? <button type="button" disabled={isMarketingPending} onClick={() => setShowUnsubscribeConfirmation(true)} className="inline-flex min-h-12 items-center justify-center border border-border px-5 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary hover:bg-background hover:text-foreground disabled:opacity-50">Unsubscribe</button> : <button type="button" disabled={isMarketingPending} onClick={() => updateMarketingPreference("subscribe")} className="inline-flex min-h-12 items-center justify-center bg-accent px-5 font-primary text-xs uppercase tracking-[0.18em] text-background hover:bg-accent-hover disabled:opacity-50">{isMarketingPending ? "Updating..." : "Subscribe"}</button>}
+          </div>
+          {marketingFeedback ? <p className="mt-4 font-primary text-sm text-foreground-secondary">{marketingFeedback}</p> : null}
+          {showUnsubscribeConfirmation ? <div className="mt-5 space-y-4 border-t border-border pt-5"><p className="font-primary text-sm leading-6 text-foreground-secondary">You will stop receiving news and promotional offers. Appointment confirmations, changes and reminders will still be sent.</p><div className="flex flex-col gap-3 sm:flex-row"><button type="button" disabled={isMarketingPending} onClick={() => updateMarketingPreference("unsubscribe")} className="inline-flex min-h-12 flex-1 items-center justify-center border border-border bg-foreground px-4 font-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-50">{isMarketingPending ? "Updating..." : "Confirm Unsubscribe"}</button><button type="button" disabled={isMarketingPending} onClick={() => setShowUnsubscribeConfirmation(false)} className="inline-flex min-h-12 items-center justify-center border border-border px-4 font-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">Keep Subscription</button></div></div> : null}
         </div>
       </section>
 
