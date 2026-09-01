@@ -28,6 +28,7 @@ import {
   type CustomerStatus,
 } from "@/lib/customers/status";
 import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
+import AdminSelect from "@/components/admin/AdminSelect";
 
 type Props = {
   customers: AdminCustomerDirectoryEntry[];
@@ -586,23 +587,7 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
             </div>
           </div>
 
-          <label className="min-w-[160px] flex-1 space-y-2 sm:flex-none sm:basis-[210px]">
-            <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-              Sort
-            </span>
-            <select
-              value={sort}
-              onChange={(event) => setSort(event.target.value as SortMode)}
-              className="w-full border border-border bg-background px-4 py-2.5 font-admin-primary text-sm text-foreground outline-none"
-            >
-              <option value="name">Name</option>
-              <option value="newest">Newest</option>
-              <option value="most_visits">Most visits</option>
-              <option value="last_visit">Last visit</option>
-              <option value="next_appointment">Next appointment</option>
-              <option value="most_no_shows">Most no-shows</option>
-            </select>
-          </label>
+          <AdminSelect label="Sort" value={sort} onChange={(value) => setSort(value as SortMode)} className="min-w-[160px] flex-1 sm:flex-none sm:basis-[210px]" options={[{ value: "name", label: "Name" }, { value: "newest", label: "Newest" }, { value: "most_visits", label: "Most visits" }, { value: "last_visit", label: "Last visit" }, { value: "next_appointment", label: "Next appointment" }, { value: "most_no_shows", label: "Most no-shows" }]} />
 
           <button type="button" onClick={() => setIsFilterOpen(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground sm:flex-none"><SlidersHorizontal size={14} /> Filters{activeFilterChips.length ? ` (${activeFilterChips.length})` : ""}</button>
           <div className="relative flex-1 sm:flex-none">
@@ -614,13 +599,13 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
         {activeFilterChips.length ? <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">{activeFilterChips.map((chip) => <button key={chip.key} type="button" onClick={chip.clear} className="inline-flex min-h-9 items-center gap-2 border border-accent/30 bg-accent/10 px-3 font-admin-primary text-[10px] uppercase tracking-[0.13em] text-accent">{chip.label}<X size={12} /></button>)}<button type="button" onClick={clearAllFilters} className="inline-flex min-h-9 items-center px-3 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-muted hover:text-foreground">Clear all</button></div> : null}
 
         {isFilterOpen ? <div className="fixed inset-0 z-[100] flex items-end bg-background/80 backdrop-blur-sm sm:absolute sm:inset-auto sm:right-4 sm:top-full sm:mt-2 sm:block sm:w-[620px] sm:max-w-[calc(100vw-2rem)] sm:bg-transparent sm:backdrop-blur-none"><button type="button" className="absolute inset-0 sm:hidden" onClick={() => setIsFilterOpen(false)} aria-label="Close filters" /><div className="relative z-10 max-h-[88dvh] w-full overflow-y-auto border border-border bg-background-secondary p-4 shadow-2xl sm:max-h-[75vh] sm:p-5"><div className="flex items-center justify-between"><p className="font-admin-primary text-xs uppercase tracking-[0.2em] text-foreground">Advanced Filters</p><button type="button" onClick={() => setIsFilterOpen(false)} className="inline-flex h-10 w-10 items-center justify-center border border-border text-foreground-secondary"><X size={15} /></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Type</span><select value={filter} onChange={(event) => setFilter(event.target.value as FilterMode)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All</option><option value="registered">Registered</option><option value="guest">Guest</option></select></label>
-          <label className="space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | CustomerStatus)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All</option>{(["prospect", "new", "returning", "regular", "at_risk", "inactive"] as CustomerStatus[]).map((status) => <option key={status} value={status}>{formatCustomerStatus(status)}</option>)}</select></label>
-          <label className="space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Appointment</span><select value={appointmentFilter} onChange={(event) => setAppointmentFilter(event.target.value as AppointmentFilter)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All</option><option value="upcoming">Has Upcoming</option><option value="none">No Upcoming</option></select></label>
-          <label className="space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Visit Recency</span><select value={recencyFilter} onChange={(event) => setRecencyFilter(event.target.value as RecencyFilter)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All</option><option value="30">Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option><option value="120_plus">120+ days inactive</option></select></label>
-          <label className="space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Completed Visits</span><select value={visitFilter} onChange={(event) => setVisitFilter(event.target.value as VisitFilter)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All</option><option value="0_1">0-1</option><option value="2_4">2-4</option><option value="5_plus">5+</option></select></label>
-          <label className="space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">No-Shows</span><select value={noShowFilter} onChange={(event) => setNoShowFilter(event.target.value as NoShowFilter)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option></select></label>
-          <label className="space-y-2 sm:col-span-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Favorite Service</span><select value={favoriteServiceFilter} onChange={(event) => setFavoriteServiceFilter(event.target.value)} className="w-full border border-border bg-background px-3 py-3 font-admin-primary text-sm text-foreground"><option value="all">All active services</option>{activeServices.map((service) => <option key={service} value={service}>{service}</option>)}</select></label>
+          <AdminSelect label="Type" value={filter} onChange={(value) => setFilter(value as FilterMode)} options={[{ value: "all", label: "All" }, { value: "registered", label: "Registered" }, { value: "guest", label: "Guest" }]} />
+          <AdminSelect label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as "all" | CustomerStatus)} options={[{ value: "all", label: "All" }, ...(["prospect", "new", "returning", "regular", "at_risk", "inactive"] as CustomerStatus[]).map((status) => ({ value: status, label: formatCustomerStatus(status) }))]} />
+          <AdminSelect label="Appointment" value={appointmentFilter} onChange={(value) => setAppointmentFilter(value as AppointmentFilter)} options={[{ value: "all", label: "All" }, { value: "upcoming", label: "Has Upcoming" }, { value: "none", label: "No Upcoming" }]} />
+          <AdminSelect label="Visit Recency" value={recencyFilter} onChange={(value) => setRecencyFilter(value as RecencyFilter)} options={[{ value: "all", label: "All" }, { value: "30", label: "Last 30 days" }, { value: "60", label: "Last 60 days" }, { value: "90", label: "Last 90 days" }, { value: "120_plus", label: "120+ days inactive" }]} />
+          <AdminSelect label="Completed Visits" value={visitFilter} onChange={(value) => setVisitFilter(value as VisitFilter)} options={[{ value: "all", label: "All" }, { value: "0_1", label: "0-1" }, { value: "2_4", label: "2-4" }, { value: "5_plus", label: "5+" }]} />
+          <AdminSelect label="No-Shows" value={noShowFilter} onChange={(value) => setNoShowFilter(value as NoShowFilter)} options={[{ value: "all", label: "All" }, { value: "1", label: "1+" }, { value: "2", label: "2+" }, { value: "3", label: "3+" }]} />
+          <AdminSelect label="Favorite Service" value={favoriteServiceFilter} onChange={setFavoriteServiceFilter} options={[{ value: "all", label: "All active services" }, ...activeServices.map((service) => ({ value: service, label: service }))]} searchable={activeServices.length > 8} className="sm:col-span-2" />
         </div><div className="mt-5 flex gap-3"><button type="button" onClick={() => setIsFilterOpen(false)} className="inline-flex min-h-11 flex-1 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background">Show {filteredCustomers.length} Customers</button><button type="button" onClick={clearAllFilters} className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">Clear</button></div></div></div> : null}
       </div>
 

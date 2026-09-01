@@ -184,9 +184,11 @@ export async function sendMarketingTest(input: MarketingEmailContent): Promise<A
   } catch (error) { console.error("Marketing test email failed", error); return { success: false, message: "The test email could not be sent." }; }
 }
 
-export async function sendMarketingCampaign(input: MarketingEmailContent, filters: MarketingAudienceFilters, campaignId?: string): Promise<ActionResult> {
+export async function sendMarketingCampaign(input: MarketingEmailContent, filters: MarketingAudienceFilters, selectedCustomerIdsOrCampaignId: string[] | string | undefined, campaignIdArgument?: string): Promise<ActionResult> {
   let activeCampaignId: string | null = null;
   try {
+    const selectedCustomerIds = Array.isArray(selectedCustomerIdsOrCampaignId) ? selectedCustomerIdsOrCampaignId : [];
+    const campaignId = Array.isArray(selectedCustomerIdsOrCampaignId) ? campaignIdArgument : selectedCustomerIdsOrCampaignId;
     const { supabase, user } = await requireAdminUser();
     const content = validateContent(input);
     if (campaignId) {
@@ -196,19 +198,21 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
     }
     const customers = await getAdminCustomerDirectory();
     const eligible = getEligibleMarketingRecipients(customers, filters);
-    if (!eligible.length) return { success: false, message: "No eligible marketing subscribers match this audience." };
-    const payload = { ...campaignPayload(content, filters, user.id), status: "sending", recipient_count: eligible.length };
+    const eligibleCustomerIds = new Set(eligible.map((recipient) => recipient.id));
+    const selectedIds = Array.from(new Set(selectedCustomerIds.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim())));
+    if (!selectedIds.length) return { success: false, message: "Select at least one eligible recipient before sending." };
+    const payload = { ...campaignPayload(content, filters, user.id), status: "sending", recipient_count: selectedIds.length };
     const campaignQuery = campaignId ? supabase.from("marketing_campaigns").update(payload).eq("id", campaignId).eq("status", "draft").select("id").maybeSingle() : supabase.from("marketing_campaigns").insert(payload).select("id").single();
     const { data: campaign, error: campaignError } = await campaignQuery;
     if (campaignError || !campaign) throw campaignError ?? new Error("Campaign draft was not found or could not be prepared for sending.");
     activeCampaignId = campaign.id;
     const email = buildMarketingCampaignEmail(content);
     let sent = 0, failed = 0, skipped = 0, trackedRecipients = 0;
-    for (const recipient of eligible) {
-      const { data: freshCustomer, error: customerError } = await supabase.from("customers").select("*").eq("id", recipient.id).maybeSingle();
+    for (const customerId of selectedIds) {
+      const { data: freshCustomer, error: customerError } = await supabase.from("customers").select("*").eq("id", customerId).maybeSingle();
       if (customerError || !freshCustomer || !isValidEmail(freshCustomer.email)) {
         skipped += 1;
-        console.error("Marketing recipient could not be loaded with a valid email", { campaignId: campaign.id, customerId: recipient.id, error: customerError });
+        console.error("Selected marketing recipient could not be loaded with a valid email", { campaignId: campaign.id, customerId, error: customerError });
         continue;
       }
 
@@ -226,7 +230,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
       }).select("id").single();
       if (rowError || !row) { failed += 1; console.error("Unable to create campaign recipient", rowError); continue; }
       trackedRecipients += 1;
-      if (!canReceiveMarketingEmail(campaignCustomer)) {
+      if (!eligibleCustomerIds.has(customerId) || !canReceiveMarketingEmail(campaignCustomer)) {
         const { error: skippedUpdateError } = await supabase.from("marketing_campaign_recipients").update({ status: "skipped", sent_at: null, failure_reason: null }).eq("id", row.id);
         if (skippedUpdateError) console.error("Unable to mark marketing recipient skipped", { recipientId: row.id, error: skippedUpdateError });
         skipped += 1;
@@ -236,7 +240,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
         const result = await sendMarketingEmail({ customer: campaignCustomer, subject: content.subject, html: email.html, text: email.text });
         status = result.sent ? "sent" : "skipped";
         result.sent ? sent += 1 : skipped += 1;
-      } catch (emailError) { status = "failed"; failed += 1; console.error("Marketing recipient email failed", { campaignId: campaign.id, customerId: recipient.id, error: emailError }); }
+      } catch (emailError) { status = "failed"; failed += 1; console.error("Marketing recipient email failed", { campaignId: campaign.id, customerId, error: emailError }); }
       const { error: recipientUpdateError } = await supabase.from("marketing_campaign_recipients").update({
         status,
         sent_at: status === "sent" ? new Date().toISOString() : null,
