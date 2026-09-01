@@ -33,6 +33,10 @@ export default async function AccountPage() {
               full_name: customer.full_name,
               email: customer.email,
               phone: customer.phone,
+              marketing_email_consent: customer.marketing_email_consent,
+              marketing_email_consented_at: customer.marketing_email_consented_at,
+              marketing_email_consent_source: customer.marketing_email_consent_source,
+              marketing_email_unsubscribed_at: customer.marketing_email_unsubscribed_at,
             }}
             upcomingAppointments={upcomingAppointments}
             pastAppointments={pastAppointments}

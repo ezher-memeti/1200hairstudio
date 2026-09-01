@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { formatCustomerStatus, getCustomerInsights } from "./status";
 import type { AdminCustomerDirectoryEntry } from "./types";
+import { getMarketingConsentStatus } from "./marketing-consent";
 
 const ZURICH_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Zurich",
@@ -43,6 +44,9 @@ function customerSummary(customer: AdminCustomerDirectoryEntry, now: Date) {
       formatDate(insights.lastCompletedAppointment?.start_at),
       formatDate(insights.nextConfirmedAppointment?.start_at),
       insights.favoriteService ?? "-",
+      getMarketingConsentStatus(customer).replace("_", " ").toUpperCase(),
+      formatDate(customer.marketing_email_consented_at),
+      formatDate(customer.marketing_email_unsubscribed_at),
     ],
   };
 }
@@ -61,6 +65,9 @@ const SUMMARY_HEADERS = [
   "Last Visit",
   "Next Appointment",
   "Favorite Service",
+  "Marketing Status",
+  "Marketing Consent Date",
+  "Marketing Unsubscribe Date",
 ];
 
 export function createAllCustomersCsv(customers: AdminCustomerDirectoryEntry[], now = new Date()) {
@@ -158,6 +165,9 @@ export async function createCustomerPdf(customer: AdminCustomerDirectoryEntry, n
   drawText(writer, `Last visit: ${formatDate(insights.lastCompletedAppointment?.start_at)}`);
   drawText(writer, `Next appointment: ${formatDate(insights.nextConfirmedAppointment?.start_at)}`);
   drawText(writer, `Favorite service: ${insights.favoriteService ?? "-"}`);
+  drawText(writer, `Marketing status: ${getMarketingConsentStatus(customer).replace("_", " ").toUpperCase()}`);
+  drawText(writer, `Marketing consent date: ${formatDate(customer.marketing_email_consented_at)}`);
+  drawText(writer, `Marketing unsubscribe date: ${formatDate(customer.marketing_email_unsubscribed_at)}`);
   drawSection(writer, "Internal Notes");
   drawText(writer, customer.notes || "No internal notes.");
   drawSection(writer, "Appointment History");

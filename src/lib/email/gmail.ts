@@ -16,7 +16,7 @@ type BookingEmailDetails = {
   price: number;
 };
 
-type GmailMessage = {
+export type GmailMessage = {
   to: string;
   subject: string;
   html: string;
@@ -85,7 +85,7 @@ function buildMessage({ to, subject, html, text }: GmailMessage) {
     .replace(/=+$/, "");
 }
 
-async function sendGmailMessage(message: GmailMessage) {
+export async function sendGmailMessage(message: GmailMessage) {
   const gmail = createGmailClient();
 
   await gmail.users.messages.send({

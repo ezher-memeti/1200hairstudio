@@ -6,7 +6,7 @@ import {
   validateAppointmentRequest,
 } from "@/lib/appointments/mutations";
 import type { AppointmentStatus } from "@/lib/appointments/types";
-import { sendBookingConfirmationEmail } from "@/lib/email/gmail";
+import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
 import { resolveCustomerByEmail } from "@/lib/customers/mutations";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
@@ -53,6 +53,7 @@ export async function bookAppointment(formData: FormData) {
     const email = (formData.get("email") ?? "").toString().trim();
     const phone = (formData.get("phone") ?? "").toString().trim();
     const note = (formData.get("note") ?? "").toString().trim();
+    const marketingEmailConsent = formData.get("marketingEmailConsent") === "on";
 
     if (!serviceId || !dateKey || !startTime) {
       return { error: "Choose a service, date, and time." };
@@ -67,6 +68,7 @@ export async function bookAppointment(formData: FormData) {
       lastName,
       email,
       phone,
+      marketingEmailConsent,
     });
 
     return result;
@@ -158,7 +160,7 @@ export async function updateAdminAppointment(
 
       if (sendNotification && customerEmail) {
         try {
-          await import("@/lib/email/gmail").then(({ sendBookingUpdateEmail }) =>
+          await import("@/lib/email/transactional").then(({ sendBookingUpdateEmail }) =>
             sendBookingUpdateEmail({
               to: customerEmail,
               customerName,
@@ -272,7 +274,7 @@ export async function removeAdminAppointment(input: {
 
     if (sendNotification && customerEmail && service) {
       try {
-        await import("@/lib/email/gmail").then(({ sendBookingCancellationEmail }) =>
+        await import("@/lib/email/transactional").then(({ sendBookingCancellationEmail }) =>
           sendBookingCancellationEmail({
             to: customerEmail,
             customerName,

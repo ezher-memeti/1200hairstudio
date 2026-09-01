@@ -71,6 +71,10 @@ type MutableCustomerEntry = {
   email: string;
   phone: string;
   notes: string | null;
+  marketing_email_consent: boolean;
+  marketing_email_consented_at: string | null;
+  marketing_email_consent_source: string | null;
+  marketing_email_unsubscribed_at: string | null;
   created_at: string;
   updated_at: string;
   appointment_history: AdminCustomerAppointment[];
@@ -125,6 +129,10 @@ export async function getAdminCustomerDirectory() {
       email: customer.email,
       phone: customer.phone,
       notes: customer.notes,
+      marketing_email_consent: customer.marketing_email_consent,
+      marketing_email_consented_at: customer.marketing_email_consented_at,
+      marketing_email_consent_source: customer.marketing_email_consent_source,
+      marketing_email_unsubscribed_at: customer.marketing_email_unsubscribed_at,
       created_at: customer.created_at,
       updated_at: customer.updated_at,
       appointment_history: [],
@@ -188,6 +196,10 @@ export async function getAdminCustomerDirectory() {
       email: appointment.customer_email ?? appointment.guest_email ?? "",
       phone: appointment.customer_phone ?? appointment.guest_phone ?? "",
       notes: null,
+      marketing_email_consent: false,
+      marketing_email_consented_at: null,
+      marketing_email_consent_source: null,
+      marketing_email_unsubscribed_at: null,
       created_at: appointment.created_at,
       updated_at: appointment.updated_at,
       appointment_history: [summary],

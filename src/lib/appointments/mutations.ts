@@ -10,9 +10,8 @@ import {
   getUtcIsoForZurichDateTime,
 } from "@/lib/appointments/availability";
 
-import { sendBookingConfirmationEmail } from "@/lib/email/gmail";
-import { resolveCustomerByEmail } from "@/lib/customers/mutations";
-import type { CustomerRecord } from "@/lib/customers/types";
+import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
+import { recordMarketingEmailConsent } from "@/lib/customers/mutations";
 import { getAvailableSlots } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +32,7 @@ export type AppointmentRequestInput = {
   lastName?: string;
   email?: string;
   phone?: string;
+  marketingEmailConsent?: boolean;
 };
 
 export async function validateAppointmentRequest(
@@ -142,7 +142,8 @@ function getAppointmentInsertErrorMessage(
   // Use this only for actual booking conflicts.
   if (
     error.code === "23P01" ||
-    error.code === "23505"
+    error.code === "23505" ||
+    /slot.*(?:unavailable|not available)|already booked|overlap|conflict/i.test(error.message ?? "")
   ) {
     return "This time is no longer available. Please choose another slot.";
   }
@@ -235,6 +236,17 @@ export async function createAppointment(
       };
     }
 
+    if (input.marketingEmailConsent) {
+      try {
+        await recordMarketingEmailConsent(supabase, customer.id, "booking_form");
+      } catch (error) {
+        console.error("BOOKING MARKETING CONSENT ERROR", {
+          message: error instanceof Error ? error.message : "Unknown error",
+          customerId: customer.id,
+        });
+      }
+    }
+
     if (fullName || phone) {
       const { error: customerUpdateError } =
         await supabase
@@ -293,41 +305,50 @@ export async function createAppointment(
       };
     }
 
-    let guestCustomer: CustomerRecord;
-    try {
-      guestCustomer = await resolveCustomerByEmail(supabase, {
-        profileId: null,
-        fullName,
-        email,
-        phone,
-        isRegistered: false,
+    const { data: guestCustomerId, error: guestCustomerError } = await supabase.rpc(
+      "get_or_create_guest_customer",
+      {
+        p_full_name: fullName,
+        p_email: email,
+        p_phone: phone || null,
+        p_marketing_consent: input.marketingEmailConsent === true,
+      },
+    );
+
+    if (guestCustomerError || typeof guestCustomerId !== "string" || !guestCustomerId) {
+      console.error("GUEST CUSTOMER RPC ERROR", {
+        code: guestCustomerError?.code,
+        message: guestCustomerError?.message,
       });
-    } catch (error) {
-      console.error("GUEST CUSTOMER RESOLUTION ERROR", error);
       return {
         error: "Unable to prepare your booking right now. Please try again.",
       };
     }
 
-    const { error: insertError } = await supabase
-      .from("appointments")
-      .insert({
-        customer_id: guestCustomer.id,
-        service_id: service.id,
-        start_at: startAt,
-        end_at: endAt,
-        status: "confirmed",
-        notes,
-        guest_name: fullName,
-        guest_email: email,
-        guest_phone: phone,
-      });
+    const { data: guestAppointmentId, error: guestAppointmentError } = await supabase.rpc(
+      "create_guest_appointment",
+      {
+        p_customer_id: guestCustomerId,
+        p_service_id: service.id,
+        p_start_at: startAt,
+        p_end_at: endAt,
+        p_customer_name: fullName,
+        p_customer_email: email,
+        p_customer_phone: phone,
+      },
+    );
 
-    if (insertError) {
+    if (
+      guestAppointmentError ||
+      typeof guestAppointmentId !== "string" ||
+      !guestAppointmentId
+    ) {
       return {
         error:
           getAppointmentInsertErrorMessage(
-            insertError,
+            guestAppointmentError ?? {
+              message: "Guest appointment RPC returned no appointment ID.",
+            },
           ),
       };
     }

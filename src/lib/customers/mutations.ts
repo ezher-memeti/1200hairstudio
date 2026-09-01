@@ -13,6 +13,35 @@ type ResolveCustomerInput = {
   isRegistered: boolean;
 };
 
+export async function recordMarketingEmailConsent(
+  supabase: ServerSupabaseClient,
+  customerId: string,
+  source: string,
+) {
+  const { data, error } = await supabase
+    .from("customers")
+    .update({
+      marketing_email_consent: true,
+      marketing_email_consented_at: new Date().toISOString(),
+      marketing_email_consent_source: source,
+      marketing_email_unsubscribed_at: null,
+    })
+    .eq("id", customerId)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    console.error("MARKETING CONSENT UPDATE ERROR", {
+      code: error?.code,
+      message: error?.message,
+      customerId,
+    });
+    throw new Error("Unable to save email preferences right now.");
+  }
+
+  return data as CustomerRecord;
+}
+
 export function normalizeCustomerEmail(email: string) {
   return email.trim().toLowerCase();
 }

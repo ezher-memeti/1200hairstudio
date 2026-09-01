@@ -3,9 +3,11 @@ import type { User } from "@supabase/supabase-js";
 import type { CustomerRecord } from "@/lib/customers/types";
 import {
   normalizeCustomerEmail,
+  recordMarketingEmailConsent,
   resolveCustomerByEmail,
 } from "@/lib/customers/mutations";
 import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors";
+import { shouldRecordSignupMarketingConsent } from "@/lib/customers/marketing-consent";
 import { createClient } from "@/lib/supabase/server";
 
 export type UserRole = "admin" | "customer" | null;
@@ -110,6 +112,15 @@ export async function ensureCustomerRecord(
   phone?: string | null,
 ) {
   const { supabase, user } = await requireCustomerUser();
+  const requestedSignupMarketingConsent = user.user_metadata.marketing_email_consent === true;
+
+  async function applySignupMarketingConsent(customer: CustomerRecord) {
+    if (!shouldRecordSignupMarketingConsent(customer, requestedSignupMarketingConsent)) {
+      return customer;
+    }
+
+    return recordMarketingEmailConsent(supabase, customer.id, "signup_form");
+  }
   const { data: existingCustomer, error: customerLookupError } =
     await supabase
       .from("customers")
@@ -138,7 +149,7 @@ export async function ensureCustomerRecord(
     }
 
     if (Object.keys(updates).length === 0) {
-      return customer;
+      return applySignupMarketingConsent(customer);
     }
 
     const { data: updatedCustomer, error: updateError } = await supabase
@@ -152,7 +163,7 @@ export async function ensureCustomerRecord(
       throw new Error("Unable to update customer account.");
     }
 
-    return updatedCustomer as CustomerRecord;
+    return applySignupMarketingConsent(updatedCustomer as CustomerRecord);
   }
 
   const fallbackFullName =
@@ -173,11 +184,13 @@ export async function ensureCustomerRecord(
     throw new Error("Unable to create customer account.");
   }
 
-  return resolveCustomerByEmail(supabase, {
+  const customer = await resolveCustomerByEmail(supabase, {
     profileId: user.id,
     fullName: fallbackFullName,
     email,
     phone: fallbackPhone,
     isRegistered: true,
   });
+
+  return applySignupMarketingConsent(customer);
 }
