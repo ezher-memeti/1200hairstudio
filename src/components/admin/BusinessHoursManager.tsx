@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { updateBusinessHours } from "@/app/admin/(dashboard)/settings/actions";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
+import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 
 type BusinessHoursManagerProps = {
   initialHours: BusinessHourRecord[];
@@ -284,41 +285,9 @@ export default function BusinessHoursManager({
                 </span>
               </label>
 
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Opening
-                </span>
-                <input
-                  type="time"
-                  value={row.open_time}
-                  disabled={row.is_closed}
-                  onChange={(event) =>
-                    updateRow(row.id, {
-                      open_time: event.target.value,
-                      previous_open_time: event.target.value || row.previous_open_time,
-                    })
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-2 font-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted"
-                />
-              </label>
+              <DateTimePicker mode="time" minuteStep={5} label="Opening" value={row.open_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { open_time: nextTime, previous_open_time: nextTime || row.previous_open_time })} />
 
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Closing
-                </span>
-                <input
-                  type="time"
-                  value={row.close_time}
-                  disabled={row.is_closed}
-                  onChange={(event) =>
-                    updateRow(row.id, {
-                      close_time: event.target.value,
-                      previous_close_time: event.target.value || row.previous_close_time,
-                    })
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-2 font-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted"
-                />
-              </label>
+              <DateTimePicker mode="time" minuteStep={5} label="Closing" value={row.close_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { close_time: nextTime, previous_close_time: nextTime || row.previous_close_time })} />
             </div>
           </div>
         ))}
