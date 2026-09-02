@@ -568,18 +568,13 @@ export default function SelectedWorkManager({
   return (
     <section className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-4">
-          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            Portfolio
+        <div className="space-y-2">
+          <h2 className="font-admin-display text-2xl font-semibold text-foreground">
+            Selected Work
+          </h2>
+          <p className="max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
+            Manage the gallery displayed on the public website.
           </p>
-          <div className="space-y-2">
-            <h1 className="font-display text-[clamp(2.2rem,5vw,4.25rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-              Selected Work
-            </h1>
-            <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-              Manage the public gallery images, copy, visibility, and ordering.
-            </p>
-          </div>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
