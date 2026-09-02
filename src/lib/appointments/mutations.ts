@@ -14,6 +14,8 @@ import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
 import { recordMarketingEmailConsent } from "@/lib/customers/mutations";
 import { getAvailableSlots } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveServicePrice } from "@/lib/promotions/server";
+import type { EffectiveServicePrice } from "@/lib/promotions/types";
 
 function toFullName(firstName: string, lastName: string) {
   return [firstName.trim(), lastName.trim()]
@@ -33,6 +35,7 @@ export type AppointmentRequestInput = {
   email?: string;
   phone?: string;
   marketingEmailConsent?: boolean;
+  promotionId?: string;
 };
 
 export async function validateAppointmentRequest(
@@ -206,12 +209,16 @@ export async function createAppointment(
   const email =
     input.email?.trim().toLowerCase() ?? "";
   const notes = input.note?.trim() || null;
+  let promotionPrice: EffectiveServicePrice | null = null;
 
   if (role === "customer" && user) {
     const customer = await ensureCustomerRecord(
       fullName,
       phone,
     );
+
+    promotionPrice = await getEffectiveServicePrice({ customerId: customer.id, serviceId: service.id, authenticatedCustomer: true, supabase });
+    if (input.promotionId && promotionPrice?.promotionId !== input.promotionId) return { error: "Your promotion is no longer available. Please review the updated price before booking." };
 
     const { error: insertError } = await supabase
       .from("appointments")
@@ -225,6 +232,10 @@ export async function createAppointment(
         guest_name: null,
         guest_email: null,
         guest_phone: null,
+        original_price: promotionPrice?.originalPrice ?? service.price,
+        discount_amount: promotionPrice?.discountAmount ?? 0,
+        final_price: promotionPrice?.finalPrice ?? service.price,
+        promotion_id: promotionPrice?.promotionId ?? null,
       });
 
     if (insertError) {
@@ -280,7 +291,7 @@ export async function createAppointment(
         serviceName: service.name,
         startAt,
         endAt,
-        price: service.price,
+        price: promotionPrice?.finalPrice ?? service.price,
       });
     }
   } else {
@@ -325,6 +336,11 @@ export async function createAppointment(
       };
     }
 
+    promotionPrice = await getEffectiveServicePrice({ customerId: guestCustomerId, serviceId: service.id, authenticatedCustomer: false, supabase });
+    if (input.promotionId && promotionPrice?.promotionId !== input.promotionId) {
+      return { error: promotionPrice?.promotionId ? "Your promotional price changed. Please review the updated offer before booking." : "This offer has already been used or is no longer available. Please review the normal price before booking." };
+    }
+
     const { data: guestAppointmentId, error: guestAppointmentError } = await supabase.rpc(
       "create_guest_appointment",
       {
@@ -359,7 +375,7 @@ export async function createAppointment(
       serviceName: service.name,
       startAt,
       endAt,
-      price: service.price,
+      price: promotionPrice?.finalPrice ?? service.price,
     });
   }
 
@@ -371,5 +387,6 @@ export async function createAppointment(
 
   return {
     error: null,
+    promotionPrice,
   };
 }

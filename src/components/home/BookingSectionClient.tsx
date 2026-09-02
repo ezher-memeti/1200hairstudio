@@ -22,6 +22,13 @@ type Service = {
   duration: string;
   durationMinutes: number;
   price: string;
+  originalPrice: number;
+  finalPrice: number;
+  discountAmount: number;
+  discountType: "percentage" | "fixed" | null;
+  discountValue: number | null;
+  promotionId: string | null;
+  promotionName: string | null;
   image_url: string | null;
 };
 type BookingDate = BookingDateOption;
@@ -155,6 +162,16 @@ function BookingSummary({
   );
 }
 
+function formatPrice(value: number) {
+  return `CHF ${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
+}
+
+function ServicePrice({ service, compact = false }: { service: Service; compact?: boolean }) {
+  if (!service.promotionId) return <span className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">{service.price}</span>;
+  const badge = service.discountType === "percentage" ? `${service.discountValue}% OFF` : `CHF ${service.discountValue} OFF`;
+  return <span className={`flex ${compact ? "items-center" : "items-end"} flex-wrap gap-2`}><span className="font-primary text-xs uppercase tracking-[0.16em] text-foreground-muted line-through">{formatPrice(service.originalPrice)}</span><span className="border border-accent/50 bg-accent/10 px-2 py-1 font-primary text-[9px] font-semibold uppercase tracking-[0.16em] text-accent">{badge}</span><span className="font-display text-2xl uppercase text-foreground">{formatPrice(service.finalPrice)}</span>{compact ? null : <span className="basis-full font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your promotional price</span>}</span>;
+}
+
 function ServiceStep({
   services,
   state,
@@ -216,7 +233,7 @@ function ServiceStep({
                         : "text-foreground-muted group-hover:text-foreground-secondary"
                     }`}
                   >
-                    {service.price}
+                    <ServicePrice service={service} compact />
                   </span>
                 </div>
                 <p
@@ -590,7 +607,7 @@ function ReviewStep({
             </p>
           </div>
           <p className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">
-            {selectedService.price}
+            <ServicePrice service={selectedService} />
           </p>
         </div>
 
@@ -618,7 +635,7 @@ function ReviewStep({
               Total
             </p>
             <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-              {selectedService.price}
+              {formatPrice(selectedService.finalPrice)}
             </p>
           </div>
         </div>
@@ -664,7 +681,7 @@ function BookingConfirmation({
           Is Reserved.
         </h3>
         <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-          {service.title} · {service.price}
+          {service.title} · {formatPrice(service.finalPrice)}
         </p>
       </div>
 
@@ -783,6 +800,7 @@ export default function BookingSectionClient({
       formData.set("email", state.email);
       formData.set("phone", state.phone);
       formData.set("note", state.note);
+      if (selectedService.promotionId) formData.set("promotionId", selectedService.promotionId);
       if (state.marketingEmailConsent) formData.set("marketingEmailConsent", "on");
 
       const result = await bookAppointment(formData);

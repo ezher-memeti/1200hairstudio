@@ -26,6 +26,7 @@ export async function getMarketingDashboardData() {
     subscribers: getEligibleMarketingRecipients(customers, DEFAULT_MARKETING_FILTERS).length,
     campaignsSent: campaigns.filter((campaign) => campaign.status === "sent").length,
     emailsSent: recipientStatuses.filter((recipient) => recipient.status === "sent").length,
+    customers,
   };
 }
 
