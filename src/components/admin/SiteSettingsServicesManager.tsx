@@ -391,7 +391,7 @@ export default function SiteSettingsServicesManager({
                   className="w-full border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
                   placeholder={
                     field === "durationMax"
-                      ? "Optional"
+                      ? "Maximum duration (Optional)"
                       : undefined
                   }
                 />
@@ -416,6 +416,7 @@ export default function SiteSettingsServicesManager({
                   )
                 }
                 className="w-full resize-none border border-border bg-transparent px-4 py-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
+                placeholder="Description (Optional)"
               />
             </label>
 

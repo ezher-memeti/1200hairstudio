@@ -1248,7 +1248,7 @@ export default function AdminAppointmentsView({
                   onChange={(event) => setDraftNotes(event.target.value)}
                   rows={5}
                   className="mt-2 w-full border border-border bg-background px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                  placeholder="Add internal notes for this appointment"
+                  placeholder="Add notes (Optional)"
                 />
               </label>
             </div>
@@ -1358,7 +1358,7 @@ export default function AdminAppointmentsView({
                       )
                     }
                     className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Optional internal notes"
+                    placeholder="Add notes (Optional)"
                   />
                 </label>
 
@@ -1572,7 +1572,7 @@ export default function AdminAppointmentsView({
                     </span>
                     <input
                       type="email"
-                      value={createForm.customerEmail}
+                      placeholder="Customer email (Optional)" value={createForm.customerEmail}
                       onChange={(event) =>
                         setCreateForm((current) => ({ ...current, customerEmail: event.target.value }))
                       }
@@ -1585,7 +1585,7 @@ export default function AdminAppointmentsView({
                     </span>
                     <input
                       type="tel"
-                      value={createForm.customerPhone}
+                      placeholder="Customer phone (Optional)" value={createForm.customerPhone}
                       onChange={(event) =>
                         setCreateForm((current) => ({ ...current, customerPhone: event.target.value }))
                       }
@@ -1631,7 +1631,7 @@ export default function AdminAppointmentsView({
                       setCreateForm((current) => ({ ...current, notes: event.target.value }))
                     }
                     className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Optional internal notes"
+                    placeholder="Add notes (Optional)"
                   />
                 </label>
 

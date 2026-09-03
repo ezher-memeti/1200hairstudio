@@ -595,7 +595,7 @@ export default function AdminAvailabilityCalendar({
                 }
                 rows={3}
                 className="w-full resize-none border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
-                placeholder="Holiday, private event, adjusted hours..."
+                placeholder="Reason for this exception (Optional)"
               />
             </label>
 
@@ -695,7 +695,7 @@ export default function AdminAvailabilityCalendar({
                 }
                 rows={3}
                 className="w-full resize-none border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
-                placeholder="Holiday, travel, studio closure..."
+                placeholder="Reason for this closure (Optional)"
               />
             </label>
 

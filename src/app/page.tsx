@@ -8,8 +8,12 @@ import ServicesSection from "@/components/home/ServicesSection";
 import ScrollVideoSection from "@/components/home/ScrollVideoSection";
 import SectionTwo from "@/components/home/SectionTwo";
 import VisitStudio from "@/components/home/VisitStudio";
+import BookingAnnouncement from "@/components/announcements/BookingAnnouncement";
+import AnnouncementModal from "@/components/announcements/AnnouncementModal";
+import { getActiveAnnouncements, selectAnnouncement } from "@/lib/announcements/queries";
 
-export default function Home() {
+export default async function Home() {
+  const announcements = await getActiveAnnouncements();
   return (
     <>
       <Header />
@@ -21,10 +25,12 @@ export default function Home() {
         <ServicesSection />
         <MeetTheBarber />
         <SelectedWork />
+        <BookingAnnouncement announcement={selectAnnouncement(announcements, "booking_notice")} />
         <BookingSection />
         <VisitStudio />
       </main>
       <Footer />
+      <AnnouncementModal announcement={selectAnnouncement(announcements, "modal")} />
     </>
   );
 }
