@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 
 const siteSettingsItems = [
+  { label: "Homepage Content", href: "/admin/site-settings/homepage-content" },
   { label: "Services", href: "/admin/site-settings/services" },
   { label: "Business Hours", href: "/admin/site-settings/business-hours" },
   { label: "Selected Work", href: "/admin/site-settings/selected-work" },

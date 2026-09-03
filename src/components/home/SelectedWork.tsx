@@ -1,8 +1,9 @@
 import SelectedWorkClient from "@/components/home/SelectedWorkClient";
 import { getActiveSelectedWork } from "@/lib/public/selected-work";
 import type { WorkItem } from "@/components/home/CircularGallery";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
-export default async function SelectedWork() {
+export default async function SelectedWork({ content }: { content: HomepageContent }) {
   const selectedWork = await getActiveSelectedWork();
 
   const works: WorkItem[] = selectedWork.map((item, index) => ({
@@ -29,15 +30,13 @@ export default async function SelectedWork() {
       <div className="page-container relative z-10 py-8 sm:py-10 lg:py-12">
         <div className="space-y-4">
           <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            04 / Selected Work
+            {content.work_eyebrow}
           </p>
-          <h2 className="font-display max-w-lg text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-            Selected
-            <br />
-            Work.
+          <h2 className="whitespace-pre-line font-display max-w-lg text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
+            {content.work_title}
           </h2>
           <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base">
-            A selection of cuts from the chair.
+            {content.work_description}
           </p>
         </div>
 

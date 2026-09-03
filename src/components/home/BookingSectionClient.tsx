@@ -14,6 +14,7 @@ import {
   type BookingDateOption,
   type TimeGroup,
 } from "@/lib/public/booking-availability-utils";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 type Service = {
   id: string;
@@ -559,10 +560,11 @@ function ReviewStep({
   setState,
   onBack,
   onNext,
+  barberName,
 }: Pick<
   StepProps,
   "selectedService" | "selectedDate" | "state" | "setState" | "onBack" | "onNext"
->) {
+> & { barberName: string }) {
   if (!selectedService || !selectedDate || !state.time) {
     return null;
   }
@@ -625,7 +627,7 @@ function ReviewStep({
             Barber
           </p>
           <p className="mt-2 font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-            Arban Shaqiri
+            {barberName}
           </p>
         </div>
 
@@ -720,6 +722,7 @@ type BookingSectionClientProps = {
     Record<string, { time: string; slot_start: string; slot_end: string }[]>
   >;
   loadError: string | null;
+  content: HomepageContent;
 };
 
 export default function BookingSectionClient({
@@ -729,6 +732,7 @@ export default function BookingSectionClient({
   dates,
   slotMap,
   loadError,
+  content,
 }: BookingSectionClientProps) {
   const router = useRouter();
   const [isSubmitting, startSubmitTransition] = useTransition();
@@ -870,10 +874,11 @@ export default function BookingSectionClient({
     return (
       <ReviewStep
         {...sharedProps}
+        barberName={content.barber_name}
         onNext={handleConfirmBooking}
       />
     );
-  }, [authRole, confirmed, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, initialFirstName, initialLastName, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
+  }, [authRole, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, initialFirstName, initialLastName, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
 
   return (
     <section id="booking" className="bg-background">
@@ -882,15 +887,13 @@ export default function BookingSectionClient({
           <div className="relative flex min-w-0 flex-col justify-start lg:min-h-full lg:justify-center">
             <div className="max-w-xl space-y-4">
               <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                05 / Book Your Session
+                {content.booking_eyebrow}
               </p>
-              <h2 className="font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-                Your Time.
-                <br />
-                Your Chair.
+              <h2 className="whitespace-pre-line font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
+                {content.booking_title}
               </h2>
               <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base">
-                Choose your service and reserve a time that works for you.
+                {content.booking_description}
               </p>
             </div>
           </div>

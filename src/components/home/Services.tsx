@@ -8,9 +8,11 @@ import {
   serviceImageOverlayClass,
 } from "@/config/service-ui";
 import type { ServiceRecord } from "@/lib/services/types";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 type ServicesProps = {
   services: ServiceRecord[];
+  content: HomepageContent;
 };
 
 const fallbackServiceImage = "/images/services/hair.jpg";
@@ -26,7 +28,7 @@ function formatPrice(price: number) {
   return `CHF ${price.toFixed(0)}`;
 }
 
-export default function Services({ services }: ServicesProps) {
+export default function Services({ services, content }: ServicesProps) {
   const [activeServiceId, setActiveServiceId] = useState(
     services[0]?.id ?? "",
   );
@@ -46,10 +48,10 @@ export default function Services({ services }: ServicesProps) {
         <div className="flex min-w-0 flex-col justify-between">
           <div className="space-y-4">
             <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-              Signature Services
+              {content.services_eyebrow}
             </p>
             <h2 className="font-display max-w-lg text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-              Crafted cuts, clean rhythm, considered detail.
+              {content.services_title}
             </h2>
           </div>
 

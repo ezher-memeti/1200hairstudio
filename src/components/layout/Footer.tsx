@@ -1,4 +1,6 @@
-export default function Footer() {
+import { homepageContentDefaults, type HomepageContent } from "@/lib/homepage-content-defaults";
+
+export default function Footer({ content = homepageContentDefaults }: { content?: HomepageContent }) {
   return (
     <footer className="border-t border-border bg-background">
       <div className="page-container py-8 sm:py-10">
@@ -8,7 +10,7 @@ export default function Footer() {
               1200
             </p>
             <p className="font-primary text-sm leading-6 text-foreground-secondary">
-              Schulstrasse 2, 8599 Salmsach
+              {content.visit_address_line_1}, {content.visit_address_line_2}
             </p>
           </div>
 

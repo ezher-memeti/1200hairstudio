@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useScrollVideoProgress } from "@/components/home/ScrollVideoSection";
 import type { NextAvailabilityPreview } from "@/lib/public/booking-availability-utils";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 function getRangeValue(progress: number, start: number, end: number) {
   return Math.min(Math.max((progress - start) / (end - start), 0), 1);
@@ -11,9 +12,11 @@ function getRangeValue(progress: number, start: number, end: number) {
 export default function SectionTwoClient({
   preview,
   hasError,
+  content,
 }: {
   preview: NextAvailabilityPreview | null;
   hasError: boolean;
+  content: HomepageContent;
 }) {
   const progress = useScrollVideoProgress();
 
@@ -57,7 +60,7 @@ export default function SectionTwoClient({
             style={labelStyle}
           >
             <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-              Next Available
+              {content.availability_eyebrow}
             </p>
           </div>
 
@@ -106,7 +109,7 @@ export default function SectionTwoClient({
               href="#booking"
               className="inline-flex min-h-12 items-center font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:text-accent"
             >
-              View All Availability →
+              {content.availability_cta}
             </a>
           </div>
         </div>

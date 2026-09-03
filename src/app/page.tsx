@@ -11,25 +11,26 @@ import VisitStudio from "@/components/home/VisitStudio";
 import BookingAnnouncement from "@/components/announcements/BookingAnnouncement";
 import AnnouncementModal from "@/components/announcements/AnnouncementModal";
 import { getActiveAnnouncements, selectAnnouncement } from "@/lib/announcements/queries";
+import { getHomepageContent } from "@/lib/homepage-content";
 
 export default async function Home() {
-  const announcements = await getActiveAnnouncements();
+  const [announcements, content] = await Promise.all([getActiveAnnouncements(), getHomepageContent()]);
   return (
     <>
       <Header />
       <main>
         <ScrollVideoSection>
-          <Hero />
-          <SectionTwo />
+          <Hero content={content} />
+          <SectionTwo content={content} />
         </ScrollVideoSection>
-        <ServicesSection />
-        <MeetTheBarber />
-        <SelectedWork />
+        <ServicesSection content={content} />
+        <MeetTheBarber content={content} />
+        <SelectedWork content={content} />
         <BookingAnnouncement announcement={selectAnnouncement(announcements, "booking_notice")} />
-        <BookingSection />
-        <VisitStudio />
+        <BookingSection content={content} />
+        <VisitStudio content={content} />
       </main>
-      <Footer />
+      <Footer content={content} />
       <AnnouncementModal announcement={selectAnnouncement(announcements, "modal")} />
     </>
   );

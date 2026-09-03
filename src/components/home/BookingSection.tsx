@@ -11,8 +11,9 @@ import { getAvailableSlotTimes } from "@/lib/public/available-slots";
 import { formatServiceDuration, formatServicePrice, getActiveServices } from "@/lib/public/services";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveServicePrice } from "@/lib/promotions/server";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
-export default async function BookingSection() {
+export default async function BookingSection({ content }: { content: HomepageContent }) {
   const currentZurich = getCurrentZurichDateTime();
   const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
 
@@ -90,6 +91,7 @@ export default async function BookingSection() {
       dates={visibleBookingDates}
       slotMap={slotMap}
       loadError={loadError}
+      content={content}
     />
   );
 }
