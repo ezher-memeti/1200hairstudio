@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import {
   serviceImageClass,
@@ -43,8 +44,24 @@ export default function Services({ services, content }: ServicesProps) {
   }
 
   return (
-    <section id="services" className="bg-background">
-      <div className="page-container page-grid-split items-center py-8 sm:py-10 lg:py-12">
+    <section id="services" className="relative overflow-hidden bg-background">
+      <div className="pointer-events-none absolute inset-0 sm:hidden" aria-hidden="true">
+        {services.map((service, index) => (
+          <Image
+            key={service.id}
+            src={service.image_url || fallbackServiceImage}
+            alt=""
+            fill
+            priority={index === 0}
+            sizes="(max-width: 639px) 100vw, 1px"
+            className={`object-cover object-center transition-opacity duration-500 ease-out ${service.id === activeService.id ? "opacity-100" : "opacity-0"}`}
+          />
+        ))}
+        <div className="absolute inset-0 bg-black/60" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(8,8,8,0.72)_0%,rgba(8,8,8,0.58)_36%,rgba(8,8,8,0.84)_100%)]" />
+      </div>
+
+      <div className="page-container page-grid-split relative z-10 items-center py-8 sm:py-10 lg:py-12">
         <div className="flex min-w-0 flex-col justify-between">
           <div className="space-y-4">
             <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
@@ -131,7 +148,7 @@ export default function Services({ services, content }: ServicesProps) {
           id={`service-panel-${activeService.id}`}
           role="tabpanel"
           aria-labelledby={`service-tab-${activeService.id}`}
-          className={serviceImageContainerClass}
+          className={`${serviceImageContainerClass} hidden sm:block`}
         >
           <div className={serviceImageFrameClass}>
             <img
