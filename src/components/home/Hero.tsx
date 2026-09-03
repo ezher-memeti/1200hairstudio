@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { useScrollVideoProgress } from "@/components/home/ScrollVideoSection";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
-export default function Hero() {
+export default function Hero({ content }: { content: HomepageContent }) {
   const progress = useScrollVideoProgress();
   const animation = useMemo(() => {
     const fadeOutStart = 0.34;
@@ -28,28 +29,27 @@ export default function Hero() {
         >
           <div className="max-w-2xl space-y-6 pt-4 sm:space-y-7 sm:pt-6 lg:pt-10">
             <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-              1200 Barbershop
+              {content.hero_eyebrow}
             </p>
             <h1 className="font-display max-w-[11ch] text-[clamp(2.8rem,9vw,6.5rem)] font-semibold uppercase leading-[0.92] tracking-[-0.04em] text-foreground">
-              Precision, pace, and presence.
+              {content.hero_title}
             </h1>
             <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base lg:text-lg">
-              A modern barbershop experience shaped by sharp technique, calm
-              atmosphere, and uncompromising detail.
+              {content.hero_description}
             </p>
             <div className="pt-2">
               <a
                 href="#booking"
                 className="inline-flex min-h-12 items-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
               >
-                Book Your Session
+                {content.hero_cta}
               </a>
             </div>
           </div>
 
           <div className="hidden pt-6 lg:block">
             <p className="font-primary text-xs uppercase tracking-[0.32em] text-foreground-muted">
-              Scroll
+              {content.hero_scroll_label}
             </p>
           </div>
         </div>
@@ -75,7 +75,7 @@ export default function Hero() {
 
         <div className="pt-1 lg:hidden">
           <p className="font-primary text-xs uppercase tracking-[0.32em] text-foreground-muted">
-            Scroll
+            {content.hero_scroll_label}
           </p>
         </div>
       </div>

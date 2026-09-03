@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { updateBusinessHours } from "@/app/admin/(dashboard)/settings/actions";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
+import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 
 type BusinessHoursManagerProps = {
   initialHours: BusinessHourRecord[];
@@ -210,18 +211,13 @@ export default function BusinessHoursManager({
 
   return (
     <section className="space-y-8">
-      <div className="space-y-4">
-        <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Site Settings
+      <div className="space-y-2">
+        <h2 className="font-admin-display text-2xl font-semibold text-foreground">
+          Business Hours
+        </h2>
+        <p className="max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
+          Set weekly opening hours and schedule exceptions.
         </p>
-        <div className="space-y-2">
-          <h1 className="font-display text-[clamp(2.2rem,5vw,4.25rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-            Business Hours
-          </h1>
-          <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-            Manage studio opening hours for each day of the week.
-          </p>
-        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -284,41 +280,9 @@ export default function BusinessHoursManager({
                 </span>
               </label>
 
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Opening
-                </span>
-                <input
-                  type="time"
-                  value={row.open_time}
-                  disabled={row.is_closed}
-                  onChange={(event) =>
-                    updateRow(row.id, {
-                      open_time: event.target.value,
-                      previous_open_time: event.target.value || row.previous_open_time,
-                    })
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-2 font-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted"
-                />
-              </label>
+              <DateTimePicker mode="time" minuteStep={5} label="Opening" value={row.open_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { open_time: nextTime, previous_open_time: nextTime || row.previous_open_time })} />
 
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Closing
-                </span>
-                <input
-                  type="time"
-                  value={row.close_time}
-                  disabled={row.is_closed}
-                  onChange={(event) =>
-                    updateRow(row.id, {
-                      close_time: event.target.value,
-                      previous_close_time: event.target.value || row.previous_close_time,
-                    })
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-2 font-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted"
-                />
-              </label>
+              <DateTimePicker mode="time" minuteStep={5} label="Closing" value={row.close_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { close_time: nextTime, previous_close_time: nextTime || row.previous_close_time })} />
             </div>
           </div>
         ))}

@@ -20,6 +20,8 @@ import type { BusinessHourRecord } from "@/lib/business-hours/types";
 import type { AvailableSlotDisplay } from "@/lib/public/available-slots";
 import { getEffectiveHours, toDateKey } from "@/lib/public/booking-availability-utils";
 import type { ServiceRecord } from "@/lib/services/types";
+import AdminSelect from "@/components/admin/AdminSelect";
+import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -1246,7 +1248,7 @@ export default function AdminAppointmentsView({
                   onChange={(event) => setDraftNotes(event.target.value)}
                   rows={5}
                   className="mt-2 w-full border border-border bg-background px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                  placeholder="Add internal notes for this appointment"
+                  placeholder="Add notes (Optional)"
                 />
               </label>
             </div>
@@ -1334,64 +1336,11 @@ export default function AdminAppointmentsView({
                   </p>
                 </div>
 
-                <label className="space-y-2">
-                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                    Service
-                  </span>
-                  <select
-                    value={editForm.serviceId}
-                    onChange={(event) =>
-                      setEditForm((current) =>
-                        current ? { ...current, serviceId: event.target.value } : current,
-                      )
-                    }
-                    className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
-                  >
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.name} · {service.duration_max ?? service.duration_min} min · {formatServicePrice(service.price)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <AdminSelect label="Service" value={editForm.serviceId} onChange={(value) => setEditForm((current) => current ? { ...current, serviceId: value } : current)} options={services.map((service) => ({ value: service.id, label: `${service.name} · ${service.duration_max ?? service.duration_min} min · ${formatServicePrice(service.price)}` }))} searchable={services.length > 8} />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                      Date
-                    </span>
-                    <input
-                      type="date"
-                      value={editForm.dateKey}
-                      onChange={(event) =>
-                        setEditForm((current) =>
-                          current ? { ...current, dateKey: event.target.value } : current,
-                        )
-                      }
-                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                      Time
-                    </span>
-                    <select
-                      value={editForm.startTime}
-                      onChange={(event) =>
-                        setEditForm((current) =>
-                          current ? { ...current, startTime: event.target.value } : current,
-                        )
-                      }
-                      disabled={isEditPending}
-                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted focus:border-foreground-secondary"
-                    >
-                      {editAvailableSlots.map((slot) => (
-                        <option key={slot.slot_start} value={slot.time}>
-                          {slot.time}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <DateTimePicker mode="date" label="Date" value={editForm.dateKey} onChange={(nextDate) => setEditForm((current) => current ? { ...current, dateKey: nextDate } : current)} />
+                  <AdminSelect label="Time" value={editForm.startTime} onChange={(value) => setEditForm((current) => current ? { ...current, startTime: value } : current)} disabled={isEditPending} options={editAvailableSlots.map((slot) => ({ value: slot.time, label: slot.time }))} />
                 </div>
               </div>
 
@@ -1409,7 +1358,7 @@ export default function AdminAppointmentsView({
                       )
                     }
                     className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Optional internal notes"
+                    placeholder="Add notes (Optional)"
                   />
                 </label>
 
@@ -1623,7 +1572,7 @@ export default function AdminAppointmentsView({
                     </span>
                     <input
                       type="email"
-                      value={createForm.customerEmail}
+                      placeholder="Customer email (Optional)" value={createForm.customerEmail}
                       onChange={(event) =>
                         setCreateForm((current) => ({ ...current, customerEmail: event.target.value }))
                       }
@@ -1636,7 +1585,7 @@ export default function AdminAppointmentsView({
                     </span>
                     <input
                       type="tel"
-                      value={createForm.customerPhone}
+                      placeholder="Customer phone (Optional)" value={createForm.customerPhone}
                       onChange={(event) =>
                         setCreateForm((current) => ({ ...current, customerPhone: event.target.value }))
                       }
@@ -1647,62 +1596,11 @@ export default function AdminAppointmentsView({
               </div>
 
               <div className="space-y-4">
-                <label className="space-y-2">
-                  <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                    Service
-                  </span>
-                  <select
-                    value={createForm.serviceId}
-                    onChange={(event) =>
-                      setCreateForm((current) => ({ ...current, serviceId: event.target.value }))
-                    }
-                    className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
-                  >
-                    <option value="">Select service</option>
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.name} · {service.duration_max ?? service.duration_min} min · {formatServicePrice(service.price)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <AdminSelect label="Service" value={createForm.serviceId} onChange={(value) => setCreateForm((current) => ({ ...current, serviceId: value }))} placeholder="Select service" options={services.map((service) => ({ value: service.id, label: `${service.name} · ${service.duration_max ?? service.duration_min} min · ${formatServicePrice(service.price)}` }))} searchable={services.length > 8} />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                      Date
-                    </span>
-                    <input
-                      type="date"
-                      value={createForm.dateKey}
-                      onChange={(event) =>
-                        setCreateForm((current) => ({ ...current, dateKey: event.target.value }))
-                      }
-                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors focus:border-foreground-secondary"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                      Time
-                    </span>
-                    <select
-                      value={createForm.startTime}
-                      onChange={(event) =>
-                        setCreateForm((current) => ({ ...current, startTime: event.target.value }))
-                      }
-                      disabled={!createForm.serviceId || !createForm.dateKey || isCreatePending}
-                      className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted focus:border-foreground-secondary"
-                    >
-                      <option value="">
-                        {isCreatePending ? "Loading..." : "Select available time"}
-                      </option>
-                      {availableSlots.map((slot) => (
-                        <option key={slot.slot_start} value={slot.time}>
-                          {slot.time}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <DateTimePicker mode="date" label="Date" value={createForm.dateKey} onChange={(nextDate) => setCreateForm((current) => ({ ...current, dateKey: nextDate }))} />
+                  <AdminSelect label="Time" value={createForm.startTime} onChange={(value) => setCreateForm((current) => ({ ...current, startTime: value }))} disabled={!createForm.serviceId || !createForm.dateKey || isCreatePending} placeholder={isCreatePending ? "Loading..." : "Select available time"} options={availableSlots.map((slot) => ({ value: slot.time, label: slot.time }))} />
                 </div>
 
                 {selectedService ? (
@@ -1733,7 +1631,7 @@ export default function AdminAppointmentsView({
                       setCreateForm((current) => ({ ...current, notes: event.target.value }))
                     }
                     className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Optional internal notes"
+                    placeholder="Add notes (Optional)"
                   />
                 </label>
 

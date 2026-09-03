@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 const navigationLinks = [
   { label: "Services", href: "/#services" },
@@ -10,6 +11,7 @@ const navigationLinks = [
 ];
 
 type HeaderClientProps = {
+  announcementBar?: ReactNode;
   authLink: {
     label: "LOGIN" | "MY PROFILE" | "ADMIN DASHBOARD";
     href: "/login" | "/account" | "/admin";
@@ -18,11 +20,12 @@ type HeaderClientProps = {
 
 export default function HeaderClient({
   authLink,
+  announcementBar,
 }: HeaderClientProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
+    <header className="border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="page-container flex items-center justify-between py-4">
         <a
           href="/#top"
@@ -77,6 +80,8 @@ export default function HeaderClient({
           </span>
         </button>
       </div>
+
+      {announcementBar}
 
       {isMenuOpen ? (
         <div

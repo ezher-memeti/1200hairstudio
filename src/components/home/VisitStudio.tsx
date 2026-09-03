@@ -1,4 +1,5 @@
 import { getBusinessHours, getBusinessHourDayLabel, formatBusinessHourRange } from "@/lib/public/business-hours";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 const fallbackHours = [
   { day_of_week: 1, is_closed: false, open_time: "09:00", close_time: "18:00" },
@@ -10,9 +11,12 @@ const fallbackHours = [
   { day_of_week: 7, is_closed: true, open_time: null, close_time: null },
 ];
 
-export default async function VisitStudio() {
+export default async function VisitStudio({ content }: { content: HomepageContent }) {
   const businessHours = await getBusinessHours();
   const hoursToRender = businessHours.length > 0 ? businessHours : fallbackHours;
+  const address = `${content.visit_address_line_1}, ${content.visit_address_line_2}, Switzerland`;
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`;
 
   return (
     <section id="visit" className="bg-background">
@@ -20,21 +24,19 @@ export default async function VisitStudio() {
         <div className="flex min-w-0 flex-col justify-center">
           <div className="max-w-xl space-y-5">
             <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-              Visit the Studio
+              {content.visit_eyebrow}
             </p>
-            <h2 className="font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-              Salmsach
-              <br />
-              Switzerland
+            <h2 className="whitespace-pre-line font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
+              {content.visit_title}
             </h2>
 
             <div className="space-y-6 border-t border-border pt-6 lg:pt-8">
               <div className="space-y-1">
                 <p className="font-primary text-base leading-7 text-foreground-secondary sm:text-lg">
-                  Schulstrasse 2
+                  {content.visit_address_line_1}
                 </p>
                 <p className="font-primary text-base leading-7 text-foreground-secondary sm:text-lg">
-                  8599 Salmsach
+                  {content.visit_address_line_2}
                 </p>
               </div>
 
@@ -68,12 +70,12 @@ export default async function VisitStudio() {
 
             <div className="pt-2">
               <a
-                href="https://www.google.com/maps/search/?api=1&query=Schulstrasse+2,+8599+Salmsach,+Switzerland"
+                href={mapsUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex min-h-12 items-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
               >
-                Get Directions →
+                {content.visit_cta}
               </a>
             </div>
           </div>
@@ -83,7 +85,7 @@ export default async function VisitStudio() {
           <div className="relative aspect-[5/4] min-h-[20rem] w-full sm:min-h-[24rem] lg:min-h-[28rem]">
             <iframe
               title="1200 Barbershop studio location"
-              src="https://www.google.com/maps?q=Schulstrasse%202,%208599%20Salmsach,%20Switzerland&z=15&output=embed"
+              src={mapEmbedUrl}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
               className="absolute inset-0 h-full w-full border-0 grayscale sepia-[0.12] contrast-[1.2] brightness-[0.55] saturate-[0.15]"

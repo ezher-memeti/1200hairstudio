@@ -10,8 +10,10 @@ import {
 import { getAvailableSlotTimes } from "@/lib/public/available-slots";
 import { formatServiceDuration, formatServicePrice, getActiveServices } from "@/lib/public/services";
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveServicePrice } from "@/lib/promotions/server";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
-export default async function BookingSection() {
+export default async function BookingSection({ content }: { content: HomepageContent }) {
   const currentZurich = getCurrentZurichDateTime();
   const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
 
@@ -20,6 +22,17 @@ export default async function BookingSection() {
     getActiveServices(),
     getBusinessHours(),
   ]);
+  let customerProfile: { fullName: string; email: string; phone: string } | null = null;
+  let customerId: string | null = null;
+  const supabase = await createClient();
+  if (role === "customer" && user) {
+    const { data: customer } = await supabase.from("customers").select("id,full_name,email,phone").eq("profile_id", user.id).maybeSingle();
+    if (customer) {
+      customerId = customer.id;
+      customerProfile = { fullName: customer.full_name, email: customer.email, phone: customer.phone };
+    }
+  }
+  const effectivePrices = new Map((await Promise.all(services.map(async (service) => [service.id, await getEffectiveServicePrice({ serviceId: service.id, customerId, authenticatedCustomer: role === "customer", supabase })] as const))).filter((entry) => entry[1]));
   const loadError =
     services.length === 0 && businessHours.length === 0
       ? "Booking availability is unavailable right now."
@@ -31,6 +44,13 @@ export default async function BookingSection() {
     duration: formatServiceDuration(service),
     durationMinutes: getServiceBookingDuration(service),
     price: formatServicePrice(service.price),
+    originalPrice: service.price,
+    finalPrice: effectivePrices.get(service.id)?.finalPrice ?? service.price,
+    discountAmount: effectivePrices.get(service.id)?.discountAmount ?? 0,
+    discountType: effectivePrices.get(service.id)?.discountType ?? null,
+    discountValue: effectivePrices.get(service.id)?.discountValue ?? null,
+    promotionId: effectivePrices.get(service.id)?.promotionId ?? null,
+    promotionName: effectivePrices.get(service.id)?.promotionName ?? null,
     image_url: service.image_url,
   }));
   const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
@@ -63,31 +83,6 @@ export default async function BookingSection() {
   }));
   const firstAvailableDate =
     visibleBookingDates.find((date) => date.isAvailable) ?? null;
-  let customerProfile:
-    | {
-        fullName: string;
-        email: string;
-        phone: string;
-      }
-    | null = null;
-
-  if (role === "customer" && user) {
-    const supabase = await createClient();
-    const { data: customer } = await supabase
-      .from("customers")
-      .select("full_name, email, phone")
-      .eq("profile_id", user.id)
-      .maybeSingle();
-
-    if (customer) {
-      customerProfile = {
-        fullName: customer.full_name,
-        email: customer.email,
-        phone: customer.phone,
-      };
-    }
-  }
-
   return (
     <BookingSectionClient
       authRole={role}
@@ -96,6 +91,7 @@ export default async function BookingSection() {
       dates={visibleBookingDates}
       slotMap={slotMap}
       loadError={loadError}
+      content={content}
     />
   );
 }

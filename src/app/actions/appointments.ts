@@ -54,6 +54,7 @@ export async function bookAppointment(formData: FormData) {
     const phone = (formData.get("phone") ?? "").toString().trim();
     const note = (formData.get("note") ?? "").toString().trim();
     const marketingEmailConsent = formData.get("marketingEmailConsent") === "on";
+    const promotionId = (formData.get("promotionId") ?? "").toString().trim() || undefined;
 
     if (!serviceId || !dateKey || !startTime) {
       return { error: "Choose a service, date, and time." };
@@ -69,6 +70,7 @@ export async function bookAppointment(formData: FormData) {
       email,
       phone,
       marketingEmailConsent,
+      promotionId,
     });
 
     return result;

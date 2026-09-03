@@ -9,8 +9,9 @@ import { formatBusinessHourTime, getBusinessHours } from "@/lib/public/business-
 import { getAvailabilityExceptions } from "@/lib/public/booking-availability";
 import { getAvailableSlotTimes } from "@/lib/public/available-slots";
 import { getActiveServices } from "@/lib/public/services";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
-export default async function SectionTwo() {
+export default async function SectionTwo({ content }: { content: HomepageContent }) {
   const currentZurich = getCurrentZurichDateTime();
   const dateFrom = currentZurich.dateKey;
   const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
@@ -74,8 +75,8 @@ export default async function SectionTwo() {
       }
     }
 
-    return <SectionTwoClient preview={preview} hasError={false} />;
+    return <SectionTwoClient preview={preview} hasError={false} content={content} />;
   } catch {
-    return <SectionTwoClient preview={null} hasError />;
+    return <SectionTwoClient preview={null} hasError content={content} />;
   }
 }

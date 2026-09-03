@@ -14,6 +14,7 @@ import {
   type BookingDateOption,
   type TimeGroup,
 } from "@/lib/public/booking-availability-utils";
+import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 type Service = {
   id: string;
@@ -22,6 +23,13 @@ type Service = {
   duration: string;
   durationMinutes: number;
   price: string;
+  originalPrice: number;
+  finalPrice: number;
+  discountAmount: number;
+  discountType: "percentage" | "fixed" | null;
+  discountValue: number | null;
+  promotionId: string | null;
+  promotionName: string | null;
   image_url: string | null;
 };
 type BookingDate = BookingDateOption;
@@ -155,6 +163,16 @@ function BookingSummary({
   );
 }
 
+function formatPrice(value: number) {
+  return `CHF ${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
+}
+
+function ServicePrice({ service, compact = false }: { service: Service; compact?: boolean }) {
+  if (!service.promotionId) return <span className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">{service.price}</span>;
+  const badge = service.discountType === "percentage" ? `${service.discountValue}% OFF` : `CHF ${service.discountValue} OFF`;
+  return <span className={`flex ${compact ? "items-center" : "items-end"} flex-wrap gap-2`}><span className="font-primary text-xs uppercase tracking-[0.16em] text-foreground-muted line-through">{formatPrice(service.originalPrice)}</span><span className="border border-accent/50 bg-accent/10 px-2 py-1 font-primary text-[9px] font-semibold uppercase tracking-[0.16em] text-accent">{badge}</span><span className="font-display text-2xl uppercase text-foreground">{formatPrice(service.finalPrice)}</span>{compact ? null : <span className="basis-full font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your promotional price</span>}</span>;
+}
+
 function ServiceStep({
   services,
   state,
@@ -216,7 +234,7 @@ function ServiceStep({
                         : "text-foreground-muted group-hover:text-foreground-secondary"
                     }`}
                   >
-                    {service.price}
+                    <ServicePrice service={service} compact />
                   </span>
                 </div>
                 <p
@@ -542,10 +560,11 @@ function ReviewStep({
   setState,
   onBack,
   onNext,
+  barberName,
 }: Pick<
   StepProps,
   "selectedService" | "selectedDate" | "state" | "setState" | "onBack" | "onNext"
->) {
+> & { barberName: string }) {
   if (!selectedService || !selectedDate || !state.time) {
     return null;
   }
@@ -590,7 +609,7 @@ function ReviewStep({
             </p>
           </div>
           <p className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">
-            {selectedService.price}
+            <ServicePrice service={selectedService} />
           </p>
         </div>
 
@@ -608,7 +627,7 @@ function ReviewStep({
             Barber
           </p>
           <p className="mt-2 font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-            Arban Shaqiri
+            {barberName}
           </p>
         </div>
 
@@ -618,7 +637,7 @@ function ReviewStep({
               Total
             </p>
             <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-              {selectedService.price}
+              {formatPrice(selectedService.finalPrice)}
             </p>
           </div>
         </div>
@@ -664,7 +683,7 @@ function BookingConfirmation({
           Is Reserved.
         </h3>
         <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-          {service.title} · {service.price}
+          {service.title} · {formatPrice(service.finalPrice)}
         </p>
       </div>
 
@@ -703,6 +722,7 @@ type BookingSectionClientProps = {
     Record<string, { time: string; slot_start: string; slot_end: string }[]>
   >;
   loadError: string | null;
+  content: HomepageContent;
 };
 
 export default function BookingSectionClient({
@@ -712,6 +732,7 @@ export default function BookingSectionClient({
   dates,
   slotMap,
   loadError,
+  content,
 }: BookingSectionClientProps) {
   const router = useRouter();
   const [isSubmitting, startSubmitTransition] = useTransition();
@@ -783,6 +804,7 @@ export default function BookingSectionClient({
       formData.set("email", state.email);
       formData.set("phone", state.phone);
       formData.set("note", state.note);
+      if (selectedService.promotionId) formData.set("promotionId", selectedService.promotionId);
       if (state.marketingEmailConsent) formData.set("marketingEmailConsent", "on");
 
       const result = await bookAppointment(formData);
@@ -852,10 +874,11 @@ export default function BookingSectionClient({
     return (
       <ReviewStep
         {...sharedProps}
+        barberName={content.barber_name}
         onNext={handleConfirmBooking}
       />
     );
-  }, [authRole, confirmed, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, initialFirstName, initialLastName, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
+  }, [authRole, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, initialFirstName, initialLastName, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
 
   return (
     <section id="booking" className="bg-background">
@@ -864,15 +887,13 @@ export default function BookingSectionClient({
           <div className="relative flex min-w-0 flex-col justify-start lg:min-h-full lg:justify-center">
             <div className="max-w-xl space-y-4">
               <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                05 / Book Your Session
+                {content.booking_eyebrow}
               </p>
-              <h2 className="font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-                Your Time.
-                <br />
-                Your Chair.
+              <h2 className="whitespace-pre-line font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
+                {content.booking_title}
               </h2>
               <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base">
-                Choose your service and reserve a time that works for you.
+                {content.booking_description}
               </p>
             </div>
           </div>

@@ -21,6 +21,7 @@ import {
   formatBusinessHourTime,
   getBusinessHourDayLabel,
 } from "@/lib/public/business-hours-utils";
+import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 
 type AdminAvailabilityCalendarProps = {
   initialBusinessHours: BusinessHourRecord[];
@@ -575,41 +576,9 @@ export default function AdminAvailabilityCalendar({
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Opening
-                </span>
-                <input
-                  type="time"
-                  value={editorState.openTime}
-                  disabled={editorState.mode !== "custom"}
-                  onChange={(event) =>
-                    setEditorState((current) => ({
-                      ...current,
-                      openTime: event.target.value,
-                    }))
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted"
-                />
-              </label>
+              <DateTimePicker mode="time" minuteStep={5} label="Opening" value={editorState.openTime} disabled={editorState.mode !== "custom"} onChange={(nextTime) => setEditorState((current) => ({ ...current, openTime: nextTime }))} />
 
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Closing
-                </span>
-                <input
-                  type="time"
-                  value={editorState.closeTime}
-                  disabled={editorState.mode !== "custom"}
-                  onChange={(event) =>
-                    setEditorState((current) => ({
-                      ...current,
-                      closeTime: event.target.value,
-                    }))
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:text-foreground-muted"
-                />
-              </label>
+              <DateTimePicker mode="time" minuteStep={5} label="Closing" value={editorState.closeTime} disabled={editorState.mode !== "custom"} onChange={(nextTime) => setEditorState((current) => ({ ...current, closeTime: nextTime }))} />
             </div>
 
             <label className="mt-6 block space-y-2">
@@ -626,7 +595,7 @@ export default function AdminAvailabilityCalendar({
                 }
                 rows={3}
                 className="w-full resize-none border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
-                placeholder="Holiday, private event, adjusted hours..."
+                placeholder="Reason for this exception (Optional)"
               />
             </label>
 
@@ -707,39 +676,9 @@ export default function AdminAvailabilityCalendar({
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  Start date
-                </span>
-                <input
-                  type="date"
-                  value={rangeEditorState.startDate}
-                  onChange={(event) =>
-                    setRangeEditorState((current) => ({
-                      ...current,
-                      startDate: event.target.value,
-                    }))
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
-                />
-              </label>
+              <DateTimePicker mode="date" label="Start date" value={rangeEditorState.startDate} onChange={(nextDate) => setRangeEditorState((current) => ({ ...current, startDate: nextDate }))} />
 
-              <label className="space-y-2">
-                <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                  End date
-                </span>
-                <input
-                  type="date"
-                  value={rangeEditorState.endDate}
-                  onChange={(event) =>
-                    setRangeEditorState((current) => ({
-                      ...current,
-                      endDate: event.target.value,
-                    }))
-                  }
-                  className="w-full border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
-                />
-              </label>
+              <DateTimePicker mode="date" label="End date" value={rangeEditorState.endDate} minDate={rangeEditorState.startDate || undefined} onChange={(nextDate) => setRangeEditorState((current) => ({ ...current, endDate: nextDate }))} />
             </div>
 
             <label className="mt-6 block space-y-2">
@@ -756,7 +695,7 @@ export default function AdminAvailabilityCalendar({
                 }
                 rows={3}
                 className="w-full resize-none border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
-                placeholder="Holiday, travel, studio closure..."
+                placeholder="Reason for this closure (Optional)"
               />
             </label>
 
