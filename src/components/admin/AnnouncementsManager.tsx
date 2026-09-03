@@ -11,7 +11,7 @@ import type { Announcement, AnnouncementInput } from "@/lib/announcements/types"
 
 type Props = { announcements: Announcement[]; loadError?: string | null };
 const emptyForm: AnnouncementInput = { title: "", message: "", displayType: "top_bar", ctaText: "", ctaUrl: "", startsAt: "", expiresAt: "", isDismissible: true, priority: 0, isActive: true };
-const typeLabels = { top_bar: "Top Bar", homepage_banner: "Homepage Banner", booking_notice: "Booking Notice", modal: "Modal" } as const;
+const typeLabels = { top_bar: "Top Bar", booking_notice: "Booking Notice", modal: "Modal" } as const;
 
 function toZurichInput(value: string | null) {
   if (!value) return "";

@@ -65,6 +65,10 @@ export default function AnnouncementBar({ announcement }: { announcement: Announ
   const segmentRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
+    setIsClosing(false);
+  }, [announcement?.id]);
+
+  useEffect(() => {
     const viewport = viewportRef.current;
     const segment = segmentRef.current;
     if (!viewport || !segment) return;
