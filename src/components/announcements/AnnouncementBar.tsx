@@ -4,16 +4,18 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import AnnouncementLink from "@/components/announcements/AnnouncementLink";
 import { useAnnouncementDismissal } from "@/components/announcements/useAnnouncementDismissal";
-import type { Announcement } from "@/lib/announcements/types";
+import type { Announcement, AnnouncementRenderMode } from "@/lib/announcements/types";
 
 function TickerMessage({
   announcement,
   interactive = false,
   repeated = false,
+  preview = false,
 }: {
   announcement: Announcement;
   interactive?: boolean;
   repeated?: boolean;
+  preview?: boolean;
 }) {
   return (
     <span
@@ -33,6 +35,7 @@ function TickerMessage({
           ? (
             <AnnouncementLink
               href={announcement.cta_url}
+              newTab={preview}
               className="border-b border-accent/70 font-semibold text-accent transition-colors hover:text-accent-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
             >
               {announcement.cta_text} →
@@ -53,11 +56,11 @@ function TickerMessage({
   );
 }
 
-function TickerSegment({ announcement, primary = false, segmentRef }: { announcement: Announcement; primary?: boolean; segmentRef?: React.Ref<HTMLSpanElement> }) {
-  return <span ref={segmentRef} className="announcement-ticker-segment flex shrink-0 items-center justify-around gap-0"><TickerMessage announcement={announcement} interactive={primary} /><TickerMessage announcement={announcement} repeated /><TickerMessage announcement={announcement} repeated /></span>;
+function TickerSegment({ announcement, primary = false, preview = false, segmentRef }: { announcement: Announcement; primary?: boolean; preview?: boolean; segmentRef?: React.Ref<HTMLSpanElement> }) {
+  return <span ref={segmentRef} className="announcement-ticker-segment flex shrink-0 items-center justify-around gap-0"><TickerMessage announcement={announcement} interactive={primary} preview={preview} /><TickerMessage announcement={announcement} repeated /><TickerMessage announcement={announcement} repeated /></span>;
 }
 
-export default function AnnouncementBar({ announcement }: { announcement: Announcement | null }) {
+export default function AnnouncementBar({ announcement, mode = "public" }: { announcement: Announcement | null; mode?: AnnouncementRenderMode }) {
   const dismissal = useAnnouncementDismissal(announcement?.id ?? "", announcement?.is_dismissible ?? false);
   const [isClosing, setIsClosing] = useState(false);
   const [duration, setDuration] = useState(28);
@@ -66,7 +69,7 @@ export default function AnnouncementBar({ announcement }: { announcement: Announ
 
   useEffect(() => {
     setIsClosing(false);
-  }, [announcement?.id]);
+  }, [announcement?.id, announcement?.message, announcement?.cta_text, announcement?.cta_url]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -90,5 +93,5 @@ export default function AnnouncementBar({ announcement }: { announcement: Announ
     window.setTimeout(dismissal.dismiss, 180);
   };
 
-  return <div className={`overflow-hidden border-y bg-[#15130f] text-foreground transition-[max-height,opacity,border-color] duration-200 ${isClosing ? "max-h-0 border-transparent opacity-0" : "max-h-14 border-border/70 opacity-100"}`}><div className="page-container grid min-h-10 grid-cols-[auto_minmax(0,1fr)_auto] items-center"><div className="flex h-5 shrink-0 items-center border-r border-border pr-3 sm:pr-4"><span className="hidden text-[9px] font-semibold uppercase tracking-[.22em] text-accent sm:inline">Announcement</span><span className="text-[9px] font-semibold uppercase tracking-[.2em] text-accent sm:hidden">Notice</span></div><div ref={viewportRef} className="announcement-ticker group min-w-0 overflow-hidden" style={tickerStyle}><div className="announcement-ticker-track flex w-max shrink-0 items-center whitespace-nowrap py-2.5 text-[10px] uppercase tracking-[.13em] text-foreground sm:text-xs"><TickerSegment announcement={announcement} primary segmentRef={segmentRef} /><TickerSegment announcement={announcement} /></div></div>{announcement.is_dismissible ? <button type="button" onClick={dismiss} aria-label="Dismiss announcement" className="ml-2 inline-flex size-9 shrink-0 items-center justify-center border-l border-border text-foreground-muted transition-colors hover:text-accent focus:outline-none focus-visible:text-accent sm:ml-3"><X size={14} /></button> : <span className="w-2" />}</div></div>;
+  return <div className={`overflow-hidden border-y bg-[#15130f] text-foreground transition-[max-height,opacity,border-color] duration-200 ${isClosing ? "max-h-0 border-transparent opacity-0" : "max-h-14 border-border/70 opacity-100"}`}><div className={`${mode === "preview" ? "w-full px-3 sm:px-4" : "page-container"} grid min-h-10 grid-cols-[auto_minmax(0,1fr)_auto] items-center`}><div className="flex h-5 shrink-0 items-center border-r border-border pr-3 sm:pr-4"><span className="hidden text-[9px] font-semibold uppercase tracking-[.22em] text-accent sm:inline">Announcement</span><span className="text-[9px] font-semibold uppercase tracking-[.2em] text-accent sm:hidden">Notice</span></div><div ref={viewportRef} className="announcement-ticker group min-w-0 overflow-hidden" style={tickerStyle}><div className="announcement-ticker-track flex w-max shrink-0 items-center whitespace-nowrap py-2.5 text-[10px] uppercase tracking-[.13em] text-foreground sm:text-xs"><TickerSegment announcement={announcement} primary preview={mode === "preview"} segmentRef={segmentRef} /><TickerSegment announcement={announcement} /></div></div>{announcement.is_dismissible ? <button type="button" onClick={dismiss} aria-label={mode === "preview" ? "Dismiss announcement preview" : "Dismiss announcement"} className="ml-2 inline-flex size-9 shrink-0 items-center justify-center border-l border-border text-foreground-muted transition-colors hover:text-accent focus:outline-none focus-visible:text-accent sm:ml-3"><X size={14} /></button> : <span className="w-2" />}</div></div>;
 }

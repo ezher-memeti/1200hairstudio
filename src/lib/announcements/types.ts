@@ -1,6 +1,7 @@
 export const ANNOUNCEMENT_DISPLAY_TYPES = ["top_bar", "booking_notice", "modal"] as const;
 
 export type AnnouncementDisplayType = (typeof ANNOUNCEMENT_DISPLAY_TYPES)[number];
+export type AnnouncementRenderMode = "public" | "preview";
 
 export type Announcement = {
   id: string;
