@@ -5,6 +5,7 @@ import { getCustomerAppointmentSummaries } from "@/lib/appointments/queries";
 import { ensureCustomerRecord } from "@/lib/auth/customer";
 import { getCurrentZurichDateTime } from "@/lib/public/booking-availability";
 import { getActiveServices } from "@/lib/public/services";
+import { generateUpcomingDateOptions } from "@/lib/public/booking-availability";
 
 export default async function AccountPage() {
   const customer = await ensureCustomerRecord();
@@ -15,12 +16,21 @@ export default async function AccountPage() {
     services,
     currentZurich,
   );
+  const now = Date.now();
   const upcomingAppointments = appointmentSummaries.filter(
-    (appointment) => appointment.is_upcoming,
+    (appointment) =>
+      appointment.status === "confirmed" &&
+      new Date(appointment.end_at).getTime() > now,
   );
   const pastAppointments = appointmentSummaries.filter(
-    (appointment) => !appointment.is_upcoming,
+    (appointment) =>
+      appointment.status !== "confirmed" ||
+      new Date(appointment.end_at).getTime() <= now,
   );
+  const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
+    count: 14,
+    horizonDays: 30,
+  }).map(({ id, day, date, month }) => ({ id, day, date, month }));
 
   return (
     <>
@@ -40,6 +50,7 @@ export default async function AccountPage() {
             }}
             upcomingAppointments={upcomingAppointments}
             pastAppointments={pastAppointments}
+            bookingDates={bookingDates}
           />
         </section>
       </main>

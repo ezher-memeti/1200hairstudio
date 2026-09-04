@@ -3,6 +3,7 @@ import "server-only";
 import { google } from "googleapis";
 import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/availability";
 import { formatServicePrice } from "@/lib/public/services";
+import { getSiteUrl } from "@/lib/auth/url";
 
 const GMAIL_SENDER_EMAIL = "1200hairstudio@gmail.com";
 const GMAIL_SENDER_NAME = "1200 Hairstudio";
@@ -14,6 +15,8 @@ type BookingEmailDetails = {
   startAt: string;
   endAt: string;
   price: number;
+  bookingReference?: string;
+  manageUrl?: string;
 };
 
 export type GmailMessage = {
@@ -111,6 +114,7 @@ function buildBookingSummary(details: BookingEmailDetails) {
     timeLabel: formatZurichTimeRange(details.startAt, details.endAt),
     priceLabel: formatServicePrice(details.price),
     durationLabel: durationMinutes > 0 ? `${durationMinutes} min` : "By arrangement",
+    bookingReference: details.bookingReference,
   };
 }
 
@@ -134,6 +138,7 @@ function buildPlainTextEmail(summary: ReturnType<typeof buildBookingSummary>, co
     `Time: ${summary.timeLabel}`,
     `Duration: ${summary.durationLabel}`,
     `Price: ${summary.priceLabel}`,
+    summary.bookingReference ? `Booking reference: ${summary.bookingReference}` : "",
     content.ctaHref ? "" : "",
     content.ctaHref ? `${content.ctaLabel ?? "Manage Appointment"}: ${content.ctaHref}` : "",
     "",
@@ -229,6 +234,7 @@ function buildEmailHtml(
                                     ${renderDetailItem("Duration", summary.durationLabel)}
                                     ${renderDetailItem("Price", summary.priceLabel)}
                                   </tr>
+                                  ${summary.bookingReference ? `<tr>${renderDetailItem("Booking Reference", summary.bookingReference)}<td style="width: 50%;"></td></tr>` : ""}
                                 </table>
                               </td>
                             </tr>
@@ -261,8 +267,8 @@ export async function sendBookingConfirmationEmail(details: BookingEmailDetails)
     statusLabel: "Appointment Confirmed",
     headline: "Your booking is locked in.",
     body: "We have reserved your appointment and prepared your session details below.",
-    ctaLabel: "Manage Appointment",
-    ctaHref: "https://1200hairstudio.com/account",
+    ctaLabel: details.manageUrl ? "Manage Booking →" : "Manage Appointment",
+    ctaHref: details.manageUrl ?? `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
   await sendGmailMessage({
@@ -280,7 +286,7 @@ export async function sendBookingCancellationEmail(details: BookingEmailDetails)
     headline: "This booking is no longer scheduled.",
     body: "Your appointment has been cancelled. If you want to return to the chair, you can book a new time whenever it suits you.",
     ctaLabel: "Manage Appointment",
-    ctaHref: "https://1200hairstudio.com/account",
+    ctaHref: `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
   await sendGmailMessage({
@@ -298,7 +304,7 @@ export async function sendBookingUpdateEmail(details: BookingEmailDetails) {
     headline: "Your booking details have changed.",
     body: "We have updated your appointment. Please review the latest schedule information below.",
     ctaLabel: "Manage Appointment",
-    ctaHref: "https://1200hairstudio.com/account",
+    ctaHref: `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
   await sendGmailMessage({

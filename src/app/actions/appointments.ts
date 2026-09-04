@@ -10,6 +10,7 @@ import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
 import { resolveCustomerByEmail } from "@/lib/customers/mutations";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
+import { clearGuestBookingCookie } from "@/lib/appointments/management";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -76,6 +77,15 @@ export async function bookAppointment(formData: FormData) {
     return result;
   } catch (error) {
     return { error: toErrorMessage(error) };
+  }
+}
+
+export async function clearGuestBookingSession() {
+  try {
+    await clearGuestBookingCookie();
+    return { error: null };
+  } catch {
+    return { error: "Unable to clear the expired booking session." };
   }
 }
 

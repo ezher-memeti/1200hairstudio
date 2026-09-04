@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { ensureCustomerRecord, requireCustomerUser } from "@/lib/auth/customer";
+import type { AppointmentRecord } from "@/lib/appointments/types";
+import {
+  cancelResolvedAppointment,
+  getResolvedAppointmentSlots,
+  rescheduleResolvedAppointment,
+} from "@/lib/appointments/managed-mutations";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -9,6 +15,57 @@ function toErrorMessage(error: unknown) {
   }
 
   return "Unexpected server error.";
+}
+
+async function resolveOwnedAppointment(appointmentId: string) {
+  const { supabase, user } = await requireCustomerUser();
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("profile_id", user.id)
+    .maybeSingle();
+
+  if (customerError || !customer) return null;
+
+  const { data: appointment, error: appointmentError } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("id", appointmentId)
+    .eq("customer_id", customer.id)
+    .maybeSingle();
+
+  if (appointmentError || !appointment) return null;
+  return appointment as AppointmentRecord;
+}
+
+export async function getAccountBookingSlots(appointmentId: string, dateKey: string) {
+  try {
+    const appointment = await resolveOwnedAppointment(appointmentId);
+    if (!appointment) return { error: "Booking not found.", slots: [] };
+    return getResolvedAppointmentSlots(appointment, dateKey);
+  } catch (error) {
+    return { error: toErrorMessage(error), slots: [] };
+  }
+}
+
+export async function rescheduleAccountBooking(appointmentId: string, dateKey: string, startTime: string) {
+  try {
+    const appointment = await resolveOwnedAppointment(appointmentId);
+    if (!appointment) return { error: "Booking not found.", emailWarning: null };
+    return rescheduleResolvedAppointment(appointment, dateKey, startTime);
+  } catch (error) {
+    return { error: toErrorMessage(error), emailWarning: null };
+  }
+}
+
+export async function cancelAccountBooking(appointmentId: string) {
+  try {
+    const appointment = await resolveOwnedAppointment(appointmentId);
+    if (!appointment) return { error: "Booking not found.", emailWarning: null };
+    return cancelResolvedAppointment(appointment);
+  } catch (error) {
+    return { error: toErrorMessage(error), emailWarning: null };
+  }
 }
 
 export async function updateCustomerAccount(formData: FormData) {

@@ -16,6 +16,8 @@ import { getAvailableSlots } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveServicePrice } from "@/lib/promotions/server";
 import type { EffectiveServicePrice } from "@/lib/promotions/types";
+import { createBookingCredentials, getBookingManagementUrl, setGuestBookingCookie } from "@/lib/appointments/management";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function toFullName(firstName: string, lastName: string) {
   return [firstName.trim(), lastName.trim()]
@@ -161,13 +163,15 @@ export async function sendConfirmationEmailSafely(details: {
   startAt: string;
   endAt: string;
   price: number;
+  bookingReference: string;
+  manageUrl: string;
 }) {
   try {
     await sendBookingConfirmationEmail(details);
   } catch (error) {
     console.error("BOOKING CONFIRMATION EMAIL ERROR", {
       message: error instanceof Error ? error.message : "Unknown error",
-      details,
+      bookingReference: details.bookingReference,
     });
   }
 }
@@ -210,6 +214,8 @@ export async function createAppointment(
     input.email?.trim().toLowerCase() ?? "";
   const notes = input.note?.trim() || null;
   let promotionPrice: EffectiveServicePrice | null = null;
+  const credentials = createBookingCredentials();
+  const manageUrl = getBookingManagementUrl(credentials.managementToken);
 
   if (role === "customer" && user) {
     const customer = await ensureCustomerRecord(
@@ -220,7 +226,7 @@ export async function createAppointment(
     promotionPrice = await getEffectiveServicePrice({ customerId: customer.id, serviceId: service.id, authenticatedCustomer: true, supabase });
     if (input.promotionId && promotionPrice?.promotionId !== input.promotionId) return { error: "Your promotion is no longer available. Please review the updated price before booking." };
 
-    const { error: insertError } = await supabase
+    const { data: createdAppointment, error: insertError } = await supabase
       .from("appointments")
       .insert({
         customer_id: customer.id,
@@ -236,16 +242,33 @@ export async function createAppointment(
         discount_amount: promotionPrice?.discountAmount ?? 0,
         final_price: promotionPrice?.finalPrice ?? service.price,
         promotion_id: promotionPrice?.promotionId ?? null,
-      });
+        booking_reference: credentials.bookingReference,
+        manage_token_hash: credentials.managementTokenHash,
+      })
+      .select("id, booking_reference, manage_token_hash")
+      .maybeSingle();
 
-    if (insertError) {
+    if (
+      insertError ||
+      !createdAppointment ||
+      createdAppointment.booking_reference !== credentials.bookingReference ||
+      createdAppointment.manage_token_hash !== credentials.managementTokenHash
+    ) {
+      if (!insertError) {
+        console.error("CUSTOMER APPOINTMENT CREDENTIAL VERIFICATION ERROR", {
+          appointmentId: createdAppointment?.id ?? null,
+          hasBookingReference: Boolean(createdAppointment?.booking_reference),
+          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
+        });
+      }
       return {
-        error:
-          getAppointmentInsertErrorMessage(
-            insertError,
-          ),
+        error: insertError
+          ? getAppointmentInsertErrorMessage(insertError)
+          : "Your booking could not be verified. Please contact the studio.",
       };
     }
+
+    await setGuestBookingCookie(credentials.managementToken);
 
     if (input.marketingEmailConsent) {
       try {
@@ -292,6 +315,8 @@ export async function createAppointment(
         startAt,
         endAt,
         price: promotionPrice?.finalPrice ?? service.price,
+        bookingReference: createdAppointment.booking_reference,
+        manageUrl,
       });
     }
   } else {
@@ -341,33 +366,57 @@ export async function createAppointment(
       return { error: promotionPrice?.promotionId ? "Your promotional price changed. Please review the updated offer before booking." : "This offer has already been used or is no longer available. Please review the normal price before booking." };
     }
 
-    const { data: guestAppointmentId, error: guestAppointmentError } = await supabase.rpc(
-      "create_guest_appointment",
-      {
-        p_customer_id: guestCustomerId,
-        p_service_id: service.id,
-        p_start_at: startAt,
-        p_end_at: endAt,
-        p_customer_name: fullName,
-        p_customer_email: email,
-        p_customer_phone: phone,
-      },
-    );
+    const adminSupabase = createAdminClient();
+    const { data: createdAppointment, error: guestAppointmentError } = await adminSupabase
+      .from("appointments")
+      .insert({
+        customer_id: guestCustomerId,
+        service_id: service.id,
+        booking_source: "customer",
+        customer_name: fullName,
+        customer_email: email,
+        customer_phone: phone,
+        start_at: startAt,
+        end_at: endAt,
+        status: "confirmed",
+        notes,
+        guest_name: fullName,
+        guest_email: email,
+        guest_phone: phone,
+        original_price: promotionPrice?.originalPrice ?? service.price,
+        discount_amount: promotionPrice?.discountAmount ?? 0,
+        final_price: promotionPrice?.finalPrice ?? service.price,
+        promotion_id: promotionPrice?.promotionId ?? null,
+        booking_reference: credentials.bookingReference,
+        manage_token_hash: credentials.managementTokenHash,
+      })
+      .select("id, booking_reference, manage_token_hash")
+      .maybeSingle();
 
     if (
       guestAppointmentError ||
-      typeof guestAppointmentId !== "string" ||
-      !guestAppointmentId
+      !createdAppointment ||
+      createdAppointment.booking_reference !== credentials.bookingReference ||
+      createdAppointment.manage_token_hash !== credentials.managementTokenHash
     ) {
+      if (!guestAppointmentError) {
+        console.error("GUEST APPOINTMENT CREDENTIAL VERIFICATION ERROR", {
+          appointmentId: createdAppointment?.id ?? null,
+          hasBookingReference: Boolean(createdAppointment?.booking_reference),
+          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
+        });
+      }
       return {
         error:
           getAppointmentInsertErrorMessage(
             guestAppointmentError ?? {
-              message: "Guest appointment RPC returned no appointment ID.",
+              message: "Guest appointment credentials were not returned as stored.",
             },
           ),
       };
     }
+
+    await setGuestBookingCookie(credentials.managementToken);
 
     await sendConfirmationEmailSafely({
       to: email,
@@ -376,6 +425,8 @@ export async function createAppointment(
       startAt,
       endAt,
       price: promotionPrice?.finalPrice ?? service.price,
+      bookingReference: createdAppointment.booking_reference,
+      manageUrl,
     });
   }
 
@@ -388,5 +439,7 @@ export async function createAppointment(
   return {
     error: null,
     promotionPrice,
+    bookingReference: credentials.bookingReference,
+    manageUrl,
   };
 }
