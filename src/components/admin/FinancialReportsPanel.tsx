@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Download, Eye, FileSpreadsheet, Printer } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Download, Eye, FileSpreadsheet, Plus, Printer, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { generateFinancialReport, previewFinancialReport } from "@/app/actions/financial-reports";
 import AdminSelect from "@/components/admin/AdminSelect";
@@ -30,26 +30,42 @@ export default function FinancialReportsPanel({ reports }: { reports: FinancialR
   const [groupBy, setGroupBy] = useState<FinancialReportGrouping>("day");
   const [preview, setPreview] = useState<FinancialReportSnapshot | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!generatorOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [generatorOpen]);
 
   function changeType(value: string) { const type = value as FinancialReportPeriodType; const [start,end] = periodDates(type); setPeriodType(type); setStartDate(start); setEndDate(end); setGroupBy(defaults(type)); setPreview(null); }
   function runPreview() { startTransition(async () => { setFeedback(""); const result = await previewFinancialReport({ periodType, startDate, endDate, groupBy }); if (result.error || !result.snapshot) { setFeedback(result.error ?? "Preview failed."); return; } setPreview(result.snapshot); }); }
   function saveReport() { startTransition(async () => { setFeedback(""); const result = await generateFinancialReport({ periodType, startDate, endDate, groupBy }); if (result.error || !result.report) { setFeedback(result.error ?? "Report generation failed."); return; } setFeedback(`${result.report.report_number} generated.`); router.refresh(); }); }
 
   return <section className="space-y-5">
-    <article className="border border-border bg-surface">
-      <div className="border-b border-border p-5"><p className="font-admin-primary text-xs uppercase tracking-[.24em] text-accent">Financial Reports</p><h2 className="mt-2 font-admin-display text-3xl uppercase text-foreground">Generate Report</h2><p className="mt-2 text-sm text-foreground-muted">Preview live financial data, then save a permanent accounting snapshot.</p></div>
-      <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminSelect label="Period" value={periodType} onChange={changeType} options={[{value:"daily",label:"Daily"},{value:"weekly",label:"Weekly"},{value:"monthly",label:"Monthly"},{value:"yearly",label:"Yearly"},{value:"custom",label:"Custom"}]}/>
-        <DateTimePicker mode="date" label="From" value={startDate} onChange={(value)=>{setStartDate(value);setPreview(null);}} required/>
-        <DateTimePicker mode="date" label="To" value={endDate} onChange={(value)=>{setEndDate(value);setPreview(null);}} required/>
-        <AdminSelect label="Grouping" value={groupBy} onChange={(value)=>{setGroupBy(value as FinancialReportGrouping);setPreview(null);}} options={[{value:"day",label:"By Day"},{value:"month",label:"By Month"}]}/>
-        <div className="flex items-end"><button type="button" disabled={pending} onClick={runPreview} className="min-h-11 w-full border border-accent/60 px-4 font-admin-primary text-xs uppercase tracking-[.16em] text-accent disabled:opacity-40">{pending ? "Calculating..." : "Preview"}</button></div>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-admin-display text-3xl uppercase text-foreground">Financial Reports</h2><p className="mt-2 text-sm text-foreground-muted">Generate and export immutable accounting snapshots.</p></div><button type="button" onClick={()=>setGeneratorOpen(true)} className="inline-flex min-h-11 items-center justify-center gap-2 bg-accent px-5 text-xs uppercase tracking-[.17em] text-background"><Plus size={15}/>Generate Report</button></div>
+    {generatorOpen ? <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-background/85 p-3 backdrop-blur-sm sm:p-5" role="dialog" aria-modal="true" aria-labelledby="financial-report-modal-title"><article className="max-h-[calc(100dvh-24px)] w-full max-w-[840px] overflow-y-auto overscroll-contain border border-border bg-surface [scrollbar-color:rgba(198,158,102,.35)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-accent/30">
+      <header className="sticky top-0 z-20 flex items-start justify-between gap-5 border-b border-border bg-surface px-4 py-4 sm:px-6 sm:py-5">
+        <div className="min-w-0"><h2 id="financial-report-modal-title" className="font-admin-display text-2xl uppercase text-foreground sm:text-3xl">Generate Report</h2><p className="mt-2 max-w-xl text-sm leading-6 text-foreground-muted">Preview live financial data, then save a permanent accounting snapshot.</p></div>
+        <button type="button" onClick={()=>setGeneratorOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-border text-foreground-secondary transition-colors hover:border-accent/50 hover:text-foreground" aria-label="Close report generator"><X size={17}/></button>
+      </header>
+      <div className="px-4 py-4 sm:px-6 sm:py-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <AdminSelect label="Period" value={periodType} onChange={changeType} options={[{value:"daily",label:"Daily"},{value:"weekly",label:"Weekly"},{value:"monthly",label:"Monthly"},{value:"yearly",label:"Yearly"},{value:"custom",label:"Custom"}]}/>
+          <AdminSelect label="Grouping" value={groupBy} onChange={(value)=>{setGroupBy(value as FinancialReportGrouping);setPreview(null);}} options={[{value:"day",label:"By Day"},{value:"month",label:"By Month"}]}/>
+          <DateTimePicker mode="date" label="From" value={startDate} onChange={(value)=>{setStartDate(value);setPreview(null);}} required/>
+          <DateTimePicker mode="date" label="To" value={endDate} onChange={(value)=>{setEndDate(value);setPreview(null);}} required/>
+        </div>
+        {feedback ? <p className="mt-4 text-sm text-foreground-secondary">{feedback}</p> : null}
+        {preview ? <ReportPreview snapshot={preview}/>: null}
       </div>
-      {feedback ? <p className="px-5 pb-4 text-sm text-foreground-secondary">{feedback}</p> : null}
-      {preview ? <ReportPreview snapshot={preview}/>: null}
-      {preview ? <div className="flex justify-end border-t border-border p-5"><button type="button" disabled={pending} onClick={saveReport} className="min-h-11 bg-accent px-6 font-admin-primary text-xs uppercase tracking-[.18em] text-background disabled:opacity-40">{pending ? "Generating..." : "Generate Permanent Report"}</button></div> : null}
-    </article>
+      <footer className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 border-t border-border bg-surface px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <button type="button" onClick={()=>setGeneratorOpen(false)} className="min-h-11 border border-border px-6 font-admin-primary text-xs uppercase tracking-[.16em] text-foreground-secondary transition-colors hover:text-foreground">Cancel</button>
+        {preview ? <button type="button" disabled={pending} onClick={saveReport} className="min-h-11 bg-accent px-6 font-admin-primary text-xs uppercase tracking-[.18em] text-background disabled:opacity-40">{pending ? "Generating..." : "Generate Permanent Report"}</button> : <button type="button" disabled={pending} onClick={runPreview} className="min-h-11 bg-accent px-6 font-admin-primary text-xs uppercase tracking-[.18em] text-background disabled:opacity-40">{pending ? "Calculating..." : "Preview"}</button>}
+      </footer>
+    </article></div> : null}
 
     <article className="overflow-hidden border border-border bg-surface"><div className="border-b border-border p-5"><h2 className="font-admin-display text-2xl uppercase text-foreground">Report History</h2><p className="mt-1 text-sm text-foreground-muted">Saved reports are immutable and exports always use their stored snapshot.</p></div><div className="grid gap-3 p-4 md:hidden">{reports.map((report)=><ReportCard key={report.id} report={report}/>)}{!reports.length?<p className="p-6 text-center text-sm text-foreground-muted">No reports generated yet.</p>:null}</div><div className="hidden overflow-x-auto md:block"><table className="min-w-[980px] w-full text-left"><thead className="border-b border-border text-[10px] uppercase tracking-[.16em] text-foreground-muted"><tr>{["Report","Type","Period","Grouping","Generated","Net revenue","Payments","Generated by","Actions"].map(head=><th key={head} className="px-4 py-3 font-normal">{head}</th>)}</tr></thead><tbody>{reports.map(report=><tr key={report.id} className="border-b border-border/70 text-sm text-foreground-secondary"><td className="px-4 py-4 text-accent">{report.report_number}</td><td className="px-4 py-4 uppercase">{report.period_type}</td><td className="px-4 py-4">{report.snapshot.periodStartDate} – {report.snapshot.periodEndDate}</td><td className="px-4 py-4 uppercase">{report.group_by}</td><td className="px-4 py-4">{new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Zurich",dateStyle:"medium",timeStyle:"short"}).format(new Date(report.generated_at))}</td><td className="px-4 py-4 text-foreground">{chf(report.snapshot.totals.netRevenue)}</td><td className="px-4 py-4">{chf(report.snapshot.totals.totalPayments)}</td><td className="px-4 py-4">{report.generated_by_name ?? "Admin"}</td><td className="px-4 py-4"><ReportActions report={report}/></td></tr>)}</tbody></table>{!reports.length?<p className="p-10 text-center text-sm text-foreground-muted">No reports generated yet.</p>:null}</div></article>
   </section>;
