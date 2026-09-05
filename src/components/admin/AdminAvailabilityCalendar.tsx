@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   closeAvailabilityDateRange,
+  openAvailabilityDateRange,
   saveAvailabilityException,
 } from "@/app/admin/(dashboard)/calendar/actions";
+import Link from "next/link";
+import AdminSelect from "@/components/admin/AdminSelect";
 import {
   addMonthsToDateKey,
   formatDateKey,
@@ -16,6 +19,9 @@ import {
 } from "@/lib/appointments/date-utils";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
+import type { AdminAppointmentSummary } from "@/lib/appointments/types";
+import type { FinanceTransaction } from "@/lib/finance/types";
+import type { ServiceRecord } from "@/lib/services/types";
 import {
   formatBusinessHourRange,
   formatBusinessHourTime,
@@ -26,6 +32,9 @@ import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 type AdminAvailabilityCalendarProps = {
   initialBusinessHours: BusinessHourRecord[];
   initialExceptions: AvailabilityExceptionRecord[];
+  appointments: AdminAppointmentSummary[];
+  transactions: FinanceTransaction[];
+  services: ServiceRecord[];
   loadError?: string | null;
 };
 
@@ -43,6 +52,8 @@ type RangeEditorState = {
   endDate: string;
   reason: string;
 };
+
+type RangeAction = "close" | "open";
 
 const dayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const monthNames = [
@@ -131,6 +142,9 @@ function toEditorState(
 export default function AdminAvailabilityCalendar({
   initialBusinessHours,
   initialExceptions,
+  appointments,
+  transactions,
+  services,
   loadError,
 }: AdminAvailabilityCalendarProps) {
   const todayDateKey = useMemo(() => getTodayDateKeyInZurich(), []);
@@ -146,6 +160,10 @@ export default function AdminAvailabilityCalendar({
   const [visibleMonthKey, setVisibleMonthKey] = useState(getMonthStartDateKey(todayDateKey));
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [isRangeEditorOpen, setIsRangeEditorOpen] = useState(false);
+  const [rangeAction, setRangeAction] = useState<RangeAction>("close");
+  const [openMode, setOpenMode] = useState<"closed_only" | "all_exceptions">("closed_only");
+  const [serviceFilter, setServiceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [editorState, setEditorState] = useState<EditorState>({
     mode: "normal",
     openTime: "09:00",
@@ -193,6 +211,31 @@ export default function AdminAvailabilityCalendar({
     [exceptions],
   );
 
+  const dayMetrics = useMemo(() => {
+    const filteredAppointments = appointments.filter((appointment) =>
+      appointment.status !== "cancelled" &&
+      (serviceFilter === "all" || appointment.service_id === serviceFilter) &&
+      (statusFilter === "all" || appointment.status === statusFilter)
+    );
+    const appointmentsById = new Map(filteredAppointments.map((appointment) => [appointment.id, appointment]));
+    const metrics = new Map<string, { count: number; bookedMinutes: number; revenue: number }>();
+    filteredAppointments.forEach((appointment) => {
+      const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(appointment.start_at));
+      const current = metrics.get(key) ?? { count: 0, bookedMinutes: 0, revenue: 0 };
+      current.count += 1;
+      current.bookedMinutes += Math.max(0, (new Date(appointment.end_at).getTime() - new Date(appointment.start_at).getTime()) / 60000);
+      metrics.set(key, current);
+    });
+    transactions.filter((transaction) => transaction.status === "completed" && appointmentsById.has(transaction.appointment_id)).forEach((transaction) => {
+      const appointment = appointmentsById.get(transaction.appointment_id)!;
+      const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(appointment.start_at));
+      const current = metrics.get(key) ?? { count: 0, bookedMinutes: 0, revenue: 0 };
+      current.revenue += transaction.transaction_type === "payment" ? transaction.amount : -transaction.amount;
+      metrics.set(key, current);
+    });
+    return metrics;
+  }, [appointments, serviceFilter, statusFilter, transactions]);
+
   const selectedDate = selectedDateKey ? parseDateKeyToUtcDate(selectedDateKey) : null;
   const selectedWeekday = selectedDateKey ? getWeekdayNumberFromDateKey(selectedDateKey) : null;
   const normalHours =
@@ -201,6 +244,12 @@ export default function AdminAvailabilityCalendar({
       : businessHours.find((hour) => hour.day_of_week === selectedWeekday);
   const selectedException =
     selectedDateKey ? exceptionsByDate.get(selectedDateKey) ?? null : null;
+  const selectedMetrics = selectedDateKey ? dayMetrics.get(selectedDateKey) ?? { count: 0, bookedMinutes: 0, revenue: 0 } : null;
+  const selectedIsClosed = selectedException ? selectedException.is_closed : normalHours?.is_closed ?? true;
+  const selectedOpenTime = selectedException && !selectedException.is_closed ? selectedException.open_time : normalHours?.open_time;
+  const selectedCloseTime = selectedException && !selectedException.is_closed ? selectedException.close_time : normalHours?.close_time;
+  const selectedAvailableMinutes = !selectedIsClosed && selectedOpenTime && selectedCloseTime ? Math.max(0, minutesFromTime(selectedCloseTime) - minutesFromTime(selectedOpenTime)) : 0;
+  const selectedOccupancy = selectedMetrics && selectedAvailableMinutes ? Math.min(100, Math.round(selectedMetrics.bookedMinutes / selectedAvailableMinutes * 100)) : 0;
 
   useEffect(() => {
     if (!selectedDateKey) {
@@ -237,7 +286,8 @@ export default function AdminAvailabilityCalendar({
     setSaveState("idle");
   }
 
-  function openRangeEditor() {
+  function openRangeEditor(action: RangeAction) {
+    setRangeAction(action);
     setIsRangeEditorOpen(true);
     setRangeEditorState({
       startDate: selectedDateKey ?? todayDateKey,
@@ -317,6 +367,14 @@ export default function AdminAvailabilityCalendar({
     setRangeSaveState("saving");
 
     startRangeTransition(async () => {
+      if (rangeAction === "open") {
+        const result = await openAvailabilityDateRange({ start_date: rangeEditorState.startDate, end_date: rangeEditorState.endDate, mode: openMode });
+        if (result.error) { setRangeFeedback(result.error); setRangeSaveState("idle"); return; }
+        setExceptions((current) => current.filter((item) => !result.removedDates.includes(item.date)));
+        setRangeSaveState("saved");
+        closeRangeEditor();
+        return;
+      }
       const result = await closeAvailabilityDateRange({
         start_date: rangeEditorState.startDate,
         end_date: rangeEditorState.endDate,
@@ -401,10 +459,17 @@ export default function AdminAvailabilityCalendar({
           </button>
           <button
             type="button"
-            onClick={openRangeEditor}
+            onClick={() => openRangeEditor("close")}
             className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
           >
             Close Date Range
+          </button>
+          <button
+            type="button"
+            onClick={() => openRangeEditor("open")}
+            className="inline-flex min-h-11 items-center justify-center border border-accent/50 px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-accent transition-colors hover:bg-accent/10"
+          >
+            Open Date Range
           </button>
         </div>
 
@@ -418,6 +483,11 @@ export default function AdminAvailabilityCalendar({
             Custom Hours
           </div>
         </div>
+      </div>
+
+      <div className="grid gap-4 border border-border bg-surface p-4 sm:grid-cols-2 lg:max-w-2xl">
+        <AdminSelect label="Service" value={serviceFilter} onChange={setServiceFilter} options={[{ value: "all", label: "All Services" }, ...services.map((service) => ({ value: service.id, label: service.name }))]} />
+        <AdminSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All Active Statuses" }, { value: "confirmed", label: "Confirmed" }, { value: "completed", label: "Completed" }, { value: "no_show", label: "No Show" }]} />
       </div>
 
       <div className="border border-border bg-surface">
@@ -436,13 +506,21 @@ export default function AdminAvailabilityCalendar({
           {calendarDays.map((day) => {
             const exception = exceptionsByDate.get(day.key);
             const isSelected = selectedDateKey === day.key;
+            const metrics = dayMetrics.get(day.key) ?? { count: 0, bookedMinutes: 0, revenue: 0 };
+            const weekday = getWeekdayNumberFromDateKey(day.key);
+            const recurringHours = businessHours.find((hour) => hour.day_of_week === weekday);
+            const isClosed = exception ? exception.is_closed : recurringHours?.is_closed ?? true;
+            const openTime = exception && !exception.is_closed ? exception.open_time : recurringHours?.open_time;
+            const closeTime = exception && !exception.is_closed ? exception.close_time : recurringHours?.close_time;
+            const availableMinutes = !isClosed && openTime && closeTime ? Math.max(0, minutesFromTime(closeTime) - minutesFromTime(openTime)) : 0;
+            const occupancy = availableMinutes ? Math.min(100, Math.round(metrics.bookedMinutes / availableMinutes * 100)) : 0;
 
             return (
               <button
                 key={day.key}
                 type="button"
                 onClick={() => openDateEditor(day.key)}
-                className={`group flex min-h-[6.5rem] flex-col justify-between border-b border-r border-border px-2 py-2 text-left transition-colors sm:min-h-[8rem] sm:px-3 sm:py-3 ${
+                className={`group flex min-h-[8.5rem] flex-col justify-between border-b border-r border-border px-2 py-2 text-left transition-colors sm:min-h-[10rem] sm:px-3 sm:py-3 ${
                   day.isCurrentMonth
                     ? "bg-background text-foreground hover:bg-background-secondary"
                     : "bg-background/40 text-foreground-muted hover:bg-background/70"
@@ -463,7 +541,10 @@ export default function AdminAvailabilityCalendar({
                   ) : null}
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
+                  {metrics.count ? <p className="font-primary text-[10px] uppercase tracking-[0.13em] text-foreground sm:text-[11px]">{metrics.count} appointment{metrics.count === 1 ? "" : "s"}</p> : <p className="font-primary text-[9px] uppercase tracking-[0.13em] text-foreground-muted">No appointments</p>}
+                  {metrics.revenue ? <p className="font-primary text-[10px] text-foreground-secondary">CHF {metrics.revenue.toFixed(2)}</p> : null}
+                  {!isClosed && availableMinutes ? <p className="font-primary text-[9px] uppercase tracking-[0.13em] text-foreground-muted">{occupancy}% booked</p> : null}
                   {exception ? (
                     <>
                       <span
@@ -473,12 +554,13 @@ export default function AdminAvailabilityCalendar({
                         aria-hidden="true"
                       />
                       <p className="font-primary text-[9px] uppercase tracking-[0.18em] text-foreground-secondary sm:text-[10px]">
-                        {exception.is_closed ? "Closed" : "Custom"}
+                        {exception.is_closed ? "Closed" : `Custom · ${openTime?.slice(0,5)}–${closeTime?.slice(0,5)}`}
                       </p>
+                      {exception.is_closed && metrics.count ? <p className="font-primary text-[9px] uppercase tracking-[0.13em] text-error">Needs attention</p> : null}
                     </>
                   ) : (
                     <p className="font-primary text-[9px] uppercase tracking-[0.18em] text-foreground-muted sm:text-[10px]">
-                      Normal hours
+                      {isClosed ? "Closed" : "Normal hours"}
                     </p>
                   )}
                 </div>
@@ -521,6 +603,16 @@ export default function AdminAvailabilityCalendar({
             </div>
 
             <div className="mt-6 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="border border-border bg-surface p-4"><p className="text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Appointments</p><p className="mt-2 text-xl text-foreground">{selectedMetrics?.count ?? 0}</p></div>
+                <div className="border border-border bg-surface p-4"><p className="text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Revenue</p><p className="mt-2 text-xl text-foreground">CHF {(selectedMetrics?.revenue ?? 0).toFixed(2)}</p></div>
+                <div className="border border-border bg-surface p-4"><p className="text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Availability</p><p className="mt-2 text-xl text-foreground">{selectedIsClosed ? "Closed" : `${selectedOccupancy}% booked`}</p></div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/admin/appointments?view=day&date=${selectedDateKey}`} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 text-xs uppercase tracking-[0.16em] text-background">View Appointments</Link>
+                <button type="button" onClick={() => setEditorState((current) => ({ ...current, mode: selectedIsClosed ? "normal" : current.mode }))} className="inline-flex min-h-11 items-center justify-center border border-border px-4 text-xs uppercase tracking-[0.16em] text-foreground-secondary">{selectedIsClosed ? "Open Day" : "Change Hours"}</button>
+                {!selectedIsClosed ? <button type="button" onClick={() => setEditorState((current) => ({ ...current, mode: "closed" }))} className="inline-flex min-h-11 items-center justify-center border border-error/50 px-4 text-xs uppercase tracking-[0.16em] text-error">Close Day</button> : null}
+              </div>
               {[
                 {
                   value: "normal" as const,
@@ -662,7 +754,7 @@ export default function AdminAvailabilityCalendar({
                   Calendar
                 </p>
                 <h3 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
-                  Close Date Range
+                  {rangeAction === "close" ? "Close Date Range" : "Open Date Range"}
                 </h3>
               </div>
 
@@ -681,7 +773,9 @@ export default function AdminAvailabilityCalendar({
               <DateTimePicker mode="date" label="End date" value={rangeEditorState.endDate} minDate={rangeEditorState.startDate || undefined} onChange={(nextDate) => setRangeEditorState((current) => ({ ...current, endDate: nextDate }))} />
             </div>
 
-            <label className="mt-6 block space-y-2">
+            {rangeAction === "open" ? <div className="mt-6"><AdminSelect label="Opening behavior" value={openMode} onChange={(value) => setOpenMode(value as "closed_only" | "all_exceptions")} options={[{ value: "closed_only", label: "Open closed dates only" }, { value: "all_exceptions", label: "Restore all to normal weekly hours" }]} /><p className="mt-2 text-xs leading-5 text-foreground-muted">The default preserves custom-hour dates. Restoring all removes every date-specific override in the range.</p></div> : null}
+
+            {rangeAction === "close" ? <label className="mt-6 block space-y-2">
               <span className="font-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
                 Reason (optional)
               </span>
@@ -697,7 +791,7 @@ export default function AdminAvailabilityCalendar({
                 className="w-full resize-none border border-border bg-transparent px-3 py-3 font-primary text-sm text-foreground outline-none transition-colors"
                 placeholder="Reason for this closure (Optional)"
               />
-            </label>
+            </label> : null}
 
             <div className="mt-6 border border-border bg-surface px-4 py-4">
               <p className="font-primary text-xs uppercase tracking-[0.22em] text-foreground-secondary">
@@ -705,7 +799,7 @@ export default function AdminAvailabilityCalendar({
               </p>
               <p className="mt-2 font-primary text-sm leading-6 text-foreground-secondary">
                 {rangeStartDate && rangeEndDate && rangeDayCount > 0
-                  ? `Close ${formatShortRange(rangeStartDate, rangeEndDate)} (${rangeDayCount} day${rangeDayCount === 1 ? "" : "s"})?`
+                  ? `${rangeAction === "close" ? "Close" : "Open"} ${formatShortRange(rangeStartDate, rangeEndDate)} (${rangeDayCount} day${rangeDayCount === 1 ? "" : "s"})?`
                   : "Select a valid date range."}
               </p>
             </div>
@@ -765,6 +859,11 @@ function parseDateFromKey(dateKey: string) {
   }
 
   return createDateAtNoon(year, month - 1, day);
+}
+
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
 function formatShortRange(startDate: Date, endDate: Date) {

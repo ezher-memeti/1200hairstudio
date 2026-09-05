@@ -18,6 +18,12 @@ type CloseAvailabilityRangeInput = {
   reason: string | null;
 };
 
+type OpenAvailabilityRangeInput = {
+  start_date: string;
+  end_date: string;
+  mode: "closed_only" | "all_exceptions";
+};
+
 function parseDateString(dateValue: string) {
   const [year, month, day] = dateValue.split("-").map(Number);
 
@@ -221,5 +227,34 @@ export async function closeAvailabilityDateRange(
       error: "Unexpected server error.",
       exceptions: [] as AvailabilityExceptionRecord[],
     };
+  }
+}
+
+export async function openAvailabilityDateRange(input: OpenAvailabilityRangeInput) {
+  try {
+    const supabase = await requireAdminClient();
+    const startDate = parseDateString(input.start_date);
+    const endDate = parseDateString(input.end_date);
+    if (!startDate || !endDate || endDate < startDate) {
+      return { error: "Select a valid date range.", removedDates: [] as string[] };
+    }
+
+    let query = supabase
+      .from("availability_exceptions")
+      .select("date,is_closed")
+      .gte("date", input.start_date)
+      .lte("date", input.end_date);
+    if (input.mode === "closed_only") query = query.eq("is_closed", true);
+    const { data: matches, error: loadError } = await query;
+    if (loadError) return { error: loadError.message, removedDates: [] as string[] };
+    const removedDates = (matches ?? []).map((item) => item.date);
+    if (removedDates.length) {
+      const { error } = await supabase.from("availability_exceptions").delete().in("date", removedDates);
+      if (error) return { error: error.message, removedDates: [] as string[] };
+    }
+    revalidatePath("/admin/calendar");
+    return { error: null, removedDates };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unexpected server error.", removedDates: [] as string[] };
   }
 }
