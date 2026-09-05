@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Eye, Mail, X } from "lucide-react";
 import {
   createAdminAppointment,
   getAdminAvailableSlotTimes,
   removeAdminAppointment,
   updateAdminAppointment,
 } from "@/app/actions/appointments";
+import { generateAdminReceiptForAppointment, resendAdminReceipt } from "@/app/actions/finance";
 import { formatZurichTime } from "@/lib/appointments/availability";
 import type {
   AdminAppointmentDetail,
@@ -24,6 +25,7 @@ import AdminSelect from "@/components/admin/AdminSelect";
 import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialog";
 import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion, TransactionType } from "@/lib/finance/types";
+import type { ReceiptRecord } from "@/lib/receipts/types";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -38,6 +40,7 @@ type Props = {
   todayDateKey: string;
   financeSummaries: AppointmentFinanceSummary[];
   promotions: FinancePromotion[];
+  receipts: ReceiptRecord[];
 };
 
 type AppointmentCard = AdminAppointmentDetail & {
@@ -294,6 +297,7 @@ export default function AdminAppointmentsView({
   todayDateKey,
   financeSummaries,
   promotions,
+  receipts,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -327,6 +331,9 @@ export default function AdminAppointmentsView({
   const [draftNotes, setDraftNotes] = useState("");
   const [feedback, setFeedback] = useState("");
   const [financeDialogType, setFinanceDialogType] = useState<TransactionType | null>(null);
+  const [receiptState, setReceiptState] = useState(receipts);
+  const [receiptFeedback, setReceiptFeedback] = useState("");
+  const [isReceiptPending, startReceiptTransition] = useTransition();
   const [isPending, startTransition] = useTransition();
   const [isCreatePending, startCreateTransition] = useTransition();
   const [isEditPending, startEditTransition] = useTransition();
@@ -338,6 +345,9 @@ export default function AdminAppointmentsView({
   useEffect(() => {
     setAppointmentState(appointments);
   }, [appointments]);
+  useEffect(() => {
+    setReceiptState(receipts);
+  }, [receipts]);
 
   useEffect(() => {
     const appointmentId = searchParams.get("appointmentId");
@@ -357,6 +367,7 @@ export default function AdminAppointmentsView({
   const selectedFinance = selectedDetail
     ? financeSummaries.find((item) => item.appointment_id === selectedDetail.id) ?? null
     : null;
+  const selectedReceipt = selectedDetail ? receiptState.find((receipt) => receipt.appointment_id === selectedDetail.id) ?? null : null;
   const selectedFinanceAppointment: FinanceAppointment | null = selectedDetail && selectedFinance
     ? {
         appointmentId: selectedDetail.id,
@@ -384,7 +395,45 @@ export default function AdminAppointmentsView({
   useEffect(() => {
     setDraftNotes(selectedDetail?.notes ?? "");
     setFeedback("");
+    setReceiptFeedback("");
   }, [selectedDetail]);
+
+  useEffect(() => {
+    if (!selectedDetail) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedDetail]);
+
+  function generateReceipt() {
+    if (!selectedDetail) return;
+    setReceiptFeedback("");
+    startReceiptTransition(async () => {
+      const result = await generateAdminReceiptForAppointment(selectedDetail.id);
+      if (result.error || !result.receipt) { setReceiptFeedback(result.error ?? "The receipt could not be generated."); return; }
+      setReceiptState((current) => current.some((receipt) => receipt.id === result.receipt.id) ? current : [...current, result.receipt as ReceiptRecord]);
+      setReceiptFeedback(`Beleg ${result.receipt.receipt_number} generated.`);
+      router.refresh();
+    });
+  }
+
+  function emailReceipt() {
+    if (!selectedReceipt) return;
+    setReceiptFeedback("");
+    startReceiptTransition(async () => {
+      const result = await resendAdminReceipt(selectedReceipt.id);
+      if (result.error || !result.emailedAt) { setReceiptFeedback(result.error ?? "The receipt could not be emailed."); return; }
+      setReceiptState((current) => current.map((receipt) => receipt.id === selectedReceipt.id ? { ...receipt, emailed_at: result.emailedAt } : receipt));
+      setReceiptFeedback("Receipt emailed to the customer.");
+      router.refresh();
+    });
+  }
 
   useEffect(() => {
     if (!selectedDetail || !isEditOpen) {
@@ -1209,9 +1258,15 @@ export default function AdminAppointmentsView({
       ) : null}
 
       {selectedDetail ? (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="w-full max-w-2xl border border-border bg-surface px-5 py-6 sm:px-6">
-            <div className="flex items-start justify-between gap-4">
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-background/80 px-3 backdrop-blur-sm sm:px-6"
+          style={{
+            paddingTop: "max(12px, env(safe-area-inset-top))",
+            paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+          }}
+        >
+          <div className="w-full max-w-2xl max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain border border-border bg-surface px-5 py-6 [scrollbar-color:rgba(198,158,102,0.35)_transparent] [scrollbar-width:thin] sm:px-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-accent/30 [&::-webkit-scrollbar-track]:bg-transparent">
+            <div className="sticky -top-6 z-20 -mx-5 -mt-6 flex items-start justify-between gap-4 border-b border-border bg-surface px-5 pb-4 pt-6 sm:-mx-6 sm:px-6">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
                   Appointment
@@ -1294,6 +1349,20 @@ export default function AdminAppointmentsView({
                 </div>
               </div>
             ) : null}
+
+            <div className="mt-4 border border-border bg-background/40 px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">Receipt</p>
+                  {selectedReceipt ? <><p className="mt-2 font-admin-display text-xl uppercase text-foreground">Beleg {selectedReceipt.receipt_number}</p><p className="mt-1 font-admin-primary text-xs text-foreground-secondary">Issued {new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedReceipt.issued_at))}</p></> : <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">No receipt generated</p>}
+                </div>
+                {selectedReceipt ? <div className="text-right font-admin-primary text-xs"><p className="text-lg text-foreground">CHF {selectedReceipt.total.toFixed(2)}</p><p className={selectedReceipt.emailed_at ? "mt-1 text-emerald-300" : "mt-1 text-foreground-muted"}>{selectedReceipt.emailed_at ? "Emailed" : "Not emailed"}</p></div> : null}
+              </div>
+              {selectedReceipt ? <div className="mt-4 flex flex-wrap gap-2"><a href={`/api/admin/receipts/${selectedReceipt.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Eye size={14}/>View Receipt</a><a href={`/api/admin/receipts/${selectedReceipt.id}?format=pdf`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Download size={14}/>Download PDF</a><button type="button" disabled={isReceiptPending || !selectedDetail.customer_email?.trim()} onClick={emailReceipt} className="inline-flex min-h-11 items-center justify-center gap-2 border border-accent/50 px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-accent disabled:cursor-not-allowed disabled:opacity-35"><Mail size={14}/>{isReceiptPending ? "Sending..." : selectedReceipt.emailed_at ? "Resend" : "Send to Customer"}</button></div> : selectedFinanceAppointment && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue ? <button type="button" disabled={isReceiptPending} onClick={generateReceipt} className="mt-4 inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-40">{isReceiptPending ? "Generating..." : "Generate Receipt"}</button> : <p className="mt-3 font-admin-primary text-xs text-foreground-muted">The receipt becomes available when the appointment balance is fully settled.</p>}
+              {selectedReceipt && !selectedDetail.customer_email?.trim() ? <p className="mt-3 font-admin-primary text-xs text-foreground-muted">No customer email address is available.</p> : null}
+              {selectedReceipt?.payment_method === null && selectedReceipt.total === 0 ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-accent">No payment required</p> : null}
+              {receiptFeedback ? <p className="mt-3 font-admin-primary text-sm text-foreground-secondary">{receiptFeedback}</p> : null}
+            </div>
 
             <div className="mt-6 space-y-3">
               <label className="block">

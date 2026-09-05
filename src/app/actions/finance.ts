@@ -225,9 +225,24 @@ export async function resendAdminReceipt(receiptId: string) {
     const { error } = await supabase.from("receipts").update({ emailed_at: emailedAt }).eq("id", receipt.id);
     if (error) return { error: "Receipt was sent, but its email status could not be updated." };
     revalidatePath("/admin/finance");
+    revalidatePath("/admin/appointments");
     return { error: null, emailedAt };
   } catch (error) {
     console.error("ADMIN RECEIPT RESEND ERROR", error);
     return { error: "The receipt email could not be sent." };
+  }
+}
+
+export async function generateAdminReceiptForAppointment(appointmentId: string) {
+  try {
+    if (!appointmentId) return { error: "Appointment not found.", receipt: null };
+    const { supabase, user } = await requireAdminUser();
+    const receipt = await getOrCreateReceipt(supabase, appointmentId, user.id);
+    revalidatePath("/admin/finance");
+    revalidatePath("/admin/appointments");
+    return { error: null, receipt };
+  } catch (error) {
+    console.error("ADMIN RECEIPT GENERATION ERROR", error);
+    return { error: error instanceof Error ? error.message : "The receipt could not be generated.", receipt: null };
   }
 }

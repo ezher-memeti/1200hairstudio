@@ -8,23 +8,27 @@ import type {
 } from "@/lib/finance/types";
 import type { FinancePromotion } from "@/lib/finance/types";
 import type { ReceiptRecord } from "@/lib/receipts/types";
+import type { FinancialReportRecord } from "@/lib/finance/report-types";
+import { normalizeFinancialReportRecord } from "@/lib/finance/reports";
 
 const numberValue = (value: number | string | null | undefined) => Number(value ?? 0);
 
 export async function getAdminFinanceData() {
   const { supabase } = await requireAdminUser();
-  const [{ data: summaries, error: summaryError }, { data: payments, error: paymentError }, { data: promotions, error: promotionError }, { data: receipts, error: receiptError }] =
+  const [{ data: summaries, error: summaryError }, { data: payments, error: paymentError }, { data: promotions, error: promotionError }, { data: receipts, error: receiptError }, { data: reports, error: reportError }] =
     await Promise.all([
       supabase.from("appointment_finance_summary").select("*").order("start_at", { ascending: false }),
       supabase.from("payments").select("*").order("paid_at", { ascending: false }),
       supabase.from("promotions").select("id,name,discount_type,discount_value,service_id,starts_at,expires_at,is_active").order("name"),
       supabase.from("receipts").select("*").order("issued_at", { ascending: false }),
+      supabase.from("financial_reports").select("*").order("generated_at", { ascending: false }),
     ]);
 
   if (summaryError) throw new Error(`Unable to load appointment finance: ${summaryError.message}`);
   if (paymentError) throw new Error(`Unable to load payments: ${paymentError.message}`);
   if (promotionError) throw new Error(`Unable to load promotions: ${promotionError.message}`);
   if (receiptError) throw new Error(`Unable to load receipts: ${receiptError.message}`);
+  if (reportError) throw new Error(`Unable to load financial reports: ${reportError.message}`);
 
   const financeRows = (summaries ?? []) as AppointmentFinanceSummary[];
   const customerIds = [...new Set(financeRows.map((row) => row.customer_id).filter((id): id is string => Boolean(id)))];
@@ -109,6 +113,7 @@ export async function getAdminFinanceData() {
       amount_paid: numberValue(receipt.amount_paid),
       balance: numberValue(receipt.balance),
     })),
+    reports: ((reports ?? []) as FinancialReportRecord[]).map(normalizeFinancialReportRecord),
   };
 }
 
@@ -121,6 +126,22 @@ export async function getAppointmentFinanceSummaries(appointmentIds: string[]) {
     .in("appointment_id", appointmentIds);
   if (error) throw new Error(`Unable to load appointment finance: ${error.message}`);
   return (data ?? []) as AppointmentFinanceSummary[];
+}
+
+export async function getAppointmentReceipts(appointmentIds: string[]) {
+  if (!appointmentIds.length) return [] as ReceiptRecord[];
+  const { supabase } = await requireAdminUser();
+  const { data, error } = await supabase.from("receipts").select("*").in("appointment_id", appointmentIds);
+  if (error) throw new Error(`Unable to load appointment receipts: ${error.message}`);
+  return ((data ?? []) as ReceiptRecord[]).map((receipt) => ({
+    ...receipt,
+    receipt_number: Number(receipt.receipt_number),
+    subtotal: numberValue(receipt.subtotal),
+    discount_amount: numberValue(receipt.discount_amount),
+    total: numberValue(receipt.total),
+    amount_paid: numberValue(receipt.amount_paid),
+    balance: numberValue(receipt.balance),
+  }));
 }
 
 export async function getAdminFinancePromotions() {

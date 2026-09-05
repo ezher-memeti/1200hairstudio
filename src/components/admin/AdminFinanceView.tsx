@@ -7,9 +7,11 @@ import { resendAdminReceipt } from "@/app/actions/finance";
 import AdminSelect from "@/components/admin/AdminSelect";
 import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialog";
+import FinancialReportsPanel from "@/components/admin/FinancialReportsPanel";
 import type { FinanceAppointment, FinancePromotion, FinanceTransaction, TransactionType } from "@/lib/finance/types";
 import type { ServiceRecord } from "@/lib/services/types";
 import type { ReceiptRecord } from "@/lib/receipts/types";
+import type { FinancialReportRecord } from "@/lib/finance/report-types";
 
 type Range = "today" | "week" | "month" | "year" | "custom";
 const formatMoney = (value: number) => new Intl.NumberFormat("de-CH", { style: "currency", currency: "CHF" }).format(value);
@@ -26,7 +28,7 @@ function startForRange(range: Range, now: Date) {
   return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
 }
 
-export default function AdminFinanceView({ transactions, appointments, services, promotions, receipts }: { transactions: FinanceTransaction[]; appointments: FinanceAppointment[]; services: ServiceRecord[]; promotions: FinancePromotion[]; receipts: ReceiptRecord[] }) {
+export default function AdminFinanceView({ transactions, appointments, services, promotions, receipts, reports }: { transactions: FinanceTransaction[]; appointments: FinanceAppointment[]; services: ServiceRecord[]; promotions: FinancePromotion[]; receipts: ReceiptRecord[]; reports: FinancialReportRecord[] }) {
   const router = useRouter();
   const [range, setRange] = useState<Range>("month");
   const [customStart, setCustomStart] = useState("");
@@ -103,6 +105,7 @@ export default function AdminFinanceView({ transactions, appointments, services,
 
   return <section className="space-y-8">
     <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"><div><p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">Finance</p><h1 className="mt-4 font-admin-display text-[clamp(2.2rem,5vw,4.25rem)] font-semibold uppercase leading-[.95] tracking-[-.04em] text-foreground">Finance</h1><p className="mt-3 font-admin-primary text-sm text-foreground-secondary">Completed payments, refunds, balances, and revenue in CHF.</p></div><button type="button" onClick={exportCsv} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-5 font-admin-primary text-xs uppercase tracking-[.18em] text-foreground-secondary hover:text-foreground"><Download size={15}/> Export CSV</button></div>
+    <FinancialReportsPanel reports={reports}/>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metricCards.map(([label, value]) => <article key={label} className="border border-border bg-surface p-5"><p className="font-admin-primary text-[10px] uppercase tracking-[.18em] text-foreground-muted">{label}</p><p className="mt-3 font-admin-display text-3xl tracking-[-.03em] text-foreground">{value}</p></article>)}</div>
     <div className="grid gap-3 sm:grid-cols-3"><article className="border border-border bg-surface p-4"><span className="text-foreground-muted">Paid appointments</span><strong className="float-right text-emerald-300">{counts.paid}</strong></article><article className="border border-border bg-surface p-4"><span className="text-foreground-muted">Unpaid appointments</span><strong className="float-right text-rose-300">{counts.unpaid}</strong></article><article className="border border-border bg-surface p-4"><span className="text-foreground-muted">Partially paid</span><strong className="float-right text-accent">{counts.partial}</strong></article></div>
     <div className="grid gap-4 border border-border bg-surface p-4 md:grid-cols-2 xl:grid-cols-5"><AdminSelect label="Date Range" value={range} onChange={(value) => setRange(value as Range)} options={[{value:"today",label:"Today"},{value:"week",label:"This Week"},{value:"month",label:"This Month"},{value:"year",label:"This Year"},{value:"custom",label:"Custom Range"}]}/><AdminSelect label="Payment Method" value={method} onChange={setMethod} options={[{value:"all",label:"All Methods"},...METHOD_OPTIONS]}/><AdminSelect label="Payment Status" value={status} onChange={setStatus} options={[{value:"all",label:"All Statuses"},{value:"completed",label:"Completed"},{value:"pending",label:"Pending"},{value:"failed",label:"Failed"},{value:"voided",label:"Voided"}]}/><AdminSelect label="Service" value={service} onChange={setService} searchable options={[{value:"all",label:"All Services"},...services.map((item)=>({value:item.id,label:item.name}))]}/><AdminSelect label="Transaction" value={type} onChange={setType} options={[{value:"all",label:"All Transactions"},{value:"payment",label:"Payments"},{value:"refund",label:"Refunds"}]}/>{range === "custom" ? <><DateTimePicker mode="date" label="From" value={customStart} onChange={setCustomStart}/><DateTimePicker mode="date" label="To" value={customEnd} onChange={setCustomEnd}/></> : null}</div>

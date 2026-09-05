@@ -8,7 +8,7 @@ import {
   getAvailabilityExceptionsInRange,
 } from "@/lib/appointments/queries";
 import { getActiveServices } from "@/lib/public/services";
-import { getAdminFinancePromotions, getAppointmentFinanceSummaries } from "@/lib/finance/queries";
+import { getAdminFinancePromotions, getAppointmentFinanceSummaries, getAppointmentReceipts } from "@/lib/finance/queries";
 
 type SearchParams = {
   view?: string;
@@ -80,9 +80,10 @@ export default async function AdminAppointmentsPage({
     getAdminCustomerOptions(),
     getActiveServices(),
   ]);
-  const [financeSummaries, promotions] = await Promise.all([
+  const [financeSummaries, promotions, receipts] = await Promise.all([
     getAppointmentFinanceSummaries(appointments.map((appointment) => appointment.id)),
     getAdminFinancePromotions(),
+    getAppointmentReceipts(appointments.map((appointment) => appointment.id)),
   ]);
 
   return (
@@ -97,6 +98,7 @@ export default async function AdminAppointmentsPage({
       todayDateKey={todayDateKey}
       financeSummaries={financeSummaries}
       promotions={promotions}
+      receipts={receipts}
     />
   );
 }
