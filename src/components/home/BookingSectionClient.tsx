@@ -847,6 +847,12 @@ export default function BookingSectionClient({
         return;
       }
 
+      if (!("bookingReference" in result) || !("manageUrl" in result)) {
+        setSubmitFeedback("Your booking was created, but its management details could not be loaded.");
+        router.refresh();
+        return;
+      }
+
       setConfirmed(true);
       setBookingReference(result.bookingReference ?? null);
       setManageUrl(result.manageUrl ?? null);

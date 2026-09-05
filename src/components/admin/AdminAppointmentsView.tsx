@@ -22,6 +22,8 @@ import { getEffectiveHours, toDateKey } from "@/lib/public/booking-availability-
 import type { ServiceRecord } from "@/lib/services/types";
 import AdminSelect from "@/components/admin/AdminSelect";
 import DateTimePicker from "@/components/admin/ui/DateTimePicker";
+import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialog";
+import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion, TransactionType } from "@/lib/finance/types";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -34,6 +36,8 @@ type Props = {
   customers: AdminCustomerOption[];
   services: ServiceRecord[];
   todayDateKey: string;
+  financeSummaries: AppointmentFinanceSummary[];
+  promotions: FinancePromotion[];
 };
 
 type AppointmentCard = AdminAppointmentDetail & {
@@ -288,6 +292,8 @@ export default function AdminAppointmentsView({
   customers,
   services,
   todayDateKey,
+  financeSummaries,
+  promotions,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -320,6 +326,7 @@ export default function AdminAppointmentsView({
   const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [draftNotes, setDraftNotes] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [financeDialogType, setFinanceDialogType] = useState<TransactionType | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isCreatePending, startCreateTransition] = useTransition();
   const [isEditPending, startEditTransition] = useTransition();
@@ -347,6 +354,32 @@ export default function AdminAppointmentsView({
   const weekEnd = weekDates[6];
   const selectedDetail =
     appointmentState.find((appointment) => appointment.id === selectedAppointmentId) ?? null;
+  const selectedFinance = selectedDetail
+    ? financeSummaries.find((item) => item.appointment_id === selectedDetail.id) ?? null
+    : null;
+  const selectedFinanceAppointment: FinanceAppointment | null = selectedDetail && selectedFinance
+    ? {
+        appointmentId: selectedDetail.id,
+        bookingReference: selectedDetail.booking_reference ?? "No reference",
+        customerName: selectedDetail.customer_name,
+        serviceId: selectedDetail.service_id,
+        serviceName: selectedDetail.service_name,
+        startAt: selectedDetail.start_at,
+        appointmentStatus: selectedDetail.status,
+        originalPrice: Number(selectedFinance.original_price ?? 0),
+        amountDue: Number(selectedFinance.amount_due ?? 0),
+        discountAmount: Number(selectedFinance.discount_amount ?? 0),
+        promotionId: selectedDetail.promotion_id ?? null,
+        discountSource: selectedDetail.discount_source ?? null,
+        discountLabel: selectedDetail.discount_label ?? null,
+        discountType: selectedDetail.discount_type ?? null,
+        discountValue: selectedDetail.discount_value == null ? null : Number(selectedDetail.discount_value),
+        totalPaid: Number(selectedFinance.total_paid ?? 0),
+        totalRefunded: Number(selectedFinance.total_refunded ?? 0),
+        netPaid: Number(selectedFinance.net_paid ?? 0),
+        paymentStatus: selectedFinance.payment_status ?? "unpaid",
+      }
+    : null;
 
   useEffect(() => {
     setDraftNotes(selectedDetail?.notes ?? "");
@@ -1238,6 +1271,30 @@ export default function AdminAppointmentsView({
               </div>
             </div>
 
+            {selectedFinanceAppointment ? (
+              <div className="mt-4 border border-border bg-background/40 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">Payment</p>
+                    <p className="mt-2 font-admin-display text-xl uppercase text-foreground">{selectedFinanceAppointment.paymentStatus.replaceAll("_", " ")}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-right font-admin-primary text-xs sm:grid-cols-3">
+                    <span><b className="block text-foreground-muted">Original</b>CHF {selectedFinanceAppointment.originalPrice.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">Discount</b>−CHF {selectedFinanceAppointment.discountAmount.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">Final</b>CHF {selectedFinanceAppointment.amountDue.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">Paid</b>CHF {selectedFinanceAppointment.netPaid.toFixed(2)}</span>
+                    <span className="text-accent"><b className="block text-foreground-muted">Remaining</b>CHF {Math.max(0, selectedFinanceAppointment.amountDue - selectedFinanceAppointment.netPaid).toFixed(2)}</span>
+                  </div>
+                </div>
+                {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{selectedFinanceAppointment.discountSource === "custom" ? "Custom discount" : "Promotion"} — {selectedFinanceAppointment.discountLabel ?? "Discount"}</p> : null}
+                {selectedDetail.status === "completed" && selectedFinanceAppointment.netPaid < selectedFinanceAppointment.amountDue ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-rose-300">Completed appointment · payment outstanding</p> : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" disabled={selectedFinanceAppointment.amountDue > 0 && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue} onClick={() => setFinanceDialogType("payment")} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background disabled:opacity-40">Record Payment</button>
+                  <button type="button" disabled={selectedFinanceAppointment.netPaid <= 0} onClick={() => setFinanceDialogType("refund")} className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary disabled:opacity-40">Record Refund</button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-6 space-y-3">
               <label className="block">
                 <span className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
@@ -1415,6 +1472,16 @@ export default function AdminAppointmentsView({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {financeDialogType && selectedFinanceAppointment ? (
+        <FinanceTransactionDialog
+          appointment={selectedFinanceAppointment}
+          promotions={promotions}
+          transactionType={financeDialogType}
+          onClose={() => setFinanceDialogType(null)}
+          onSuccess={(message) => setFeedback(message)}
+        />
       ) : null}
 
       {isRemoveOpen && selectedDetail ? (

@@ -24,6 +24,11 @@ export type GmailMessage = {
   subject: string;
   html: string;
   text: string;
+  attachments?: Array<{
+    filename: string;
+    mimeType: string;
+    content: Uint8Array;
+  }>;
 };
 
 function getRequiredEnv(name: "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "GOOGLE_REFRESH_TOKEN") {
@@ -61,24 +66,56 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-function buildMessage({ to, subject, html, text }: GmailMessage) {
+function buildMessage({ to, subject, html, text, attachments = [] }: GmailMessage) {
   const boundary = `1200hairstudio-${Date.now()}`;
+  const alternativeBoundary = `${boundary}-alternative`;
+  const body = attachments.length
+    ? [
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+        "",
+        `--${alternativeBoundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        "Content-Transfer-Encoding: 8bit",
+        "",
+        text,
+        `--${alternativeBoundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: 8bit",
+        "",
+        html,
+        `--${alternativeBoundary}--`,
+        ...attachments.flatMap((attachment) => [
+          `--${boundary}`,
+          `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: attachment; filename="${attachment.filename}"`,
+          "",
+          Buffer.from(attachment.content).toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "",
+        ]),
+        `--${boundary}--`,
+      ]
+    : [
+        `Content-Type: multipart/alternative; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        "",
+        text,
+        `--${boundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "",
+        html,
+        `--${boundary}--`,
+      ];
   const message = [
     `From: ${GMAIL_SENDER_NAME} <${GMAIL_SENDER_EMAIL}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "",
-    text,
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "",
-    html,
-    `--${boundary}--`,
+    ...body,
   ].join("\r\n");
 
   return Buffer.from(message)

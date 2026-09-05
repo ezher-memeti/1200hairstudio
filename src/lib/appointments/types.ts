@@ -26,6 +26,10 @@ export type AppointmentRecord = {
   discount_amount?: number | null;
   final_price?: number | null;
   promotion_id?: string | null;
+  discount_source?: "promotion" | "custom" | null;
+  discount_label?: string | null;
+  discount_type?: "percentage" | "fixed" | null;
+  discount_value?: number | null;
   created_at: string;
   updated_at: string;
 };
