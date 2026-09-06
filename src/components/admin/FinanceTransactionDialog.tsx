@@ -7,8 +7,9 @@ import { recordAdminTransaction } from "@/app/actions/finance";
 import AdminSelect from "@/components/admin/AdminSelect";
 import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 import type { AppointmentDiscountMode, FinanceAppointment, FinancePromotion, PaymentMethod, TransactionType } from "@/lib/finance/types";
+import type { PaymentMethodSetting } from "@/lib/admin/settings";
 
-const METHODS = [
+const METHODS: Array<{ value: PaymentMethod; label: string }> = [
   { value: "cash", label: "Cash" },
   { value: "twint", label: "TWINT" },
   { value: "card", label: "Card" },
@@ -29,12 +30,16 @@ export default function FinanceTransactionDialog({
   appointment,
   promotions,
   transactionType,
+  enabledPaymentMethods,
+  receiptEmailEnabled,
   onClose,
   onSuccess,
 }: {
   appointment: FinanceAppointment;
   promotions: FinancePromotion[];
   transactionType: TransactionType;
+  enabledPaymentMethods: PaymentMethodSetting[];
+  receiptEmailEnabled: boolean;
   onClose: () => void;
   onSuccess?: (message: string) => void;
 }) {
@@ -43,7 +48,8 @@ export default function FinanceTransactionDialog({
     ? Math.max(0, appointment.amountDue - appointment.netPaid)
     : Math.max(0, appointment.netPaid);
   const [amount, setAmount] = useState(defaultAmount.toFixed(2));
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const availableMethods = METHODS.filter((option) => enabledPaymentMethods.includes(option.value));
+  const [method, setMethod] = useState<PaymentMethod>(availableMethods[0]?.value ?? "cash");
   const [paidAt, setPaidAt] = useState(zurichNowValue);
   const [notes, setNotes] = useState("");
   const [discountMode, setDiscountMode] = useState<AppointmentDiscountMode>(appointment.discountSource === "custom" ? "custom" : appointment.discountSource === "promotion" || appointment.promotionId ? "promotion" : "none");
@@ -159,12 +165,12 @@ export default function FinanceTransactionDialog({
 
         <div className="mx-4 mt-4 grid gap-4 sm:mx-6 sm:mt-5 sm:grid-cols-2 sm:gap-5">
           {transactionType === "payment" ? <div className="space-y-3 sm:col-span-2 sm:space-y-4"><div><p className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Discount</p><div className="mt-2 grid grid-cols-1 border border-border bg-[#11110f] p-1 min-[480px]:grid-cols-3">{([['none','No discount'],['promotion','Existing promotion'],['custom','Custom discount']] as const).map(([value,label]) => <button key={value} type="button" disabled={fullyPaid} onClick={() => { setDiscountMode(value); syncAmount(value); }} className={`min-h-11 px-3 font-admin-primary text-[10px] uppercase tracking-[0.12em] transition-colors ${discountMode === value ? 'bg-accent text-background' : 'text-foreground-secondary hover:text-foreground'} disabled:opacity-40`}>{label}</button>)}</div></div>{discountMode === "promotion" ? <AdminSelect label="Promotion" value={promotionId} onChange={(value) => { setPromotionId(value); syncAmount("promotion", value); }} disabled={fullyPaid} placeholder="Select a promotion" options={promotionOptions.map((promotion) => { const active = promotion.is_active && (!promotion.starts_at || new Date(promotion.starts_at).getTime() <= now) && (!promotion.expires_at || new Date(promotion.expires_at).getTime() > now); return { value: promotion.id, label: `${promotion.name} · ${promotion.discount_type === "percentage" ? `${promotion.discount_value}%` : `CHF ${promotion.discount_value.toFixed(2)}`} — ${active ? 'Active' : 'Inactive'}` }; })} /> : null}{discountMode === "custom" ? <div className="grid gap-3 sm:grid-cols-2 sm:gap-4"><label className="block sm:col-span-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Discount Label</span><input value={customLabel} onChange={(event) => setCustomLabel(event.target.value)} placeholder="Loyal customer" className="mt-2 min-h-11 w-full rounded-[3px] border border-border bg-[#11110f] px-4 font-admin-primary text-sm text-foreground outline-none placeholder:text-foreground-muted focus:border-accent" /></label><AdminSelect label="Discount Type" value={customType} onChange={(value) => { const next = value as 'percentage' | 'fixed'; setCustomType(next); syncAmount('custom', promotionId, next, customValue); }} options={[{value:'percentage',label:'Percentage'},{value:'fixed',label:'Fixed CHF'}]} /><label className="block"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Discount Value</span><input value={customValue} onChange={(event) => { setCustomValue(event.target.value); syncAmount('custom', promotionId, customType, event.target.value); }} inputMode="decimal" placeholder={customType === 'percentage' ? '15' : '5.00'} className="mt-2 min-h-11 w-full rounded-[3px] border border-border bg-[#11110f] px-4 font-admin-primary text-sm text-foreground outline-none placeholder:text-foreground-muted focus:border-accent" /></label></div> : null}<p className="font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-muted">Applied to this appointment only{fullyPaid ? " · Discount changes disabled because this appointment is fully paid" : ""}</p></div> : null}
-          {transactionType === "payment" ? <label className="flex min-h-12 items-center gap-3 border border-border bg-background/30 px-4 sm:col-span-2"><input type="checkbox" checked={sendReceipt} onChange={(event) => setSendReceipt(event.target.checked)} className="size-4 accent-[#d8b174]" /><span><span className="block font-admin-primary text-xs uppercase tracking-[0.14em] text-foreground">Send receipt to customer</span><span className="mt-0.5 block font-admin-primary text-[10px] text-foreground-muted">Sent when the appointment balance is fully settled.</span></span></label> : null}
+          {transactionType === "payment" && receiptEmailEnabled ? <label className="flex min-h-12 items-center gap-3 border border-border bg-background/30 px-4 sm:col-span-2"><input type="checkbox" checked={sendReceipt} onChange={(event) => setSendReceipt(event.target.checked)} className="size-4 accent-[#d8b174]" /><span><span className="block font-admin-primary text-xs uppercase tracking-[0.14em] text-foreground">Send receipt to customer</span><span className="mt-0.5 block font-admin-primary text-[10px] text-foreground-muted">Sent when the appointment balance is fully settled.</span></span></label> : null}
           {transactionType !== "payment" || previewRemaining > 0 ? <><label className="block">
             <span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Amount (CHF)</span>
             <input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className="mt-2 min-h-11 w-full rounded-[3px] border border-border bg-[#11110f] px-4 font-admin-primary text-sm text-foreground outline-none focus:border-accent" />
           </label>
-          <AdminSelect label="Payment Method" value={method} onChange={(value) => setMethod(value as PaymentMethod)} options={METHODS} />
+          <AdminSelect label="Payment Method" value={method} onChange={(value) => setMethod(value as PaymentMethod)} options={availableMethods} />
           <DateTimePicker className="sm:col-span-2" mode="datetime" minuteStep={5} label="Paid At" value={paidAt} onChange={setPaidAt} required />
           <label className="block sm:col-span-2">
             <span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Notes</span>

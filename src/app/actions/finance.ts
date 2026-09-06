@@ -7,6 +7,8 @@ import type { AppointmentDiscountMode, PaymentMethod, TransactionType } from "@/
 import { calculatePromotionPrice } from "@/lib/promotions/server";
 import { generateReceiptPdf, getAdminReceipt, getOrCreateReceipt } from "@/lib/receipts/server";
 import { sendReceiptEmail } from "@/lib/email/receipt";
+import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
+import type { FinanceSettings } from "@/lib/admin/settings";
 
 const paymentMethods = new Set<PaymentMethod>(["cash", "twint", "card", "bank_transfer", "other"]);
 
@@ -15,6 +17,7 @@ async function finalizeReceipt(
   userId: string,
   appointmentId: string,
   sendEmail: boolean,
+  financeSettings: FinanceSettings,
 ) {
   const { data: finance } = await supabase
     .from("appointment_finance_summary")
@@ -25,6 +28,9 @@ async function finalizeReceipt(
     return { receiptId: null, receiptNumber: null, receiptEmailStatus: "skipped" as const, receiptEmailWarning: null };
   }
 
+  if (!financeSettings.autoGenerateReceipt && !sendEmail) {
+    return { receiptId: null, receiptNumber: null, receiptEmailStatus: "skipped" as const, receiptEmailWarning: null };
+  }
   const receipt = await getOrCreateReceipt(supabase, appointmentId, userId);
   if (!sendEmail) return { receiptId: receipt.id, receiptNumber: receipt.receipt_number, receiptEmailStatus: "skipped" as const, receiptEmailWarning: null };
   try {
@@ -59,6 +65,7 @@ export async function recordAdminTransaction(input: {
 }) {
   try {
     const { supabase, user } = await requireAdminUser();
+    const settings = await getRuntimeSettings();
     let previousPriceSnapshot: { promotion_id: string | null; original_price: number | null; discount_amount: number | null; final_price: number | null; discount_source: string | null; discount_label: string | null; discount_type: string | null; discount_value: number | null } | null = null;
     const amount = Number(input.amount);
     if (!input.appointmentId || !Number.isFinite(amount) || amount < 0) return { error: "Enter a valid payment amount." };
@@ -141,7 +148,7 @@ export async function recordAdminTransaction(input: {
       const remainingBalance = Math.max(0, finalPrice - Number(finance.net_paid ?? 0));
       if (remainingBalance > 0 && amount <= 0) return { error: "Enter a valid amount greater than zero." };
       if (amount > remainingBalance) return { error: "Payment cannot exceed the remaining appointment balance." };
-      if (remainingBalance > 0 && !paymentMethods.has(input.paymentMethod)) return { error: "Choose a valid payment method." };
+      if (remainingBalance > 0 && (!paymentMethods.has(input.paymentMethod) || !settings.finance.enabledPaymentMethods.includes(input.paymentMethod))) return { error: "This payment method is currently disabled." };
       if (remainingBalance > 0 && !match) return { error: "Choose a valid paid date and time." };
 
       previousPriceSnapshot = {
@@ -166,7 +173,8 @@ export async function recordAdminTransaction(input: {
       }
 
       if (remainingBalance === 0) {
-        const receiptResult = await finalizeReceipt(supabase, user.id, finance.appointment_id, input.sendReceipt === true);
+        const sendReceipt = input.sendReceipt === true && settings.notifications.receiptEmailEnabled;
+        const receiptResult = await finalizeReceipt(supabase, user.id, finance.appointment_id, sendReceipt, settings.finance);
         revalidatePath("/admin/finance");
         revalidatePath("/admin/appointments");
         revalidatePath("/admin/calendar");
@@ -174,7 +182,7 @@ export async function recordAdminTransaction(input: {
       }
     }
 
-    if (!paymentMethods.has(input.paymentMethod)) return { error: "Choose a valid payment method." };
+    if (!paymentMethods.has(input.paymentMethod) || !settings.finance.enabledPaymentMethods.includes(input.paymentMethod)) return { error: "This payment method is currently disabled." };
     if (!match) return { error: "Choose a valid paid date and time." };
 
     const { error } = await supabase.from("payments").insert({
@@ -201,7 +209,7 @@ export async function recordAdminTransaction(input: {
     }
 
     const receiptResult = input.transactionType === "payment"
-      ? await finalizeReceipt(supabase, user.id, finance.appointment_id, input.sendReceipt === true)
+      ? await finalizeReceipt(supabase, user.id, finance.appointment_id, input.sendReceipt === true && settings.notifications.receiptEmailEnabled, settings.finance)
       : { receiptId: null, receiptNumber: null, receiptEmailStatus: "skipped" as const, receiptEmailWarning: null };
 
     revalidatePath("/admin/finance");

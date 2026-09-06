@@ -11,6 +11,7 @@ import {
 } from "@/lib/appointments/availability";
 
 import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
+import { sendAdminBookingNotificationEmail } from "@/lib/email/gmail";
 import { recordMarketingEmailConsent } from "@/lib/customers/mutations";
 import { getAvailableSlots } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
@@ -18,6 +19,10 @@ import { getEffectiveServicePrice } from "@/lib/promotions/server";
 import type { EffectiveServicePrice } from "@/lib/promotions/types";
 import { createBookingCredentials, getBookingManagementUrl, setGuestBookingCookie } from "@/lib/appointments/management";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { BookingSettings } from "@/lib/admin/settings";
+import { validateCustomerBookingTime } from "@/lib/booking/policy";
+import { getBookingSettings } from "@/lib/booking/settings";
+import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 
 function toFullName(firstName: string, lastName: string) {
   return [firstName.trim(), lastName.trim()]
@@ -43,6 +48,7 @@ export type AppointmentRequestInput = {
 export async function validateAppointmentRequest(
   supabase: Awaited<ReturnType<typeof createClient>>,
   input: AppointmentRequestInput,
+  options?: { customerBookingSettings?: BookingSettings },
 ) {
   const { data: service, error: serviceError } = await supabase
     .from("services")
@@ -72,12 +78,23 @@ export async function validateAppointmentRequest(
     ),
   );
 
+  if (options?.customerBookingSettings) {
+    const policyError = validateCustomerBookingTime(
+      selectedStartAt,
+      input.dateKey,
+      options.customerBookingSettings,
+    );
+    if (policyError) return { error: policyError } as const;
+  }
+
   const availableSlots = await getAvailableSlots(
     service.id,
     input.dateKey,
-    input.excludeAppointmentId
-      ? { excludeAppointmentId: input.excludeAppointmentId }
-      : undefined,
+    {
+      excludeAppointmentId: input.excludeAppointmentId,
+      bookingSettings: options?.customerBookingSettings,
+      enforceCustomerPolicy: Boolean(options?.customerBookingSettings),
+    },
   );
 
   const selectedStartMs = new Date(
@@ -182,10 +199,17 @@ export async function createAppointment(
   const supabase = await createClient();
 
   const { user, role } = await getCurrentUserRole();
+  const bookingSettings = await getBookingSettings();
+  const runtimeSettings = await getRuntimeSettings();
+
+  if (role !== "customer" && !bookingSettings.allowGuestBookings) {
+    return { error: "Guest bookings are currently unavailable. Please sign in or create an account to continue." };
+  }
 
   const validation = await validateAppointmentRequest(
     supabase,
     input,
+    { customerBookingSettings: bookingSettings },
   );
 
   if (validation.error) {
@@ -198,7 +222,7 @@ export async function createAppointment(
   const startAt = validation.startAt;
   const endAt = validation.endAt;
 
-  if (!service) {
+  if (!service || !startAt || !endAt) {
     return {
       error: "This service is not available right now.",
     };
@@ -214,6 +238,7 @@ export async function createAppointment(
     input.email?.trim().toLowerCase() ?? "";
   const notes = input.note?.trim() || null;
   let promotionPrice: EffectiveServicePrice | null = null;
+  let adminNotificationDetails: Parameters<typeof sendAdminBookingNotificationEmail>[0] | null = null;
   const credentials = createBookingCredentials();
   const manageUrl = getBookingManagementUrl(credentials.managementToken);
 
@@ -225,6 +250,9 @@ export async function createAppointment(
 
     promotionPrice = await getEffectiveServicePrice({ customerId: customer.id, serviceId: service.id, authenticatedCustomer: true, supabase });
     if (input.promotionId && promotionPrice?.promotionId !== input.promotionId) return { error: "Your promotion is no longer available. Please review the updated price before booking." };
+
+    const finalPolicyError = validateCustomerBookingTime(startAt, input.dateKey, bookingSettings);
+    if (finalPolicyError) return { error: finalPolicyError };
 
     const { data: createdAppointment, error: insertError } = await supabase
       .from("appointments")
@@ -307,7 +335,7 @@ export async function createAppointment(
 
     const recipientEmail = customer.email || user.email || "";
 
-    if (recipientEmail) {
+    if (recipientEmail && runtimeSettings.notifications.bookingConfirmationEmail) {
       await sendConfirmationEmailSafely({
         to: recipientEmail,
         customerName: fullName || customer.full_name || "Customer",
@@ -319,6 +347,17 @@ export async function createAppointment(
         manageUrl,
       });
     }
+    adminNotificationDetails = {
+      adminEmail: runtimeSettings.business.email,
+      to: recipientEmail,
+      customerName: fullName || customer.full_name || "Customer",
+      serviceName: service.name,
+      startAt,
+      endAt,
+      price: promotionPrice?.finalPrice ?? service.price,
+      bookingReference: createdAppointment.booking_reference,
+      manageUrl,
+    };
   } else {
     if (!fullName) {
       return {
@@ -365,6 +404,9 @@ export async function createAppointment(
     if (input.promotionId && promotionPrice?.promotionId !== input.promotionId) {
       return { error: promotionPrice?.promotionId ? "Your promotional price changed. Please review the updated offer before booking." : "This offer has already been used or is no longer available. Please review the normal price before booking." };
     }
+
+    const finalPolicyError = validateCustomerBookingTime(startAt, input.dateKey, bookingSettings);
+    if (finalPolicyError) return { error: finalPolicyError };
 
     const adminSupabase = createAdminClient();
     const { data: createdAppointment, error: guestAppointmentError } = await adminSupabase
@@ -418,7 +460,7 @@ export async function createAppointment(
 
     await setGuestBookingCookie(credentials.managementToken);
 
-    await sendConfirmationEmailSafely({
+    const emailDetails = {
       to: email,
       customerName: fullName,
       serviceName: service.name,
@@ -427,7 +469,22 @@ export async function createAppointment(
       price: promotionPrice?.finalPrice ?? service.price,
       bookingReference: createdAppointment.booking_reference,
       manageUrl,
-    });
+    };
+    if (runtimeSettings.notifications.bookingConfirmationEmail) {
+      await sendConfirmationEmailSafely(emailDetails);
+    }
+    adminNotificationDetails = { ...emailDetails, adminEmail: runtimeSettings.business.email };
+  }
+
+  if (runtimeSettings.notifications.adminBookingNotification && adminNotificationDetails?.adminEmail) {
+    try {
+      await sendAdminBookingNotificationEmail(adminNotificationDetails);
+    } catch (error) {
+      console.error("ADMIN BOOKING NOTIFICATION EMAIL ERROR", {
+        message: error instanceof Error ? error.message : "Unknown error",
+        bookingReference: adminNotificationDetails.bookingReference,
+      });
+    }
   }
 
   revalidatePath("/");

@@ -26,6 +26,7 @@ import DateTimePicker from "@/components/admin/ui/DateTimePicker";
 import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialog";
 import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion, TransactionType } from "@/lib/finance/types";
 import type { ReceiptRecord } from "@/lib/receipts/types";
+import type { PaymentMethodSetting } from "@/lib/admin/settings";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -41,6 +42,8 @@ type Props = {
   financeSummaries: AppointmentFinanceSummary[];
   promotions: FinancePromotion[];
   receipts: ReceiptRecord[];
+  enabledPaymentMethods: PaymentMethodSetting[];
+  receiptEmailEnabled: boolean;
 };
 
 type AppointmentCard = AdminAppointmentDetail & {
@@ -298,6 +301,8 @@ export default function AdminAppointmentsView({
   financeSummaries,
   promotions,
   receipts,
+  enabledPaymentMethods,
+  receiptEmailEnabled,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1548,6 +1553,8 @@ export default function AdminAppointmentsView({
           appointment={selectedFinanceAppointment}
           promotions={promotions}
           transactionType={financeDialogType}
+          enabledPaymentMethods={enabledPaymentMethods}
+          receiptEmailEnabled={receiptEmailEnabled}
           onClose={() => setFinanceDialogType(null)}
           onSuccess={(message) => setFeedback(message)}
         />

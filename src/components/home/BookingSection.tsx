@@ -2,7 +2,6 @@ import BookingSectionClient from "@/components/home/BookingSectionClient";
 import { getCurrentUserRole } from "@/lib/auth/customer";
 import { getBusinessHours } from "@/lib/public/business-hours";
 import {
-  addDaysToDateKey,
   generateUpcomingDateOptions,
   getCurrentZurichDateTime,
   getServiceBookingDuration,
@@ -20,6 +19,7 @@ import {
   resolveManagedAppointment,
 } from "@/lib/appointments/management";
 import type { PersistedBookingConfirmation } from "@/components/home/BookingSectionClient";
+import { getBookingSettings } from "@/lib/booking/settings";
 
 type ActiveRegisteredAppointment = {
   id: string;
@@ -33,12 +33,12 @@ type ActiveRegisteredAppointment = {
 
 export default async function BookingSection({ content }: { content: HomepageContent }) {
   const currentZurich = getCurrentZurichDateTime();
-  const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
 
-  const [{ role, user }, services, businessHours] = await Promise.all([
+  const [{ role, user }, services, businessHours, bookingSettings] = await Promise.all([
     getCurrentUserRole(),
     getActiveServices(),
     getBusinessHours(),
+    getBookingSettings(),
   ]);
   let customerProfile: { fullName: string; email: string; phone: string } | null = null;
   let customerId: string | null = null;
@@ -84,14 +84,17 @@ export default async function BookingSection({ content }: { content: HomepageCon
   }));
   const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
     count: 10,
-    horizonDays: 30,
+    horizonDays: bookingSettings.maximumHorizonDays + 1,
   });
   const slotEntries = await Promise.all(
     bookingServices.flatMap((service) =>
       bookingDates.map(async (date) => ({
         serviceId: service.id,
         dateKey: date.id,
-        slots: await getAvailableSlotTimes(service.id, date.id),
+        slots: await getAvailableSlotTimes(service.id, date.id, {
+          bookingSettings,
+          enforceCustomerPolicy: true,
+        }),
       })),
     ),
   );
@@ -165,6 +168,7 @@ export default async function BookingSection({ content }: { content: HomepageCon
   return (
     <BookingSectionClient
       authRole={role}
+      allowGuestBookings={bookingSettings.allowGuestBookings}
       customerProfile={customerProfile}
       services={bookingServices}
       dates={visibleBookingDates}

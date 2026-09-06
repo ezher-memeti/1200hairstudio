@@ -8,12 +8,14 @@ import { createClient } from "@/lib/supabase/client";
 import { subscribeToMarketingEmails, unsubscribeFromMarketingEmails, updateCustomerAccount } from "@/app/account/actions";
 import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
 import AccountBookingActions from "@/components/account/AccountBookingActions";
+import type { CustomerManagementCapabilities } from "@/lib/booking/policy";
 
 type CustomerAccountViewProps = {
   customer: Pick<CustomerRecord, "id" | "full_name" | "email" | "phone" | "marketing_email_consent" | "marketing_email_consented_at" | "marketing_email_consent_source" | "marketing_email_unsubscribed_at">;
   pastAppointments: CustomerAppointmentSummary[];
   upcomingAppointments: CustomerAppointmentSummary[];
   bookingDates: { id: string; day: string; date: string; month: string }[];
+  bookingCapabilities: Record<string, CustomerManagementCapabilities>;
 };
 
 export default function CustomerAccountView({
@@ -21,6 +23,7 @@ export default function CustomerAccountView({
   pastAppointments,
   upcomingAppointments,
   bookingDates,
+  bookingCapabilities,
 }: CustomerAccountViewProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(customer.full_name);
@@ -224,7 +227,7 @@ export default function CustomerAccountView({
                   </p>
                 </div>
                 {appointment.final_price != null ? <p className="mt-3 font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">CHF {Number(appointment.final_price).toFixed(2)}</p> : null}
-                <AccountBookingActions appointmentId={appointment.id} dates={bookingDates} />
+                <AccountBookingActions appointmentId={appointment.id} dates={bookingDates} capabilities={bookingCapabilities[appointment.id]} />
               </div>
             ))}
           </div>

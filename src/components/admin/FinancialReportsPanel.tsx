@@ -21,13 +21,13 @@ function periodDates(type: FinancialReportPeriodType) {
 }
 const defaults = (type: FinancialReportPeriodType): FinancialReportGrouping => type === "yearly" ? "month" : "day";
 
-export default function FinancialReportsPanel({ reports }: { reports: FinancialReportRecord[] }) {
+export default function FinancialReportsPanel({ reports, defaultGrouping }: { reports: FinancialReportRecord[]; defaultGrouping: FinancialReportGrouping }) {
   const router = useRouter();
   const [periodType, setPeriodType] = useState<FinancialReportPeriodType>("monthly");
   const initial = periodDates("monthly");
   const [startDate, setStartDate] = useState(initial[0]);
   const [endDate, setEndDate] = useState(initial[1]);
-  const [groupBy, setGroupBy] = useState<FinancialReportGrouping>("day");
+  const [groupBy, setGroupBy] = useState<FinancialReportGrouping>(defaultGrouping);
   const [preview, setPreview] = useState<FinancialReportSnapshot | null>(null);
   const [feedback, setFeedback] = useState("");
   const [generatorOpen, setGeneratorOpen] = useState(false);

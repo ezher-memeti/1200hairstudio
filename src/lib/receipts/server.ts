@@ -3,6 +3,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdminReceipt, ReceiptRecord } from "@/lib/receipts/types";
+import { getFinanceSettings } from "@/lib/admin/runtime-settings";
 
 const money = (value: unknown) => Math.round(Number(value ?? 0) * 100) / 100;
 
@@ -15,10 +16,11 @@ export async function getOrCreateReceipt(
   if (existing.error) throw existing.error;
   if (existing.data) return existing.data as ReceiptRecord;
 
-  const [{ data: appointment, error: appointmentError }, { data: finance, error: financeError }, { data: payments, error: paymentsError }] = await Promise.all([
+  const [{ data: appointment, error: appointmentError }, { data: finance, error: financeError }, { data: payments, error: paymentsError }, financeSettings] = await Promise.all([
     supabase.from("appointments").select("id,customer_id,customer_name,guest_name,service_id,start_at,discount_label").eq("id", appointmentId).maybeSingle(),
     supabase.from("appointment_finance_summary").select("appointment_id,original_price,discount_amount,amount_due,net_paid").eq("appointment_id", appointmentId).maybeSingle(),
     supabase.from("payments").select("transaction_type,amount,payment_method,status,paid_at").eq("appointment_id", appointmentId).eq("status", "completed").order("paid_at"),
+    getFinanceSettings(),
   ]);
   if (appointmentError || !appointment || financeError || !finance || paymentsError) throw new Error("Receipt data could not be loaded.");
 
@@ -48,7 +50,7 @@ export async function getOrCreateReceipt(
     amount_paid: amountPaid,
     balance,
     payment_method: methods.length ? methods.join(" + ") : null,
-    currency: "CHF",
+    currency: financeSettings.currency,
     issued_at: new Date().toISOString(),
     created_by: createdBy,
   };
@@ -75,6 +77,7 @@ function drawRight(page: PDFPage, font: PDFFont, text: string, y: number, size =
 }
 
 export async function generateReceiptPdf(receipt: ReceiptRecord) {
+  const currency = receipt.currency || "CHF";
   const document = await PDFDocument.create();
   const page = document.addPage([595, 842]);
   const regular = await document.embedFont(StandardFonts.Helvetica);
@@ -90,15 +93,15 @@ export async function generateReceiptPdf(receipt: ReceiptRecord) {
   page.drawText("CUSTOMER", { x: 60, y: 620, size: 8, font: bold, color: rgb(0.45, 0.4, 0.32) });
   page.drawText(receipt.customer_name ?? "Customer", { x: 60, y: 596, size: 14, font: regular });
   page.drawText(`${receipt.service_quantity} × ${receipt.service_name}`, { x: 60, y: 535, size: 12, font: bold });
-  drawRight(page, regular, `CHF ${receipt.subtotal.toFixed(2)}`, 535, 11);
+  drawRight(page, regular, `${currency} ${receipt.subtotal.toFixed(2)}`, 535, 11);
   page.drawText(new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(new Date(receipt.appointment_start_at)), { x: 60, y: 515, size: 9, font: regular, color: rgb(0.4, 0.4, 0.38) });
   page.drawLine({ start: { x: 60, y: 480 }, end: { x: 535, y: 480 }, thickness: 0.6, color: rgb(0.78, 0.76, 0.72) });
   const rows: Array<[string, string, boolean?]> = [
-    ["Subtotal", `CHF ${receipt.subtotal.toFixed(2)}`],
-    [receipt.discount_label ? `Discount · ${receipt.discount_label}` : "Discount", `-CHF ${receipt.discount_amount.toFixed(2)}`],
-    ["Total", `CHF ${receipt.total.toFixed(2)}`, true],
-    [receipt.payment_method ? `Payment with ${receipt.payment_method.toUpperCase()}` : "No payment required", `CHF ${receipt.amount_paid.toFixed(2)}`],
-    ["Balance", `CHF ${receipt.balance.toFixed(2)}`, true],
+    ["Subtotal", `${currency} ${receipt.subtotal.toFixed(2)}`],
+    [receipt.discount_label ? `Discount · ${receipt.discount_label}` : "Discount", `-${currency} ${receipt.discount_amount.toFixed(2)}`],
+    ["Total", `${currency} ${receipt.total.toFixed(2)}`, true],
+    [receipt.payment_method ? `Payment with ${receipt.payment_method.toUpperCase()}` : "No payment required", `${currency} ${receipt.amount_paid.toFixed(2)}`],
+    ["Balance", `${currency} ${receipt.balance.toFixed(2)}`, true],
   ];
   rows.forEach(([label, value, strong], index) => {
     const y = 445 - index * 34;

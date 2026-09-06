@@ -423,18 +423,20 @@ function DateTimeStep({
 
 function DetailsStep({
   authRole,
+  allowGuestBookings,
   state,
   setState,
   onBack,
   onNext,
 }: Pick<StepProps, "state" | "setState" | "onBack" | "onNext"> & {
   authRole: "admin" | "customer" | null;
+  allowGuestBookings: boolean;
 }) {
   const [showNote, setShowNote] = useState(
     Boolean(state.note),
   );
   const guestModeRequired = authRole !== "customer";
-  const canEditDetails = authRole === "customer" || state.bookingMode === "guest";
+  const canEditDetails = authRole === "customer" || (allowGuestBookings && state.bookingMode === "guest");
 
   const isValid =
     state.firstName.trim() &&
@@ -462,7 +464,7 @@ function DetailsStep({
             >
               Login / Continue with Account
             </Link>
-            <button
+            {allowGuestBookings ? <button
               type="button"
               onClick={() =>
                 setState((current) => ({
@@ -477,8 +479,9 @@ function DetailsStep({
               }`}
             >
               Continue as Guest
-            </button>
+            </button> : null}
           </div>
+          {!allowGuestBookings ? <p className="font-primary text-sm leading-6 text-foreground-secondary">Guest bookings are currently unavailable. Please sign in or create an account to continue.</p> : null}
         </div>
       ) : null}
 
@@ -729,6 +732,7 @@ function BookingConfirmation({
 
 type BookingSectionClientProps = {
   authRole: "admin" | "customer" | null;
+  allowGuestBookings: boolean;
   customerProfile: {
     fullName: string;
     email: string;
@@ -748,6 +752,7 @@ type BookingSectionClientProps = {
 
 export default function BookingSectionClient({
   authRole,
+  allowGuestBookings,
   customerProfile,
   services,
   dates,
@@ -921,7 +926,7 @@ export default function BookingSectionClient({
     }
 
     if (step === 2) {
-      return <DetailsStep {...sharedProps} authRole={authRole} />;
+      return <DetailsStep {...sharedProps} authRole={authRole} allowGuestBookings={allowGuestBookings} />;
     }
 
     return (
@@ -931,7 +936,7 @@ export default function BookingSectionClient({
         onNext={handleConfirmBooking}
       />
     );
-  }, [authRole, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, hidePersistedConfirmation, initialFirstName, initialLastName, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
+  }, [allowGuestBookings, authRole, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, hidePersistedConfirmation, initialFirstName, initialLastName, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
 
   return (
     <section id="booking" className="bg-background">

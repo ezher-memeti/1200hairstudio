@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getUtcDateForZurichDateTime } from "@/lib/appointments/availability";
 import { FINANCIAL_REPORT_SECTIONS, type FinancialReportGrouping, type FinancialReportPeriodType, type FinancialReportRecord, type FinancialReportRow, type FinancialReportSnapshot, type FinancialReportValues } from "@/lib/finance/report-types";
+import type { BusinessSettings, FinanceSettings } from "@/lib/admin/settings";
 
 const FINANCIAL_VALUE_KEYS: Array<keyof FinancialReportValues> = ["grossRevenue", "discounts", "refunds", "netRevenue", "taxes", "totalSales", "giftVoucherRevenue", "serviceFees", "tips", "otherNetSales", "taxOnOtherSales", "otherTotalSales", "totalSalesAndOtherSales", "paidSales", "unpaidSales", "twint", "cash", "card", "bankTransfer", "other", "totalPayments", "paymentsForSalesInPeriod", "paymentsForPreviousPeriods", "paymentPrepayments", "prepaymentRedemptions", "voucherRedemptions", "totalRedemptions", "redemptionsForSalesInPeriod", "redemptionsForPreviousPeriods"];
 const ZERO_VALUES: FinancialReportValues = FINANCIAL_VALUE_KEYS.reduce((values, key) => { values[key] = 0; return values; }, {} as FinancialReportValues);
@@ -71,7 +72,7 @@ export function normalizeFinancialReportRecord(report: FinancialReportRecord): F
   const periodType: FinancialReportPeriodType = ["daily", "weekly", "monthly", "yearly", "custom"].includes(periodTypeValue) ? periodTypeValue as FinancialReportPeriodType : "custom";
   const snapshot: FinancialReportSnapshot = {
     version: 2,
-    businessName: "1200 Hairstudio",
+    businessName: safeText(rawSnapshot.businessName) || "1200 Hairstudio",
     address: [safeText((rawSnapshot.address as unknown[] | undefined)?.[0]) || "Schulstrasse 2", safeText((rawSnapshot.address as unknown[] | undefined)?.[1]) || "8599 Salmsach, Thurgau"],
     periodType,
     periodStartDate: safeText(rawSnapshot.periodStartDate),
@@ -88,7 +89,11 @@ export function normalizeFinancialReportRecord(report: FinancialReportRecord): F
   return { ...report, report_number: safeText(report.report_number), period_type: periodType, group_by: groupBy, currency: "CHF", generated_at: safeText(report.generated_at), snapshot };
 }
 
-export async function calculateFinancialReport(supabase: SupabaseClient, input: { periodType: FinancialReportPeriodType; startDate: string; endDate: string; groupBy: FinancialReportGrouping }): Promise<FinancialReportSnapshot> {
+export async function calculateFinancialReport(
+  supabase: SupabaseClient,
+  input: { periodType: FinancialReportPeriodType; startDate: string; endDate: string; groupBy: FinancialReportGrouping },
+  settings?: { business: BusinessSettings; finance: FinanceSettings },
+): Promise<FinancialReportSnapshot> {
   const bounds = reportUtcBounds(input.startDate, input.endDate);
   const [{ data: appointments, error: appointmentError }, { data: payments, error: paymentError }] = await Promise.all([
     supabase.from("appointment_finance_summary").select("appointment_id,start_at,appointment_status,original_price,discount_amount,amount_due,net_paid").gte("start_at", bounds.start).lt("start_at", bounds.endExclusive).neq("appointment_status", "cancelled"),
@@ -129,7 +134,10 @@ export async function calculateFinancialReport(supabase: SupabaseClient, input: 
   finalize(totals);
   const sortedRows = [...rows.values()].sort((a, b) => a.key.localeCompare(b.key));
   sortedRows.forEach(finalize);
-  return { version: 2, businessName: "1200 Hairstudio", address: ["Schulstrasse 2", "8599 Salmsach, Thurgau"], periodType: input.periodType, periodStartDate: input.startDate, periodEndDate: input.endDate, groupBy: input.groupBy, currency: "CHF", totals, rows: sortedRows };
+  const business = settings?.business;
+  const addressLine = business?.addressLine.trim() || "Schulstrasse 2";
+  const locality = [business?.postalCode, business?.city, business?.region].filter(Boolean).join(" ") || "8599 Salmsach, Thurgau";
+  return { version: 2, businessName: business?.businessName.trim() || "1200 Hairstudio", address: [addressLine, locality], periodType: input.periodType, periodStartDate: input.startDate, periodEndDate: input.endDate, groupBy: input.groupBy, currency: settings?.finance.currency ?? "CHF", totals, rows: sortedRows };
 }
 
 const chf = (value: unknown) => `CHF ${safeMoney(value).toFixed(2)}`;
@@ -163,8 +171,8 @@ export async function generateFinancialReportPdf(report: FinancialReportRecord) 
     const numericWidth = (pageWidth - margin * 2 - periodWidth) / section.columns.length;
     const beginPage = () => {
       page = document.addPage([pageWidth, pageHeight]);
-      page.drawText("1200 HAIRSTUDIO", { x: margin, y: pageHeight - 31, size: 11, font: bold, color: rgb(.12, .12, .11) });
-      page.drawText("Schulstrasse 2 · 8599 Salmsach, Thurgau", { x: margin, y: pageHeight - 47, size: 7, font: regular, color: rgb(.35, .34, .31) });
+      page.drawText(safeText(report.snapshot.businessName), { x: margin, y: pageHeight - 31, size: 11, font: bold, color: rgb(.12, .12, .11) });
+      page.drawText(report.snapshot.address.map(safeText).filter(Boolean).join(" · "), { x: margin, y: pageHeight - 47, size: 7, font: regular, color: rgb(.35, .34, .31) });
       drawRight(page, bold, report.report_number, pageWidth - margin, pageHeight - 31, 10);
       page.drawText(section.title, { x: margin, y: pageHeight - 78, size: 13, font: bold, color: rgb(.43, .32, .17) });
       page.drawText(periodMeta, { x: margin, y: pageHeight - 96, size: 7, font: regular, color: rgb(.34, .33, .3) });
@@ -198,5 +206,6 @@ export function generateFinancialReportCsv(report: FinancialReportRecord) {
   const columns = FINANCIAL_REPORT_SECTIONS.flatMap((section) => section.columns);
   const headers = ["Period / Datum", ...columns.map((column) => column.label)];
   const rows = [{ key: "TOTAL", ...report.snapshot.totals }, ...report.snapshot.rows.map(({ key, label: _label, ...values }) => ({ key, ...values }))];
-  return [headers, ...rows.map((row) => [safeText(row.key), ...columns.map((column) => safeMoney(row[column.key]))])].map((row) => row.map((cell) => `"${safeText(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+  const metadata = [["Business", report.snapshot.businessName], ["Address", report.snapshot.address.filter(Boolean).join(", ")], ["Currency", report.snapshot.currency], []];
+  return [...metadata, headers, ...rows.map((row) => [safeText(row.key), ...columns.map((column) => safeMoney(row[column.key]))])].map((row) => row.map((cell) => `"${safeText(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
 }

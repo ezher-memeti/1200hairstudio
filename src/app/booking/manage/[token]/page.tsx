@@ -4,6 +4,8 @@ import BookingManagementView from "@/components/booking/BookingManagementView";
 import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/availability";
 import { resolveManagedAppointment } from "@/lib/appointments/management";
 import { generateUpcomingDateOptions, getCurrentZurichDateTime } from "@/lib/public/booking-availability";
+import { getBookingSettings } from "@/lib/booking/settings";
+import { getCustomerManagementCapabilities } from "@/lib/booking/policy";
 
 const INVALID_LINK_MESSAGE = "This booking could not be found or this management link is no longer valid.";
 
@@ -22,8 +24,9 @@ export default async function ManageBookingPage({ params }: { params: { token: s
 
   const { appointment, supabase } = managed;
   const { data: service } = await supabase.from("services").select("name").eq("id", appointment.service_id).maybeSingle();
-  const canModify = appointment.status === "confirmed" && new Date(appointment.start_at).getTime() > Date.now();
-  const dates = generateUpcomingDateOptions(getCurrentZurichDateTime().dateKey, { count: 14, horizonDays: 30 }).map(({ id, day, date, month }) => ({ id, day, date, month }));
+  const bookingSettings = await getBookingSettings();
+  const capabilities = getCustomerManagementCapabilities(appointment, bookingSettings);
+  const dates = generateUpcomingDateOptions(getCurrentZurichDateTime().dateKey, { count: 14, horizonDays: bookingSettings.maximumHorizonDays + 1 }).map(({ id, day, date, month }) => ({ id, day, date, month }));
 
   return (
     <>
@@ -37,7 +40,7 @@ export default async function ManageBookingPage({ params }: { params: { token: s
             date: formatZurichDate(appointment.start_at),
             time: formatZurichTimeRange(appointment.start_at, appointment.end_at),
             status: appointment.status.replace("_", " "),
-            canModify,
+            ...capabilities,
           }}
           dates={dates}
         />

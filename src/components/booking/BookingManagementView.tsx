@@ -19,7 +19,10 @@ export default function BookingManagementView({
     date: string;
     time: string;
     status: string;
-    canModify: boolean;
+    canReschedule: boolean;
+    canCancel: boolean;
+    rescheduleBlockedReason: string | null;
+    cancellationBlockedReason: string | null;
   };
   dates: DateOption[];
 }) {
@@ -103,12 +106,13 @@ export default function BookingManagementView({
       </div>
 
       <div className="px-5 py-7 sm:px-8 sm:py-9">
-        {!displayBooking.canModify ? (
-          <p className="border-l border-accent pl-4 font-primary text-sm leading-7 text-foreground-secondary">This booking is read-only because it is past or no longer active.</p>
+        {!displayBooking.canReschedule && !displayBooking.canCancel ? (
+          <div className="space-y-2 border-l border-accent pl-4 font-primary text-sm leading-7 text-foreground-secondary">{Array.from(new Set([displayBooking.rescheduleBlockedReason, displayBooking.cancellationBlockedReason].filter(Boolean))).map((reason) => <p key={reason}>{reason}</p>)}</div>
         ) : mode === "summary" ? (
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => setMode("reschedule")} className="min-h-12 flex-1 border border-accent bg-accent px-5 font-primary text-xs uppercase tracking-[0.2em] text-background transition-colors hover:bg-accent-hover">Change Date &amp; Time →</button>
-            <button type="button" onClick={() => setMode("cancel")} className="min-h-12 flex-1 border border-border px-5 font-primary text-xs uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:border-foreground-muted hover:text-foreground">Cancel Booking</button>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row">{displayBooking.canReschedule ? <button type="button" onClick={() => setMode("reschedule")} className="min-h-12 flex-1 border border-accent bg-accent px-5 font-primary text-xs uppercase tracking-[0.2em] text-background transition-colors hover:bg-accent-hover">Change Date &amp; Time →</button> : null}{displayBooking.canCancel ? <button type="button" onClick={() => setMode("cancel")} className="min-h-12 flex-1 border border-border px-5 font-primary text-xs uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:border-foreground-muted hover:text-foreground">Cancel Booking</button> : null}</div>
+            {!displayBooking.canReschedule && displayBooking.rescheduleBlockedReason ? <p className="text-sm leading-6 text-foreground-secondary">{displayBooking.rescheduleBlockedReason}</p> : null}
+            {!displayBooking.canCancel && displayBooking.cancellationBlockedReason ? <p className="text-sm leading-6 text-foreground-secondary">{displayBooking.cancellationBlockedReason}</p> : null}
           </div>
         ) : mode === "cancel" ? (
           <div className="space-y-5">

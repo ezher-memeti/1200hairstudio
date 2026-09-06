@@ -1,5 +1,6 @@
 import { requireAdminUser } from "@/lib/auth/customer";
 import { calculateFinancialReport, generateFinancialReportCsv, generateFinancialReportPdf, reportUtcBounds, validateFinancialReportInput } from "@/lib/finance/reports";
+import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 import type { FinancialReportRecord } from "@/lib/finance/report-types";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,8 @@ export async function GET(request: Request) {
       endDate: params.get("endDate") ?? "",
       groupBy: params.get("groupBy") ?? "",
     });
-    const snapshot = await calculateFinancialReport(supabase, input);
+    const settings = await getRuntimeSettings();
+    const snapshot = await calculateFinancialReport(supabase, input, settings);
     const bounds = reportUtcBounds(input.startDate, input.endDate);
     const report: FinancialReportRecord = {
       id: "temporary",
@@ -23,7 +25,7 @@ export async function GET(request: Request) {
       period_start: bounds.start,
       period_end: bounds.storedEnd,
       group_by: input.groupBy,
-      currency: "CHF",
+      currency: settings.finance.currency,
       snapshot,
       generated_by: user.id,
       generated_at: new Date().toISOString(),

@@ -7,10 +7,9 @@ import type { AppointmentRecord } from "@/lib/appointments/types";
 import { sendBookingCancellationEmail, sendBookingUpdateEmail } from "@/lib/email/transactional";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-export function canModifyAppointment(appointment: AppointmentRecord) {
-  return appointment.status === "confirmed" && new Date(appointment.start_at).getTime() > Date.now();
-}
+import { getCustomerManagementCapabilities, validateCustomerBookingTime } from "@/lib/booking/policy";
+import { getBookingSettings } from "@/lib/booking/settings";
+import { getNotificationSettings } from "@/lib/admin/runtime-settings";
 
 function revalidateAppointmentViews() {
   revalidatePath("/");
@@ -38,12 +37,14 @@ async function getEmailDetails(appointment: AppointmentRecord) {
 }
 
 export async function getResolvedAppointmentSlots(appointment: AppointmentRecord, dateKey: string) {
-  if (!canModifyAppointment(appointment)) {
-    return { error: "This booking can no longer be changed.", slots: [] };
-  }
+  const settings = await getBookingSettings();
+  const capabilities = getCustomerManagementCapabilities(appointment, settings);
+  if (!capabilities.canReschedule) return { error: capabilities.rescheduleBlockedReason ?? "This booking can no longer be changed.", slots: [] };
 
   const slots = await getAvailableSlots(appointment.service_id, dateKey, {
     excludeAppointmentId: appointment.id,
+    bookingSettings: settings,
+    enforceCustomerPolicy: true,
   });
   return { error: null, slots: mapAvailableSlotsForDisplay(slots) };
 }
@@ -52,9 +53,9 @@ export async function cancelResolvedAppointment(
   appointment: AppointmentRecord,
   options?: { manageTokenHash?: string },
 ) {
-  if (!canModifyAppointment(appointment)) {
-    return { error: "This booking can no longer be cancelled.", emailWarning: null };
-  }
+  const settings = await getBookingSettings();
+  const capabilities = getCustomerManagementCapabilities(appointment, settings);
+  if (!capabilities.canCancel) return { error: capabilities.cancellationBlockedReason ?? "This booking can no longer be cancelled.", emailWarning: null };
 
   const supabase = createAdminClient();
   const now = new Date().toISOString();
@@ -80,7 +81,8 @@ export async function cancelResolvedAppointment(
 
   let emailWarning: string | null = null;
   const details = await getEmailDetails(appointment);
-  if (details.customerEmail) {
+  const notificationSettings = await getNotificationSettings();
+  if (details.customerEmail && notificationSettings.cancellationEmail) {
     try {
       await sendBookingCancellationEmail({
         to: details.customerEmail,
@@ -106,9 +108,9 @@ export async function rescheduleResolvedAppointment(
   startTime: string,
   options?: { manageTokenHash?: string },
 ) {
-  if (!canModifyAppointment(appointment)) {
-    return { error: "This booking can no longer be changed.", emailWarning: null };
-  }
+  const settings = await getBookingSettings();
+  const capabilities = getCustomerManagementCapabilities(appointment, settings);
+  if (!capabilities.canReschedule) return { error: capabilities.rescheduleBlockedReason ?? "This booking can no longer be changed.", emailWarning: null };
 
   const supabase = createAdminClient();
   const validation = await validateAppointmentRequest(supabase, {
@@ -116,11 +118,14 @@ export async function rescheduleResolvedAppointment(
     dateKey,
     startTime,
     excludeAppointmentId: appointment.id,
-  });
+  }, { customerBookingSettings: settings });
 
   if (validation.error || !validation.service) {
     return { error: validation.error ?? "This time is no longer available.", emailWarning: null };
   }
+
+  const finalPolicyError = validateCustomerBookingTime(validation.startAt, dateKey, settings);
+  if (finalPolicyError) return { error: finalPolicyError, emailWarning: null };
 
   let query = supabase
     .from("appointments")
@@ -148,7 +153,8 @@ export async function rescheduleResolvedAppointment(
 
   let emailWarning: string | null = null;
   const details = await getEmailDetails(appointment);
-  if (details.customerEmail) {
+  const notificationSettings = await getNotificationSettings();
+  if (details.customerEmail && notificationSettings.rescheduleEmail) {
     try {
       await sendBookingUpdateEmail({
         to: details.customerEmail,
