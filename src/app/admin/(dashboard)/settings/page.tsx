@@ -1,11 +1,9 @@
-import PlaceholderPage from "@/components/admin/PlaceholderPage";
+import AdminSettingsView from "@/components/admin/AdminSettingsView";
+import { requireAdminUser } from "@/lib/auth/customer";
+import { getAllAdminSettings } from "@/lib/admin/settings";
 
-export default function AdminSettingsPage() {
-  return (
-    <PlaceholderPage
-      label="Settings"
-      title="Settings"
-      description="Internal dashboard settings, preferences, and future admin configuration will live here."
-    />
-  );
+export default async function AdminSettingsPage() {
+  const [{ user }, settings] = await Promise.all([requireAdminUser(), getAllAdminSettings()]);
+  const gmailConnected = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
+  return <AdminSettingsView initialSettings={settings} adminEmail={user.email ?? ""} gmailConnected={gmailConnected} />;
 }

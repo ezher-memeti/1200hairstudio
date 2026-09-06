@@ -10,6 +10,8 @@ import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
 import { resolveCustomerByEmail } from "@/lib/customers/mutations";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
+import { clearGuestBookingCookie } from "@/lib/appointments/management";
+import { createBookingCredentials, getBookingManagementUrl } from "@/lib/appointments/management";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -76,6 +78,15 @@ export async function bookAppointment(formData: FormData) {
     return result;
   } catch (error) {
     return { error: toErrorMessage(error) };
+  }
+}
+
+export async function clearGuestBookingSession() {
+  try {
+    await clearGuestBookingCookie();
+    return { error: null };
+  } catch {
+    return { error: "Unable to clear the expired booking session." };
   }
 }
 
@@ -412,7 +423,18 @@ export async function createAdminAppointment(input: {
       appointmentCustomerId = customer.id;
     }
 
-    const { error: insertError } = await supabase
+    const servicePrice = Number(validation.service.price);
+    if (!Number.isFinite(servicePrice) || servicePrice < 0) {
+      console.error("ADMIN APPOINTMENT SERVICE PRICE ERROR", {
+        serviceId: validation.service.id,
+        price: validation.service.price,
+      });
+      return { error: "The selected service price could not be verified.", emailError: null, emailStatus: "skipped" as const };
+    }
+    const credentials = createBookingCredentials();
+    const manageUrl = getBookingManagementUrl(credentials.managementToken);
+
+    const { data: createdAppointment, error: insertError } = await supabase
       .from("appointments")
       .insert({
         customer_id: appointmentCustomerId,
@@ -428,12 +450,40 @@ export async function createAdminAppointment(input: {
         guest_name: selectedCustomerId ? null : customerName,
         guest_email: selectedCustomerId ? null : customerEmail || null,
         guest_phone: selectedCustomerId ? null : customerPhone || null,
+        original_price: servicePrice,
+        discount_amount: 0,
+        final_price: servicePrice,
+        promotion_id: null,
+        discount_source: null,
+        discount_label: null,
+        discount_type: null,
+        discount_value: null,
+        booking_reference: credentials.bookingReference,
+        manage_token_hash: credentials.managementTokenHash,
       })
-      .select("id")
-      .single();
+      .select("id, booking_reference, manage_token_hash, original_price, discount_amount, final_price")
+      .maybeSingle();
 
-    if (insertError) {
+    if (
+      insertError ||
+      !createdAppointment ||
+      createdAppointment.booking_reference !== credentials.bookingReference ||
+      createdAppointment.manage_token_hash !== credentials.managementTokenHash ||
+      Number(createdAppointment.original_price) !== servicePrice ||
+      Number(createdAppointment.discount_amount) !== 0 ||
+      Number(createdAppointment.final_price) !== servicePrice
+    ) {
       console.error("ADMIN APPOINTMENT INSERT ERROR", insertError);
+      if (!insertError) {
+        console.error("ADMIN APPOINTMENT SNAPSHOT VERIFICATION ERROR", {
+          appointmentId: createdAppointment?.id ?? null,
+          hasBookingReference: Boolean(createdAppointment?.booking_reference),
+          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
+          originalPrice: createdAppointment?.original_price ?? null,
+          discountAmount: createdAppointment?.discount_amount ?? null,
+          finalPrice: createdAppointment?.final_price ?? null,
+        });
+      }
       return { error: "Unable to create the appointment right now.", emailError: null, emailStatus: "skipped" as const };
     }
 
@@ -448,7 +498,9 @@ export async function createAdminAppointment(input: {
           serviceName: validation.service.name,
           startAt: validation.startAt,
           endAt: validation.endAt,
-          price: validation.service.price,
+          price: servicePrice,
+          bookingReference: createdAppointment.booking_reference,
+          manageUrl,
         });
         emailStatus = "sent";
       } catch (error) {
@@ -467,7 +519,8 @@ export async function createAdminAppointment(input: {
       error: null,
       emailError,
       emailStatus,
-      appointmentId: true,
+      appointmentId: createdAppointment.id,
+      bookingReference: createdAppointment.booking_reference,
     };
   } catch (error) {
     return { error: toErrorMessage(error), emailError: null, emailStatus: "skipped" as const };

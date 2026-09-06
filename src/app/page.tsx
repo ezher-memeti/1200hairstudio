@@ -24,10 +24,10 @@ export default async function Home() {
           <SectionTwo content={content} />
         </ScrollVideoSection>
         <ServicesSection content={content} />
-        <MeetTheBarber content={content} />
-        <SelectedWork content={content} />
         <BookingAnnouncement announcement={selectAnnouncement(announcements, "booking_notice")} />
         <BookingSection content={content} />
+        <SelectedWork content={content} />
+        <MeetTheBarber content={content} />
         <VisitStudio content={content} />
       </main>
       <Footer content={content} />

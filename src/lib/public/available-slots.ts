@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { addMinutesToTime, getUtcIsoForZurichDateTime, removeBookedSlots } from "@/lib/appointments/availability";
 import type { AppointmentRecord } from "@/lib/appointments/types";
 import { getEffectiveHours } from "@/lib/public/booking-availability-utils";
+import type { BookingSettings } from "@/lib/admin/settings";
+import { validateCustomerBookingTime } from "@/lib/booking/policy";
+import { getBookingSettings } from "@/lib/booking/settings";
 
 const ZURICH_TIME_ZONE = "Europe/Zurich";
 
@@ -16,7 +19,26 @@ export type AvailableSlotDisplay = AvailableSlotRecord & {
 
 type GetAvailableSlotsOptions = {
   excludeAppointmentId?: string;
+  bookingSettings?: BookingSettings;
+  enforceCustomerPolicy?: boolean;
 };
+
+function applyCustomerPolicy(
+  slots: AvailableSlotRecord[],
+  dateKey: string,
+  settings: BookingSettings,
+  enforce: boolean,
+) {
+  if (!enforce) return slots;
+  const now = new Date();
+  return slots.filter((slot) => !validateCustomerBookingTime(slot.slot_start, dateKey, settings, now));
+}
+
+function getSafeSlotInterval(settings: BookingSettings) {
+  return Number.isInteger(settings.slotIntervalMinutes) && settings.slotIntervalMinutes > 0
+    ? settings.slotIntervalMinutes
+    : 30;
+}
 
 function formatZurichTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -33,6 +55,8 @@ export async function getAvailableSlots(
   options?: GetAvailableSlotsOptions,
 ) {
   const supabase = await createClient();
+  const bookingSettings = options?.bookingSettings ?? await getBookingSettings();
+  const slotIntervalMinutes = getSafeSlotInterval(bookingSettings);
 
   if (options?.excludeAppointmentId) {
     const nextDate = new Date(`${dateKey}T12:00:00`);
@@ -88,7 +112,7 @@ export async function getAvailableSlots(
     const closeTotal = closeHour * 60 + closeMinute;
     const candidateTimes: string[] = [];
 
-    for (let minutes = openTotal; minutes + duration <= closeTotal; minutes += 30) {
+    for (let minutes = openTotal; minutes + duration <= closeTotal; minutes += slotIntervalMinutes) {
       const hour = Math.floor(minutes / 60);
       const minute = minutes % 60;
       candidateTimes.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
@@ -101,24 +125,26 @@ export async function getAvailableSlots(
       (appointments ?? []) as AppointmentRecord[],
     );
 
-    return filtered.map((time) => ({
+    return applyCustomerPolicy(filtered.map((time) => ({
       slot_start: getUtcIsoForZurichDateTime(dateKey, time),
       slot_end: getUtcIsoForZurichDateTime(dateKey, addMinutesToTime(time, duration)),
-    }));
+    })), dateKey, bookingSettings, options?.enforceCustomerPolicy === true);
   }
 
   const { data, error } = await supabase.rpc("get_available_slots", {
     p_service_id: serviceId,
     p_date: dateKey,
+    p_slot_interval_minutes: slotIntervalMinutes,
   });
 
   if (error) {
     return [] as AvailableSlotRecord[];
   }
 
-  return ((data ?? []) as AvailableSlotRecord[]).filter(
+  const slots = ((data ?? []) as AvailableSlotRecord[]).filter(
     (slot) => Boolean(slot.slot_start) && Boolean(slot.slot_end),
   );
+  return applyCustomerPolicy(slots, dateKey, bookingSettings, options?.enforceCustomerPolicy === true);
 }
 
 export function mapAvailableSlotsForDisplay(slots: AvailableSlotRecord[]) {

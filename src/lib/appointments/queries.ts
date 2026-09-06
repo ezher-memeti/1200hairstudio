@@ -124,7 +124,7 @@ export async function getAdminAppointmentSummaries() {
         customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
       customer_phone:
         customer?.phone ?? appointment.customer_phone ?? appointment.guest_phone ?? "",
-      booking_type: customer?.is_registered ? "customer" : "guest",
+      booking_type: (customer?.is_registered ? "customer" : "guest") as "customer" | "guest",
       service_name: service?.name ?? "Service",
       date_label: formatZurichDate(appointment.start_at),
       time_label: formatZurichTimeRange(appointment.start_at, appointment.end_at),

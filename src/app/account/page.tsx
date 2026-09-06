@@ -5,21 +5,36 @@ import { getCustomerAppointmentSummaries } from "@/lib/appointments/queries";
 import { ensureCustomerRecord } from "@/lib/auth/customer";
 import { getCurrentZurichDateTime } from "@/lib/public/booking-availability";
 import { getActiveServices } from "@/lib/public/services";
+import { generateUpcomingDateOptions } from "@/lib/public/booking-availability";
+import { getBookingSettings } from "@/lib/booking/settings";
+import { getCustomerManagementCapabilities } from "@/lib/booking/policy";
 
 export default async function AccountPage() {
   const customer = await ensureCustomerRecord();
   const currentZurich = getCurrentZurichDateTime();
-  const services = await getActiveServices();
+  const [services, bookingSettings] = await Promise.all([getActiveServices(), getBookingSettings()]);
   const appointmentSummaries = await getCustomerAppointmentSummaries(
     customer,
     services,
     currentZurich,
   );
+  const now = Date.now();
   const upcomingAppointments = appointmentSummaries.filter(
-    (appointment) => appointment.is_upcoming,
+    (appointment) =>
+      appointment.status === "confirmed" &&
+      new Date(appointment.end_at).getTime() > now,
   );
   const pastAppointments = appointmentSummaries.filter(
-    (appointment) => !appointment.is_upcoming,
+    (appointment) =>
+      appointment.status !== "confirmed" ||
+      new Date(appointment.end_at).getTime() <= now,
+  );
+  const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
+    count: 14,
+    horizonDays: bookingSettings.maximumHorizonDays + 1,
+  }).map(({ id, day, date, month }) => ({ id, day, date, month }));
+  const bookingCapabilities = Object.fromEntries(
+    upcomingAppointments.map((appointment) => [appointment.id, getCustomerManagementCapabilities(appointment, bookingSettings)]),
   );
 
   return (
@@ -40,6 +55,8 @@ export default async function AccountPage() {
             }}
             upcomingAppointments={upcomingAppointments}
             pastAppointments={pastAppointments}
+            bookingDates={bookingDates}
+            bookingCapabilities={bookingCapabilities}
           />
         </section>
       </main>

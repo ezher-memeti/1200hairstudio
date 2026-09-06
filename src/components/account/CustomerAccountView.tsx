@@ -7,17 +7,23 @@ import type { CustomerRecord } from "@/lib/customers/types";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeToMarketingEmails, unsubscribeFromMarketingEmails, updateCustomerAccount } from "@/app/account/actions";
 import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
+import AccountBookingActions from "@/components/account/AccountBookingActions";
+import type { CustomerManagementCapabilities } from "@/lib/booking/policy";
 
 type CustomerAccountViewProps = {
   customer: Pick<CustomerRecord, "id" | "full_name" | "email" | "phone" | "marketing_email_consent" | "marketing_email_consented_at" | "marketing_email_consent_source" | "marketing_email_unsubscribed_at">;
   pastAppointments: CustomerAppointmentSummary[];
   upcomingAppointments: CustomerAppointmentSummary[];
+  bookingDates: { id: string; day: string; date: string; month: string }[];
+  bookingCapabilities: Record<string, CustomerManagementCapabilities>;
 };
 
 export default function CustomerAccountView({
   customer,
   pastAppointments,
   upcomingAppointments,
+  bookingDates,
+  bookingCapabilities,
 }: CustomerAccountViewProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(customer.full_name);
@@ -180,7 +186,7 @@ export default function CustomerAccountView({
       <section className="space-y-6 border-t border-border pt-8">
         <div className="space-y-2">
           <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            Upcoming Appointments
+            Upcoming Bookings
           </p>
           <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
             {upcomingAppointments.length > 0
@@ -203,6 +209,9 @@ export default function CustomerAccountView({
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-2">
+                    <p className="font-primary text-[10px] uppercase tracking-[0.22em] text-accent">
+                      {appointment.booking_reference ?? "Confirmed Booking"}
+                    </p>
                     <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
                       {appointment.service_name}
                     </p>
@@ -217,6 +226,8 @@ export default function CustomerAccountView({
                     {appointment.status.replace("_", " ")}
                   </p>
                 </div>
+                {appointment.final_price != null ? <p className="mt-3 font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">CHF {Number(appointment.final_price).toFixed(2)}</p> : null}
+                <AccountBookingActions appointmentId={appointment.id} dates={bookingDates} capabilities={bookingCapabilities[appointment.id]} />
               </div>
             ))}
           </div>

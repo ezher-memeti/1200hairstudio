@@ -3,9 +3,11 @@ import "server-only";
 import { google } from "googleapis";
 import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/availability";
 import { formatServicePrice } from "@/lib/public/services";
+import { getSiteUrl } from "@/lib/auth/url";
+import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 
 const GMAIL_SENDER_EMAIL = "1200hairstudio@gmail.com";
-const GMAIL_SENDER_NAME = "1200 Hairstudio";
+const DEFAULT_SENDER_NAME = "1200 Hairstudio";
 
 type BookingEmailDetails = {
   to: string;
@@ -14,6 +16,8 @@ type BookingEmailDetails = {
   startAt: string;
   endAt: string;
   price: number;
+  bookingReference?: string;
+  manageUrl?: string;
 };
 
 export type GmailMessage = {
@@ -21,6 +25,11 @@ export type GmailMessage = {
   subject: string;
   html: string;
   text: string;
+  attachments?: Array<{
+    filename: string;
+    mimeType: string;
+    content: Uint8Array;
+  }>;
 };
 
 function getRequiredEnv(name: "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "GOOGLE_REFRESH_TOKEN") {
@@ -58,24 +67,56 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-function buildMessage({ to, subject, html, text }: GmailMessage) {
+function buildMessage({ to, subject, html, text, attachments = [] }: GmailMessage, senderName: string) {
   const boundary = `1200hairstudio-${Date.now()}`;
+  const alternativeBoundary = `${boundary}-alternative`;
+  const body = attachments.length
+    ? [
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+        "",
+        `--${alternativeBoundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        "Content-Transfer-Encoding: 8bit",
+        "",
+        text,
+        `--${alternativeBoundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: 8bit",
+        "",
+        html,
+        `--${alternativeBoundary}--`,
+        ...attachments.flatMap((attachment) => [
+          `--${boundary}`,
+          `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: attachment; filename="${attachment.filename}"`,
+          "",
+          Buffer.from(attachment.content).toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "",
+        ]),
+        `--${boundary}--`,
+      ]
+    : [
+        `Content-Type: multipart/alternative; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        "",
+        text,
+        `--${boundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "",
+        html,
+        `--${boundary}--`,
+      ];
   const message = [
-    `From: ${GMAIL_SENDER_NAME} <${GMAIL_SENDER_EMAIL}>`,
+    `From: ${senderName} <${GMAIL_SENDER_EMAIL}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "",
-    text,
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "",
-    html,
-    `--${boundary}--`,
+    ...body,
   ].join("\r\n");
 
   return Buffer.from(message)
@@ -87,11 +128,13 @@ function buildMessage({ to, subject, html, text }: GmailMessage) {
 
 export async function sendGmailMessage(message: GmailMessage) {
   const gmail = createGmailClient();
+  const settings = await getRuntimeSettings();
+  const senderName = settings.notifications.senderName.trim() || settings.business.businessName.trim() || DEFAULT_SENDER_NAME;
 
   await gmail.users.messages.send({
     userId: "me",
     requestBody: {
-      raw: buildMessage(message),
+      raw: buildMessage(message, senderName),
     },
   });
 }
@@ -111,6 +154,24 @@ function buildBookingSummary(details: BookingEmailDetails) {
     timeLabel: formatZurichTimeRange(details.startAt, details.endAt),
     priceLabel: formatServicePrice(details.price),
     durationLabel: durationMinutes > 0 ? `${durationMinutes} min` : "By arrangement",
+    bookingReference: details.bookingReference,
+  };
+}
+
+type EmailBranding = {
+  businessName: string;
+  addressLines: string[];
+};
+
+async function getEmailBranding(): Promise<EmailBranding> {
+  const { business } = await getRuntimeSettings();
+  return {
+    businessName: business.businessName.trim() || DEFAULT_SENDER_NAME,
+    addressLines: [
+      business.addressLine,
+      [business.postalCode, business.city, business.region].filter(Boolean).join(" "),
+      business.country,
+    ].map((value) => value.trim()).filter(Boolean),
   };
 }
 
@@ -122,7 +183,7 @@ type EmailTemplateContent = {
   ctaHref?: string;
 };
 
-function buildPlainTextEmail(summary: ReturnType<typeof buildBookingSummary>, content: EmailTemplateContent) {
+function buildPlainTextEmail(summary: ReturnType<typeof buildBookingSummary>, content: EmailTemplateContent, branding: EmailBranding) {
   return [
     `Hi ${summary.customerName},`,
     "",
@@ -134,12 +195,12 @@ function buildPlainTextEmail(summary: ReturnType<typeof buildBookingSummary>, co
     `Time: ${summary.timeLabel}`,
     `Duration: ${summary.durationLabel}`,
     `Price: ${summary.priceLabel}`,
+    summary.bookingReference ? `Booking reference: ${summary.bookingReference}` : "",
     content.ctaHref ? "" : "",
     content.ctaHref ? `${content.ctaLabel ?? "Manage Appointment"}: ${content.ctaHref}` : "",
     "",
-    GMAIL_SENDER_NAME,
-    "Schulstrasse 2",
-    "8599 Salmsach, Switzerland",
+    branding.businessName,
+    ...branding.addressLines,
   ]
     .filter(Boolean)
     .join("\n");
@@ -161,6 +222,7 @@ function renderDetailItem(label: string, value: string) {
 function buildEmailHtml(
   summary: ReturnType<typeof buildBookingSummary>,
   content: EmailTemplateContent,
+  branding: EmailBranding,
 ) {
   const ctaHtml =
     content.ctaHref && content.ctaLabel
@@ -229,6 +291,7 @@ function buildEmailHtml(
                                     ${renderDetailItem("Duration", summary.durationLabel)}
                                     ${renderDetailItem("Price", summary.priceLabel)}
                                   </tr>
+                                  ${summary.bookingReference ? `<tr>${renderDetailItem("Booking Reference", summary.bookingReference)}<td style="width: 50%;"></td></tr>` : ""}
                                 </table>
                               </td>
                             </tr>
@@ -237,9 +300,8 @@ function buildEmailHtml(
                           ${ctaHtml}
 
                           <div style="padding-top: 34px; font-size: 12px; line-height: 1.8; color: #7d7d79; border-top: 1px solid #232323; margin-top: 34px;">
-                            1200 Hairstudio<br />
-                            Schulstrasse 2<br />
-                            8599 Salmsach, Switzerland
+                            ${escapeHtml(branding.businessName)}<br />
+                            ${branding.addressLines.map(escapeHtml).join("<br />")}
                           </div>
                         </td>
                       </tr>
@@ -257,54 +319,75 @@ function buildEmailHtml(
 
 export async function sendBookingConfirmationEmail(details: BookingEmailDetails) {
   const summary = buildBookingSummary(details);
+  const branding = await getEmailBranding();
   const content = {
     statusLabel: "Appointment Confirmed",
     headline: "Your booking is locked in.",
     body: "We have reserved your appointment and prepared your session details below.",
-    ctaLabel: "Manage Appointment",
-    ctaHref: "https://1200hairstudio.com/account",
+    ctaLabel: details.manageUrl ? "Manage Booking →" : "Manage Appointment",
+    ctaHref: details.manageUrl ?? `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
   await sendGmailMessage({
     to: details.to,
     subject: `Booking confirmed: ${summary.serviceName}`,
-    text: buildPlainTextEmail(summary, content),
-    html: buildEmailHtml(summary, content),
+    text: buildPlainTextEmail(summary, content, branding),
+    html: buildEmailHtml(summary, content, branding),
   });
 }
 
 export async function sendBookingCancellationEmail(details: BookingEmailDetails) {
   const summary = buildBookingSummary(details);
+  const branding = await getEmailBranding();
   const content = {
     statusLabel: "Appointment Cancelled",
     headline: "This booking is no longer scheduled.",
     body: "Your appointment has been cancelled. If you want to return to the chair, you can book a new time whenever it suits you.",
     ctaLabel: "Manage Appointment",
-    ctaHref: "https://1200hairstudio.com/account",
+    ctaHref: `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
   await sendGmailMessage({
     to: details.to,
     subject: `Booking cancelled: ${summary.serviceName}`,
-    text: buildPlainTextEmail(summary, content),
-    html: buildEmailHtml(summary, content),
+    text: buildPlainTextEmail(summary, content, branding),
+    html: buildEmailHtml(summary, content, branding),
   });
 }
 
 export async function sendBookingUpdateEmail(details: BookingEmailDetails) {
   const summary = buildBookingSummary(details);
+  const branding = await getEmailBranding();
   const content = {
     statusLabel: "Appointment Updated",
     headline: "Your booking details have changed.",
     body: "We have updated your appointment. Please review the latest schedule information below.",
     ctaLabel: "Manage Appointment",
-    ctaHref: "https://1200hairstudio.com/account",
+    ctaHref: `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
   await sendGmailMessage({
     to: details.to,
     subject: `Booking updated: ${summary.serviceName}`,
-    text: buildPlainTextEmail(summary, content),
-    html: buildEmailHtml(summary, content),
+    text: buildPlainTextEmail(summary, content, branding),
+    html: buildEmailHtml(summary, content, branding),
+  });
+}
+
+export async function sendAdminBookingNotificationEmail(details: BookingEmailDetails & { adminEmail: string }) {
+  const summary = buildBookingSummary(details);
+  const branding = await getEmailBranding();
+  const content = {
+    statusLabel: "New Customer Booking",
+    headline: "A new appointment was booked.",
+    body: `${summary.customerName} booked ${summary.serviceName}.`,
+    ctaLabel: "View Appointments →",
+    ctaHref: `${getSiteUrl()}/admin/appointments`,
+  } satisfies EmailTemplateContent;
+  await sendGmailMessage({
+    to: details.adminEmail,
+    subject: `New booking: ${summary.customerName} · ${summary.serviceName}`,
+    text: buildPlainTextEmail(summary, content, branding),
+    html: buildEmailHtml(summary, content, branding),
   });
 }

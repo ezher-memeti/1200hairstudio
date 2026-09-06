@@ -2,7 +2,6 @@ import BookingSectionClient from "@/components/home/BookingSectionClient";
 import { getCurrentUserRole } from "@/lib/auth/customer";
 import { getBusinessHours } from "@/lib/public/business-hours";
 import {
-  addDaysToDateKey,
   generateUpcomingDateOptions,
   getCurrentZurichDateTime,
   getServiceBookingDuration,
@@ -12,24 +11,54 @@ import { formatServiceDuration, formatServicePrice, getActiveServices } from "@/
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveServicePrice } from "@/lib/promotions/server";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
+import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/availability";
+import {
+  getBookingManagementUrl,
+  getGuestBookingToken,
+  isActiveManagedAppointment,
+  resolveManagedAppointment,
+} from "@/lib/appointments/management";
+import type { PersistedBookingConfirmation } from "@/components/home/BookingSectionClient";
+import { getBookingSettings } from "@/lib/booking/settings";
+
+type ActiveRegisteredAppointment = {
+  id: string;
+  service_id: string;
+  start_at: string;
+  end_at: string;
+  status: "confirmed";
+  booking_reference: string | null;
+  final_price: number | null;
+};
 
 export default async function BookingSection({ content }: { content: HomepageContent }) {
   const currentZurich = getCurrentZurichDateTime();
-  const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
 
-  const [{ role, user }, services, businessHours] = await Promise.all([
+  const [{ role, user }, services, businessHours, bookingSettings] = await Promise.all([
     getCurrentUserRole(),
     getActiveServices(),
     getBusinessHours(),
+    getBookingSettings(),
   ]);
   let customerProfile: { fullName: string; email: string; phone: string } | null = null;
   let customerId: string | null = null;
+  let registeredAppointment: ActiveRegisteredAppointment | null = null;
   const supabase = await createClient();
   if (role === "customer" && user) {
     const { data: customer } = await supabase.from("customers").select("id,full_name,email,phone").eq("profile_id", user.id).maybeSingle();
     if (customer) {
       customerId = customer.id;
       customerProfile = { fullName: customer.full_name, email: customer.email, phone: customer.phone };
+      const { data: activeAppointment } = await supabase
+        .from("appointments")
+        .select("id, service_id, start_at, end_at, status, booking_reference, final_price")
+        .eq("customer_id", customer.id)
+        .eq("status", "confirmed")
+        .gt("end_at", new Date().toISOString())
+        .order("start_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      registeredAppointment = activeAppointment as ActiveRegisteredAppointment | null;
     }
   }
   const effectivePrices = new Map((await Promise.all(services.map(async (service) => [service.id, await getEffectiveServicePrice({ serviceId: service.id, customerId, authenticatedCustomer: role === "customer", supabase })] as const))).filter((entry) => entry[1]));
@@ -55,14 +84,17 @@ export default async function BookingSection({ content }: { content: HomepageCon
   }));
   const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
     count: 10,
-    horizonDays: 30,
+    horizonDays: bookingSettings.maximumHorizonDays + 1,
   });
   const slotEntries = await Promise.all(
     bookingServices.flatMap((service) =>
       bookingDates.map(async (date) => ({
         serviceId: service.id,
         dateKey: date.id,
-        slots: await getAvailableSlotTimes(service.id, date.id),
+        slots: await getAvailableSlotTimes(service.id, date.id, {
+          bookingSettings,
+          enforceCustomerPolicy: true,
+        }),
       })),
     ),
   );
@@ -83,15 +115,68 @@ export default async function BookingSection({ content }: { content: HomepageCon
   }));
   const firstAvailableDate =
     visibleBookingDates.find((date) => date.isAvailable) ?? null;
+  const bookingToken = await getGuestBookingToken();
+  let persistedConfirmation: PersistedBookingConfirmation | null = null;
+  let shouldClearGuestBookingCookie = false;
+
+  if (registeredAppointment) {
+    let manageUrl: string | null = null;
+    if (bookingToken) {
+      const managed = await resolveManagedAppointment(bookingToken);
+      if (managed?.appointment.id === registeredAppointment.id) {
+        manageUrl = getBookingManagementUrl(bookingToken);
+      }
+    }
+
+    const service = services.find((item) => item.id === registeredAppointment?.service_id);
+    persistedConfirmation = {
+      serviceTitle: service?.name ?? "Service",
+      price: Number(registeredAppointment.final_price ?? service?.price ?? 0),
+      date: formatZurichDate(registeredAppointment.start_at).toUpperCase(),
+      time: formatZurichTimeRange(registeredAppointment.start_at, registeredAppointment.end_at),
+      bookingReference: registeredAppointment.booking_reference,
+      manageUrl,
+      status: registeredAppointment.status,
+    };
+  } else if (role !== "customer" && bookingToken) {
+    const managed = await resolveManagedAppointment(bookingToken);
+    if (managed && isActiveManagedAppointment(managed.appointment)) {
+      const service = services.find((item) => item.id === managed.appointment.service_id);
+      persistedConfirmation = {
+        serviceTitle: service?.name ?? "Service",
+        price: Number(managed.appointment.final_price ?? service?.price ?? 0),
+        date: formatZurichDate(managed.appointment.start_at).toUpperCase(),
+        time: formatZurichTimeRange(managed.appointment.start_at, managed.appointment.end_at),
+        bookingReference: managed.appointment.booking_reference ?? null,
+        manageUrl: getBookingManagementUrl(bookingToken),
+        status: managed.appointment.status,
+      };
+    } else {
+      shouldClearGuestBookingCookie = true;
+    }
+  } else if (role === "customer" && bookingToken && customerId) {
+    const managed = await resolveManagedAppointment(bookingToken);
+    if (
+      !managed ||
+      (managed.appointment.customer_id === customerId &&
+        !isActiveManagedAppointment(managed.appointment))
+    ) {
+      shouldClearGuestBookingCookie = true;
+    }
+  }
+
   return (
     <BookingSectionClient
       authRole={role}
+      allowGuestBookings={bookingSettings.allowGuestBookings}
       customerProfile={customerProfile}
       services={bookingServices}
       dates={visibleBookingDates}
       slotMap={slotMap}
       loadError={loadError}
       content={content}
+      persistedConfirmation={persistedConfirmation}
+      shouldClearGuestBookingCookie={shouldClearGuestBookingCookie}
     />
   );
 }

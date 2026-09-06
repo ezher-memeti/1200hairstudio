@@ -1,0 +1,74 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { getFinanceOverviewComparison } from "@/app/actions/finance-overview";
+import AdminSelect from "@/components/admin/AdminSelect";
+import DateTimePicker from "@/components/admin/ui/DateTimePicker";
+import type { ComparisonMetric, ComparisonPoint, ComparisonRange, FinanceComparison } from "@/lib/finance/comparison";
+import { displayDate, formatMoney } from "./shared";
+
+const RANGES = [{value:"today",label:"Today"},{value:"week",label:"This Week"},{value:"month",label:"This Month"},{value:"year",label:"This Year"},{value:"custom",label:"Custom"}];
+const METHOD_LABELS: Record<string,string> = {cash:"Cash",twint:"TWINT",card:"Card",bank_transfer:"Bank transfer",other:"Other"};
+
+export default function FinanceOverview({initialComparison}:{initialComparison:FinanceComparison}) {
+  const [comparison,setComparison]=useState(initialComparison);
+  const [range,setRange]=useState<ComparisonRange>(initialComparison.range);
+  const [customStart,setCustomStart]=useState(initialComparison.current.start);
+  const [customEnd,setCustomEnd]=useState(initialComparison.current.end);
+  const [feedback,setFeedback]=useState("");
+  const [pending,startTransition]=useTransition();
+  const initialRender=useRef(true);
+  const requestSequence=useRef(0);
+
+  useEffect(()=>{
+    if(initialRender.current){initialRender.current=false;return;}
+    if(range==="custom"&&(!customStart||!customEnd||customEnd<customStart)) return;
+    const requestId=++requestSequence.current;
+    startTransition(async()=>{const result=await getFinanceOverviewComparison({range,customStart,customEnd});if(requestId!==requestSequence.current)return;if(!result.data){setFeedback(result.error??"Comparison data could not be loaded.");return;}setComparison(result.data);setFeedback("");});
+  },[customEnd,customStart,range]);
+
+  const totals=comparison.current.totals;
+  const metrics:Array<{label:string;metricKey:ComparisonMetric;value:string;primary?:boolean}>=[
+    {label:"Net Revenue",metricKey:"netRevenue",value:formatMoney(totals.netRevenue),primary:true},
+    {label:"Gross Sales",metricKey:"grossSales",value:formatMoney(totals.grossSales)},
+    {label:"Discounts",metricKey:"discounts",value:formatMoney(totals.discounts)},
+    {label:"Refunds",metricKey:"refunds",value:formatMoney(totals.refunds)},
+    {label:"Average Ticket",metricKey:"averageTicket",value:formatMoney(totals.averageTicket)},
+    {label:"Completed Appointments",metricKey:"completedAppointments",value:String(totals.completedAppointments)},
+    {label:"Outstanding",metricKey:"outstandingAmount",value:formatMoney(totals.outstandingAmount)},
+  ];
+
+  return <div className="space-y-7">
+    <div className="flex flex-col gap-4 border border-border bg-surface p-4 lg:flex-row lg:items-end lg:justify-between"><div className="grid gap-3 sm:grid-cols-2"><AdminSelect label="Overview Range" value={range} onChange={(value)=>setRange(value as ComparisonRange)} options={RANGES}/><AdminSelect label="Compare With" value="previous" onChange={()=>undefined} options={[{value:"previous",label:"Previous Period"}]}/></div>{range==="custom"?<div className="grid gap-3 sm:grid-cols-2"><DateTimePicker mode="date" label="From" value={customStart} onChange={setCustomStart}/><DateTimePicker mode="date" label="To" value={customEnd} onChange={setCustomEnd}/></div>:null}<p className="text-xs uppercase tracking-[0.14em] text-foreground-muted">{pending?"Updating…":`${comparison.current.start} — ${comparison.current.end}`}</p></div>
+    {feedback?<p className="text-sm text-rose-300">{feedback}</p>:null}
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(({metricKey,...metric})=><MetricCard key={metricKey} {...metric} change={comparison.changes[metricKey]}/>)}</div>
+    <Chart title="Revenue Performance" subtitle="Net revenue · current versus equivalent previous period"><ComparisonLine current={comparison.current.series} previous={comparison.previous.series} metric="revenue" formatValue={formatMoney} periodLabels={comparisonLabels(range)}/></Chart>
+    <div className="grid gap-4 xl:grid-cols-2"><Chart title="Appointment Volume" subtitle="Completed appointments"><ComparisonLine current={comparison.current.series} previous={comparison.previous.series} metric="appointments" formatValue={(value)=>`${Math.round(value)} appointment${Math.round(value)===1?"":"s"}`} periodLabels={comparisonLabels(range)}/></Chart><Chart title="Average Ticket" subtitle="Paid amount per paid appointment"><ComparisonLine current={comparison.current.series} previous={comparison.previous.series} metric="averageTicket" formatValue={formatMoney} periodLabels={comparisonLabels(range)}/></Chart></div>
+    <div className="grid gap-4 xl:grid-cols-2"><Chart title="Revenue by Service" subtitle="Current and previous net revenue"><ComparisonBars rows={comparison.servicePerformance.map((item)=>({label:item.service,current:item.current,previous:item.previous}))}/></Chart><Chart title="Payment Methods" subtitle="Current-period completed payments"><SingleBars rows={comparison.paymentMethods.map((item)=>({label:METHOD_LABELS[item.method]??item.method,value:item.amount}))}/></Chart></div>
+    <Chart title="Day-of-Week Performance" subtitle="Completed appointments in the current period"><SingleBars rows={comparison.weekdayPerformance.map((item)=>({label:item.label,value:item.appointments}))} integer/></Chart>
+    <article className="overflow-hidden border border-border bg-surface"><div className="flex items-end justify-between border-b border-border p-5"><div><h2 className="font-admin-display text-2xl uppercase text-foreground">Recent Transactions</h2><p className="mt-1 text-sm text-foreground-muted">Latest activity in the selected period.</p></div><Link href="/admin/finance/transactions" className="text-xs uppercase tracking-[0.14em] text-accent">View all →</Link></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left"><thead className="text-[10px] uppercase tracking-[0.15em] text-foreground-muted"><tr>{["Date","Customer","Service","Method","Amount","Status"].map((head)=><th key={head} className="px-4 py-3 font-normal">{head}</th>)}</tr></thead><tbody>{comparison.recentTransactions.map((item)=><tr key={item.id} className="border-t border-border/70 text-sm text-foreground-secondary"><td className="px-4 py-4">{displayDate(item.paid_at)}</td><td className="px-4 py-4 text-foreground">{item.customer_name}</td><td className="px-4 py-4">{item.service_name}</td><td className="px-4 py-4 uppercase">{METHOD_LABELS[item.payment_method]}</td><td className={item.transaction_type==="refund"?"px-4 py-4 text-rose-300":"px-4 py-4 text-emerald-300"}>{item.transaction_type==="refund"?"−":"+"}{formatMoney(item.amount)}</td><td className="px-4 py-4 uppercase">{item.status}</td></tr>)}</tbody></table>{!comparison.recentTransactions.length?<EmptyState/>:null}</div></article>
+    {comparison.outstandingAppointments.length?<article className="border border-border bg-surface"><div className="border-b border-border p-5"><h2 className="font-admin-display text-2xl uppercase text-foreground">Outstanding Balances</h2></div><div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{comparison.outstandingAppointments.slice(0,9).map((item)=><div key={item.appointmentId} className="border border-border bg-background/30 p-4"><p className="text-sm text-foreground">{item.customerName}</p><p className="mt-1 text-xs text-foreground-muted">{item.serviceName} · {item.bookingReference}</p><p className="mt-3 text-lg text-accent">{formatMoney(Math.max(0,item.amountDue-item.netPaid))}</p></div>)}</div></article>:null}
+  </div>;
+}
+
+function MetricCard({label,value,change,primary}:{label:string;value:string;change:number|null;primary?:boolean}) {return <article className={`border p-5 ${primary?"border-accent/50 bg-accent/[0.07] xl:col-span-2":"border-border bg-surface"}`}><p className="text-[10px] uppercase tracking-[0.2em] text-foreground-muted">{label}</p><p className={`mt-3 font-admin-display tracking-[-0.04em] ${primary?"text-4xl text-accent sm:text-5xl":"text-3xl text-foreground"}`}>{value}</p>{change===null?<p className="mt-3 text-xs text-foreground-muted">No previous-period baseline</p>:<p className={`mt-3 text-xs ${change>=0?"text-emerald-300":"text-rose-300"}`}>{change>=0?"↑":"↓"} {Math.abs(change).toFixed(1)}% vs previous period</p>}</article>}
+function Chart({title,subtitle,children}:{title:string;subtitle:string;children:React.ReactNode}) {return <article className="min-w-0 border border-border bg-surface p-4 sm:p-5"><p className="text-xs uppercase tracking-[0.2em] text-foreground-muted">{title}</p><p className="mt-1 text-sm text-foreground-secondary">{subtitle}</p>{children}</article>}
+export function ComparisonLine({current,previous,metric,formatValue,periodLabels}:{current:ComparisonPoint[];previous:ComparisonPoint[];metric:"revenue"|"appointments"|"averageTicket";formatValue:(value:number)=>string;periodLabels:[string,string]}) {
+  const [activeIndex,setActiveIndex]=useState<number|null>(null);
+  const values=[...current,...previous].map((item)=>item[metric]).filter(Number.isFinite);
+  const max=Math.max(...values,1);
+  const width=Math.max(520,current.length*42);
+  const x=(index:number)=>current.length===1?16:index/(current.length-1)*(width-32)+16;
+  const y=(value:number)=>150-(value/max)*120;
+  const points=(items:ComparisonPoint[])=>items.map((item,index)=>`${x(index)},${y(item[metric])}`).join(" ");
+  const activeCurrent=activeIndex===null?null:current[activeIndex];
+  const activePrevious=activeIndex===null?null:previous[activeIndex];
+  const safeValue=(point:ComparisonPoint|null|undefined)=>point&&Number.isFinite(point[metric])?formatValue(point[metric]):"—";
+  if(!values.some(Boolean))return <EmptyState/>;
+  return <div className="mt-5"><div className="mb-3 flex gap-5 text-xs"><span className="text-accent">— {periodLabels[0]}</span><span className="text-foreground-muted">— {periodLabels[1]}</span></div><div className="overflow-x-auto" onPointerLeave={(event)=>{if(event.pointerType!=="touch")setActiveIndex(null)}}><div className="relative h-48 min-w-[520px] w-full"><svg viewBox={`0 0 ${width} 180`} className="absolute inset-0 h-full w-full" role="img" aria-label={`${periodLabels[0]} and ${periodLabels[1]} comparison`}><polyline points={points(previous)} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="2"/><polyline points={points(current)} fill="none" stroke="rgb(198,158,102)" strokeWidth="2.5"/>{activeIndex!==null?<line x1={x(activeIndex)} x2={x(activeIndex)} y1="18" y2="154" stroke="rgba(198,158,102,.35)" strokeWidth="1" strokeDasharray="3 4"/>:null}{current.map((item,index)=><g key={item.key}>{previous[index]?<circle cx={x(index)} cy={y(previous[index][metric])} r={activeIndex===index?5:2.5} fill="rgb(115,115,115)" stroke={activeIndex===index?"rgb(235,235,235)":"none"} strokeWidth="1.5"/>:null}<circle cx={x(index)} cy={y(item[metric])} r={activeIndex===index?5:3} fill="rgb(198,158,102)" stroke={activeIndex===index?"rgb(255,244,222)":"none"} strokeWidth="1.5"/>{(current.length<=12||index%Math.ceil(current.length/10)===0)?<text x={x(index)} y="174" textAnchor="middle" fill="rgba(255,255,255,.45)" fontSize="9">{item.label}</text>:null}<rect x={Math.max(0,x(index)-(width/current.length)/2)} y="0" width={Math.max(24,width/current.length)} height="160" fill="transparent" tabIndex={0} role="button" aria-label={`${item.label}: ${periodLabels[0]} ${safeValue(item)}, ${periodLabels[1]} ${safeValue(previous[index])}`} onPointerEnter={()=>setActiveIndex(index)} onPointerDown={(event)=>{event.preventDefault();setActiveIndex(index)}} onFocus={()=>setActiveIndex(index)} onBlur={()=>setActiveIndex(null)}/></g>)}</svg>{activeIndex!==null&&activeCurrent?<div className={`pointer-events-none absolute top-2 z-10 min-w-52 border border-border bg-[#0d0d0d]/95 p-3 shadow-2xl backdrop-blur-sm ${activeIndex<=1?"left-2":activeIndex>=current.length-2?"right-2":"-translate-x-1/2"}`} style={activeIndex>1&&activeIndex<current.length-2?{left:`${x(activeIndex)/width*100}%`}:undefined}><p className="border-b border-border pb-2 text-xs font-medium text-foreground">{activeCurrent.label}</p><div className="mt-2 space-y-2 text-xs"><div className="flex items-center justify-between gap-5"><span className="text-foreground-muted">{periodLabels[0]}</span><span className="font-medium text-accent">{safeValue(activeCurrent)}</span></div><div className="flex items-center justify-between gap-5"><span className="text-foreground-muted">{periodLabels[1]}</span><span className="text-foreground">{safeValue(activePrevious)}</span></div></div></div>:null}</div></div></div>
+}
+function comparisonLabels(range:ComparisonRange):[string,string] {if(range==="today")return ["Today","Yesterday"];if(range==="week")return ["Current week","Previous week"];if(range==="month")return ["Current month","Previous month"];if(range==="year")return ["Current year","Previous year"];return ["Current period","Previous period"]}
+function ComparisonBars({rows}:{rows:Array<{label:string;current:number;previous:number}>}) {const max=Math.max(...rows.flatMap((item)=>[item.current,item.previous]),1);if(!rows.some((item)=>item.current||item.previous))return <EmptyState/>;return <div className="mt-5 space-y-4">{rows.slice(0,8).map((item)=><div key={item.label}><div className="mb-2 flex justify-between gap-3 text-xs"><span className="truncate text-foreground-secondary">{item.label}</span><span className="whitespace-nowrap text-foreground">{formatMoney(item.current)}</span></div><div className="space-y-1"><div className="h-2 bg-background-secondary"><div className="h-full bg-accent" style={{width:`${item.current/max*100}%`}}/></div><div className="h-1.5 bg-background-secondary"><div className="h-full bg-foreground-muted/50" style={{width:`${item.previous/max*100}%`}}/></div></div></div>)}</div>}
+function SingleBars({rows,integer=false}:{rows:Array<{label:string;value:number}>;integer?:boolean}) {const max=Math.max(...rows.map((item)=>item.value),1);if(!rows.some((item)=>item.value))return <EmptyState/>;return <div className="mt-5 space-y-3">{rows.map((item)=><div key={item.label} className="grid grid-cols-[90px_1fr_auto] items-center gap-3 text-xs"><span className="truncate text-foreground-secondary">{item.label}</span><div className="h-2 bg-background-secondary"><div className="h-full bg-accent/75" style={{width:`${item.value/max*100}%`}}/></div><span className="text-foreground">{integer?Math.round(item.value):formatMoney(item.value)}</span></div>)}</div>}
+function EmptyState(){return <div className="flex min-h-40 items-center justify-center text-sm text-foreground-muted">No data in this period.</div>}

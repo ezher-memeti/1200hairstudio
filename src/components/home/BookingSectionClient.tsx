@@ -5,10 +5,10 @@ import type {
   ReactNode,
   SetStateAction,
 } from "react";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { bookAppointment } from "@/app/actions/appointments";
+import { bookAppointment, clearGuestBookingSession } from "@/app/actions/appointments";
 import {
   groupTimeSlots,
   type BookingDateOption,
@@ -423,18 +423,20 @@ function DateTimeStep({
 
 function DetailsStep({
   authRole,
+  allowGuestBookings,
   state,
   setState,
   onBack,
   onNext,
 }: Pick<StepProps, "state" | "setState" | "onBack" | "onNext"> & {
   authRole: "admin" | "customer" | null;
+  allowGuestBookings: boolean;
 }) {
   const [showNote, setShowNote] = useState(
     Boolean(state.note),
   );
   const guestModeRequired = authRole !== "customer";
-  const canEditDetails = authRole === "customer" || state.bookingMode === "guest";
+  const canEditDetails = authRole === "customer" || (allowGuestBookings && state.bookingMode === "guest");
 
   const isValid =
     state.firstName.trim() &&
@@ -462,7 +464,7 @@ function DetailsStep({
             >
               Login / Continue with Account
             </Link>
-            <button
+            {allowGuestBookings ? <button
               type="button"
               onClick={() =>
                 setState((current) => ({
@@ -477,8 +479,9 @@ function DetailsStep({
               }`}
             >
               Continue as Guest
-            </button>
+            </button> : null}
           </div>
+          {!allowGuestBookings ? <p className="font-primary text-sm leading-6 text-foreground-secondary">Guest bookings are currently unavailable. Please sign in or create an account to continue.</p> : null}
         </div>
       ) : null}
 
@@ -655,21 +658,35 @@ function ReviewStep({
   );
 }
 
+export type PersistedBookingConfirmation = {
+  serviceTitle: string;
+  price: number;
+  date: string;
+  time: string;
+  bookingReference: string | null;
+  manageUrl: string | null;
+  status: string;
+};
+
 function BookingConfirmation({
   onReset,
-  service,
+  serviceTitle,
+  price,
   date,
   time,
+  bookingReference,
+  manageUrl,
+  status,
 }: {
   onReset: () => void;
-  service: Service | null;
-  date: BookingDate | null;
-  time: string | null;
+  serviceTitle: string;
+  price: number;
+  date: string;
+  time: string;
+  bookingReference: string | null;
+  manageUrl: string | null;
+  status: string;
 }) {
-  if (!service || !date || !time) {
-    return null;
-  }
-
   return (
     <div className="space-y-8 text-center animate-[booking-confirm-in_420ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="mx-auto inline-flex h-14 w-14 items-center justify-center border border-accent font-display text-3xl text-foreground">
@@ -683,21 +700,26 @@ function BookingConfirmation({
           Is Reserved.
         </h3>
         <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-          {service.title} · {formatPrice(service.finalPrice)}
+          {serviceTitle} · {formatPrice(price)}
         </p>
       </div>
 
       <div className="space-y-2 border-t border-border pt-6">
         <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-          {date.fullDate}
+          {date}
         </p>
         <p className="font-display text-4xl uppercase leading-none tracking-[-0.04em] text-foreground">
           {time}
         </p>
         <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-          Booking #1200-DEMO
+          Booking #{bookingReference ?? "Confirmed"}
+        </p>
+        <p className="font-primary text-[10px] uppercase tracking-[0.22em] text-foreground-muted">
+          {status}
         </p>
       </div>
+
+      {manageUrl ? <a href={manageUrl} className="inline-flex min-h-12 items-center justify-center border border-accent px-6 font-primary text-xs uppercase tracking-[0.2em] text-accent transition-colors hover:bg-accent hover:text-background">Manage Booking →</a> : null}
 
       <div className="flex justify-center pt-2">
         <StepButton onClick={onReset}>
@@ -710,6 +732,7 @@ function BookingConfirmation({
 
 type BookingSectionClientProps = {
   authRole: "admin" | "customer" | null;
+  allowGuestBookings: boolean;
   customerProfile: {
     fullName: string;
     email: string;
@@ -723,16 +746,21 @@ type BookingSectionClientProps = {
   >;
   loadError: string | null;
   content: HomepageContent;
+  persistedConfirmation: PersistedBookingConfirmation | null;
+  shouldClearGuestBookingCookie: boolean;
 };
 
 export default function BookingSectionClient({
   authRole,
+  allowGuestBookings,
   customerProfile,
   services,
   dates,
   slotMap,
   loadError,
   content,
+  persistedConfirmation,
+  shouldClearGuestBookingCookie,
 }: BookingSectionClientProps) {
   const router = useRouter();
   const [isSubmitting, startSubmitTransition] = useTransition();
@@ -741,6 +769,9 @@ export default function BookingSectionClient({
     dates.find((date) => date.isAvailable)?.id ?? null;
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
+  const [bookingReference, setBookingReference] = useState<string | null>(null);
+  const [manageUrl, setManageUrl] = useState<string | null>(null);
+  const [hidePersistedConfirmation, setHidePersistedConfirmation] = useState(false);
   const initialNameParts = customerProfile?.fullName.trim().split(/\s+/) ?? [];
   const initialFirstName = initialNameParts[0] ?? "";
   const initialLastName = initialNameParts.slice(1).join(" ");
@@ -756,6 +787,12 @@ export default function BookingSectionClient({
     note: "",
     marketingEmailConsent: false,
   });
+
+  useEffect(() => {
+    if (shouldClearGuestBookingCookie) {
+      void clearGuestBookingSession();
+    }
+  }, [shouldClearGuestBookingCookie]);
 
   const selectedService =
     services.find((service) => service.id === state.serviceId) ??
@@ -815,18 +852,41 @@ export default function BookingSectionClient({
         return;
       }
 
+      if (!("bookingReference" in result) || !("manageUrl" in result)) {
+        setSubmitFeedback("Your booking was created, but its management details could not be loaded.");
+        router.refresh();
+        return;
+      }
+
       setConfirmed(true);
+      setBookingReference(result.bookingReference ?? null);
+      setManageUrl(result.manageUrl ?? null);
       setSubmitFeedback("");
       router.refresh();
     });
   }, [router, selectedDate, selectedService, state]);
 
   const panelContent = useMemo(() => {
-    if (confirmed) {
+    const confirmation = confirmed && selectedService && selectedDate && state.time
+      ? {
+          serviceTitle: selectedService.title,
+          price: selectedService.finalPrice,
+          date: selectedDate.fullDate,
+          time: state.time,
+          bookingReference,
+          manageUrl,
+          status: "confirmed",
+        }
+      : !hidePersistedConfirmation
+        ? persistedConfirmation
+        : null;
+
+    if (confirmation) {
       return (
         <BookingConfirmation
           onReset={() => {
             setConfirmed(false);
+            setHidePersistedConfirmation(true);
             setStep(0);
             setState({
               serviceId: null,
@@ -841,9 +901,7 @@ export default function BookingSectionClient({
               marketingEmailConsent: false,
             });
           }}
-          service={selectedService}
-          date={selectedDate}
-          time={state.time}
+          {...confirmation}
         />
       );
     }
@@ -868,7 +926,7 @@ export default function BookingSectionClient({
     }
 
     if (step === 2) {
-      return <DetailsStep {...sharedProps} authRole={authRole} />;
+      return <DetailsStep {...sharedProps} authRole={authRole} allowGuestBookings={allowGuestBookings} />;
     }
 
     return (
@@ -878,7 +936,7 @@ export default function BookingSectionClient({
         onNext={handleConfirmBooking}
       />
     );
-  }, [authRole, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, initialFirstName, initialLastName, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
+  }, [allowGuestBookings, authRole, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, hidePersistedConfirmation, initialFirstName, initialLastName, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
 
   return (
     <section id="booking" className="bg-background">

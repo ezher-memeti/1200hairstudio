@@ -10,11 +10,13 @@ import { getAvailabilityExceptions } from "@/lib/public/booking-availability";
 import { getAvailableSlotTimes } from "@/lib/public/available-slots";
 import { getActiveServices } from "@/lib/public/services";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
+import { getBookingSettings } from "@/lib/booking/settings";
 
 export default async function SectionTwo({ content }: { content: HomepageContent }) {
   const currentZurich = getCurrentZurichDateTime();
   const dateFrom = currentZurich.dateKey;
-  const dateTo = addDaysToDateKey(currentZurich.dateKey, 30);
+  const bookingSettings = await getBookingSettings();
+  const dateTo = addDaysToDateKey(currentZurich.dateKey, bookingSettings.maximumHorizonDays);
 
   try {
     const [businessHours, exceptions, services] = await Promise.all([
@@ -26,9 +28,12 @@ export default async function SectionTwo({ content }: { content: HomepageContent
     let preview = null;
 
     if (previewService) {
-      for (let offset = 0; offset < 30; offset += 1) {
+      for (let offset = 0; offset <= bookingSettings.maximumHorizonDays; offset += 1) {
         const dateKey = addDaysToDateKey(currentZurich.dateKey, offset);
-        const slots = await getAvailableSlotTimes(previewService.id, dateKey);
+        const slots = await getAvailableSlotTimes(previewService.id, dateKey, {
+          bookingSettings,
+          enforceCustomerPolicy: true,
+        });
 
         if (slots.length === 0) {
           continue;

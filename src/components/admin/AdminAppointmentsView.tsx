@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Eye, Mail, X } from "lucide-react";
 import {
   createAdminAppointment,
   getAdminAvailableSlotTimes,
   removeAdminAppointment,
   updateAdminAppointment,
 } from "@/app/actions/appointments";
+import { generateAdminReceiptForAppointment, resendAdminReceipt } from "@/app/actions/finance";
 import { formatZurichTime } from "@/lib/appointments/availability";
 import type {
   AdminAppointmentDetail,
@@ -22,6 +23,10 @@ import { getEffectiveHours, toDateKey } from "@/lib/public/booking-availability-
 import type { ServiceRecord } from "@/lib/services/types";
 import AdminSelect from "@/components/admin/AdminSelect";
 import DateTimePicker from "@/components/admin/ui/DateTimePicker";
+import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialog";
+import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion, TransactionType } from "@/lib/finance/types";
+import type { ReceiptRecord } from "@/lib/receipts/types";
+import type { PaymentMethodSetting } from "@/lib/admin/settings";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -34,6 +39,11 @@ type Props = {
   customers: AdminCustomerOption[];
   services: ServiceRecord[];
   todayDateKey: string;
+  financeSummaries: AppointmentFinanceSummary[];
+  promotions: FinancePromotion[];
+  receipts: ReceiptRecord[];
+  enabledPaymentMethods: PaymentMethodSetting[];
+  receiptEmailEnabled: boolean;
 };
 
 type AppointmentCard = AdminAppointmentDetail & {
@@ -288,6 +298,11 @@ export default function AdminAppointmentsView({
   customers,
   services,
   todayDateKey,
+  financeSummaries,
+  promotions,
+  receipts,
+  enabledPaymentMethods,
+  receiptEmailEnabled,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -320,6 +335,10 @@ export default function AdminAppointmentsView({
   const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [draftNotes, setDraftNotes] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [financeDialogType, setFinanceDialogType] = useState<TransactionType | null>(null);
+  const [receiptState, setReceiptState] = useState(receipts);
+  const [receiptFeedback, setReceiptFeedback] = useState("");
+  const [isReceiptPending, startReceiptTransition] = useTransition();
   const [isPending, startTransition] = useTransition();
   const [isCreatePending, startCreateTransition] = useTransition();
   const [isEditPending, startEditTransition] = useTransition();
@@ -331,6 +350,9 @@ export default function AdminAppointmentsView({
   useEffect(() => {
     setAppointmentState(appointments);
   }, [appointments]);
+  useEffect(() => {
+    setReceiptState(receipts);
+  }, [receipts]);
 
   useEffect(() => {
     const appointmentId = searchParams.get("appointmentId");
@@ -347,11 +369,76 @@ export default function AdminAppointmentsView({
   const weekEnd = weekDates[6];
   const selectedDetail =
     appointmentState.find((appointment) => appointment.id === selectedAppointmentId) ?? null;
+  const selectedFinance = selectedDetail
+    ? financeSummaries.find((item) => item.appointment_id === selectedDetail.id) ?? null
+    : null;
+  const selectedReceipt = selectedDetail ? receiptState.find((receipt) => receipt.appointment_id === selectedDetail.id) ?? null : null;
+  const selectedFinanceAppointment: FinanceAppointment | null = selectedDetail && selectedFinance
+    ? {
+        appointmentId: selectedDetail.id,
+        bookingReference: selectedDetail.booking_reference ?? "No reference",
+        customerName: selectedDetail.customer_name,
+        serviceId: selectedDetail.service_id,
+        serviceName: selectedDetail.service_name,
+        startAt: selectedDetail.start_at,
+        appointmentStatus: selectedDetail.status,
+        originalPrice: Number(selectedFinance.original_price ?? 0),
+        amountDue: Number(selectedFinance.amount_due ?? 0),
+        discountAmount: Number(selectedFinance.discount_amount ?? 0),
+        promotionId: selectedDetail.promotion_id ?? null,
+        discountSource: selectedDetail.discount_source ?? null,
+        discountLabel: selectedDetail.discount_label ?? null,
+        discountType: selectedDetail.discount_type ?? null,
+        discountValue: selectedDetail.discount_value == null ? null : Number(selectedDetail.discount_value),
+        totalPaid: Number(selectedFinance.total_paid ?? 0),
+        totalRefunded: Number(selectedFinance.total_refunded ?? 0),
+        netPaid: Number(selectedFinance.net_paid ?? 0),
+        paymentStatus: selectedFinance.payment_status ?? "unpaid",
+      }
+    : null;
 
   useEffect(() => {
     setDraftNotes(selectedDetail?.notes ?? "");
     setFeedback("");
+    setReceiptFeedback("");
   }, [selectedDetail]);
+
+  useEffect(() => {
+    if (!selectedDetail) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedDetail]);
+
+  function generateReceipt() {
+    if (!selectedDetail) return;
+    setReceiptFeedback("");
+    startReceiptTransition(async () => {
+      const result = await generateAdminReceiptForAppointment(selectedDetail.id);
+      if (result.error || !result.receipt) { setReceiptFeedback(result.error ?? "The receipt could not be generated."); return; }
+      setReceiptState((current) => current.some((receipt) => receipt.id === result.receipt.id) ? current : [...current, result.receipt as ReceiptRecord]);
+      setReceiptFeedback(`Beleg ${result.receipt.receipt_number} generated.`);
+      router.refresh();
+    });
+  }
+
+  function emailReceipt() {
+    if (!selectedReceipt) return;
+    setReceiptFeedback("");
+    startReceiptTransition(async () => {
+      const result = await resendAdminReceipt(selectedReceipt.id);
+      if (result.error || !result.emailedAt) { setReceiptFeedback(result.error ?? "The receipt could not be emailed."); return; }
+      setReceiptState((current) => current.map((receipt) => receipt.id === selectedReceipt.id ? { ...receipt, emailed_at: result.emailedAt } : receipt));
+      setReceiptFeedback("Receipt emailed to the customer.");
+      router.refresh();
+    });
+  }
 
   useEffect(() => {
     if (!selectedDetail || !isEditOpen) {
@@ -1176,9 +1263,15 @@ export default function AdminAppointmentsView({
       ) : null}
 
       {selectedDetail ? (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="w-full max-w-2xl border border-border bg-surface px-5 py-6 sm:px-6">
-            <div className="flex items-start justify-between gap-4">
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-background/80 px-3 backdrop-blur-sm sm:px-6"
+          style={{
+            paddingTop: "max(12px, env(safe-area-inset-top))",
+            paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+          }}
+        >
+          <div className="w-full max-w-2xl max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain border border-border bg-surface px-5 py-6 [scrollbar-color:rgba(198,158,102,0.35)_transparent] [scrollbar-width:thin] sm:px-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-accent/30 [&::-webkit-scrollbar-track]:bg-transparent">
+            <div className="sticky -top-6 z-20 -mx-5 -mt-6 flex items-start justify-between gap-4 border-b border-border bg-surface px-5 pb-4 pt-6 sm:-mx-6 sm:px-6">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
                   Appointment
@@ -1236,6 +1329,44 @@ export default function AdminAppointmentsView({
                   Status: {STATUS_LABELS[selectedDetail.status]}
                 </p>
               </div>
+            </div>
+
+            {selectedFinanceAppointment ? (
+              <div className="mt-4 border border-border bg-background/40 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">Payment</p>
+                    <p className="mt-2 font-admin-display text-xl uppercase text-foreground">{selectedFinanceAppointment.paymentStatus.replaceAll("_", " ")}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-right font-admin-primary text-xs sm:grid-cols-3">
+                    <span><b className="block text-foreground-muted">Original</b>CHF {selectedFinanceAppointment.originalPrice.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">Discount</b>−CHF {selectedFinanceAppointment.discountAmount.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">Final</b>CHF {selectedFinanceAppointment.amountDue.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">Paid</b>CHF {selectedFinanceAppointment.netPaid.toFixed(2)}</span>
+                    <span className="text-accent"><b className="block text-foreground-muted">Remaining</b>CHF {Math.max(0, selectedFinanceAppointment.amountDue - selectedFinanceAppointment.netPaid).toFixed(2)}</span>
+                  </div>
+                </div>
+                {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{selectedFinanceAppointment.discountSource === "custom" ? "Custom discount" : "Promotion"} — {selectedFinanceAppointment.discountLabel ?? "Discount"}</p> : null}
+                {selectedDetail.status === "completed" && selectedFinanceAppointment.netPaid < selectedFinanceAppointment.amountDue ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-rose-300">Completed appointment · payment outstanding</p> : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" disabled={selectedFinanceAppointment.amountDue > 0 && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue} onClick={() => setFinanceDialogType("payment")} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background disabled:opacity-40">Record Payment</button>
+                  <button type="button" disabled={selectedFinanceAppointment.netPaid <= 0} onClick={() => setFinanceDialogType("refund")} className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary disabled:opacity-40">Record Refund</button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 border border-border bg-background/40 px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">Receipt</p>
+                  {selectedReceipt ? <><p className="mt-2 font-admin-display text-xl uppercase text-foreground">Beleg {selectedReceipt.receipt_number}</p><p className="mt-1 font-admin-primary text-xs text-foreground-secondary">Issued {new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedReceipt.issued_at))}</p></> : <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">No receipt generated</p>}
+                </div>
+                {selectedReceipt ? <div className="text-right font-admin-primary text-xs"><p className="text-lg text-foreground">CHF {selectedReceipt.total.toFixed(2)}</p><p className={selectedReceipt.emailed_at ? "mt-1 text-emerald-300" : "mt-1 text-foreground-muted"}>{selectedReceipt.emailed_at ? "Emailed" : "Not emailed"}</p></div> : null}
+              </div>
+              {selectedReceipt ? <div className="mt-4 flex flex-wrap gap-2"><a href={`/api/admin/receipts/${selectedReceipt.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Eye size={14}/>View Receipt</a><a href={`/api/admin/receipts/${selectedReceipt.id}?format=pdf`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Download size={14}/>Download PDF</a><button type="button" disabled={isReceiptPending || !selectedDetail.customer_email?.trim()} onClick={emailReceipt} className="inline-flex min-h-11 items-center justify-center gap-2 border border-accent/50 px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-accent disabled:cursor-not-allowed disabled:opacity-35"><Mail size={14}/>{isReceiptPending ? "Sending..." : selectedReceipt.emailed_at ? "Resend" : "Send to Customer"}</button></div> : selectedFinanceAppointment && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue ? <button type="button" disabled={isReceiptPending} onClick={generateReceipt} className="mt-4 inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-40">{isReceiptPending ? "Generating..." : "Generate Receipt"}</button> : <p className="mt-3 font-admin-primary text-xs text-foreground-muted">The receipt becomes available when the appointment balance is fully settled.</p>}
+              {selectedReceipt && !selectedDetail.customer_email?.trim() ? <p className="mt-3 font-admin-primary text-xs text-foreground-muted">No customer email address is available.</p> : null}
+              {selectedReceipt?.payment_method === null && selectedReceipt.total === 0 ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-accent">No payment required</p> : null}
+              {receiptFeedback ? <p className="mt-3 font-admin-primary text-sm text-foreground-secondary">{receiptFeedback}</p> : null}
             </div>
 
             <div className="mt-6 space-y-3">
@@ -1415,6 +1546,18 @@ export default function AdminAppointmentsView({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {financeDialogType && selectedFinanceAppointment ? (
+        <FinanceTransactionDialog
+          appointment={selectedFinanceAppointment}
+          promotions={promotions}
+          transactionType={financeDialogType}
+          enabledPaymentMethods={enabledPaymentMethods}
+          receiptEmailEnabled={receiptEmailEnabled}
+          onClose={() => setFinanceDialogType(null)}
+          onSuccess={(message) => setFeedback(message)}
+        />
       ) : null}
 
       {isRemoveOpen && selectedDetail ? (

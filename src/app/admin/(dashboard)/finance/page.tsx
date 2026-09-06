@@ -1,11 +1,9 @@
-import PlaceholderPage from "@/components/admin/PlaceholderPage";
+import FinanceOverview from "@/components/admin/finance/FinanceOverview";
+import { calculateFinanceComparison } from "@/lib/finance/comparison";
+import { getAdminFinanceData } from "@/lib/finance/queries";
 
-export default function AdminFinancePage() {
-  return (
-    <PlaceholderPage
-      label="Finance"
-      title="Finance"
-      description="Revenue tracking, payouts, and reporting placeholders live here until finance integrations are introduced."
-    />
-  );
+export default async function AdminFinancePage() {
+  const data = await getAdminFinanceData();
+  const comparison = calculateFinanceComparison({ range: "month", transactions: data.transactions, appointments: data.appointments });
+  return <FinanceOverview initialComparison={comparison} />;
 }

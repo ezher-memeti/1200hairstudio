@@ -19,6 +19,17 @@ export type AppointmentRecord = {
   guest_name: string | null;
   guest_email: string | null;
   guest_phone: string | null;
+  booking_reference?: string | null;
+  manage_token_hash?: string | null;
+  cancelled_at?: string | null;
+  original_price?: number | null;
+  discount_amount?: number | null;
+  final_price?: number | null;
+  promotion_id?: string | null;
+  discount_source?: "promotion" | "custom" | null;
+  discount_label?: string | null;
+  discount_type?: "percentage" | "fixed" | null;
+  discount_value?: number | null;
   created_at: string;
   updated_at: string;
 };
