@@ -9,7 +9,7 @@ type PositionPoint = { width: number; focusX: number; translateX: number };
 const FRAME_COUNT = 228;
 const INITIAL_FRAME_BATCH = 16;
 const NEARBY_FRAME_RADIUS = 12;
-const MAX_DPR = 1.5;
+const MAX_DPR = 2;
 const ScrollVideoProgressContext = createContext(0);
 const POSITION_POINTS: PositionPoint[] = [
   { width: 320, focusX: 0.78, translateX: 0.14 },
