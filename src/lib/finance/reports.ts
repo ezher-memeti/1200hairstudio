@@ -14,6 +14,15 @@ const money = safeMoney;
 const dateKey = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
 const monthKey = (value: string) => dateKey(value).slice(0, 7);
 
+export function validateFinancialReportInput(input: { periodType: string; startDate: string; endDate: string; groupBy: string }) {
+  const periodTypes = new Set<FinancialReportPeriodType>(["daily", "weekly", "monthly", "yearly", "custom"]);
+  const groupings = new Set<FinancialReportGrouping>(["day", "month"]);
+  if (!periodTypes.has(input.periodType as FinancialReportPeriodType)) throw new Error("Choose a valid report type.");
+  if (!groupings.has(input.groupBy as FinancialReportGrouping)) throw new Error("Choose a valid report grouping.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate) || input.endDate < input.startDate) throw new Error("Choose a valid report period.");
+  return { periodType: input.periodType as FinancialReportPeriodType, startDate: input.startDate, endDate: input.endDate, groupBy: input.groupBy as FinancialReportGrouping };
+}
+
 function addDays(date: string, days: number) {
   const [year, month, day] = date.split("-").map(Number);
   const value = new Date(Date.UTC(year, month - 1, day + days, 12));
