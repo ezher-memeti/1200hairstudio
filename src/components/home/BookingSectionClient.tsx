@@ -564,13 +564,18 @@ function ReviewStep({
   onBack,
   onNext,
   barberName,
+  loyaltyReward,
+  applyLoyaltyReward,
+  setApplyLoyaltyReward,
 }: Pick<
   StepProps,
   "selectedService" | "selectedDate" | "state" | "setState" | "onBack" | "onNext"
-> & { barberName: string }) {
+> & { barberName: string; loyaltyReward: BookingSectionClientProps["loyaltyReward"]; applyLoyaltyReward: boolean; setApplyLoyaltyReward: (value: boolean) => void }) {
   if (!selectedService || !selectedDate || !state.time) {
     return null;
   }
+  const rewardDiscount = loyaltyReward ? loyaltyReward.rewardType === "free_service" ? selectedService.originalPrice : loyaltyReward.rewardType === "percentage" ? selectedService.originalPrice * Math.min(100, Math.max(0, loyaltyReward.rewardValue ?? 0)) / 100 : Math.min(selectedService.originalPrice, Math.max(0, loyaltyReward.rewardValue ?? 0)) : 0;
+  const loyaltyTotal = applyLoyaltyReward ? Math.max(0, selectedService.originalPrice - rewardDiscount) : selectedService.finalPrice;
 
   return (
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
@@ -602,6 +607,7 @@ function ReviewStep({
       </div>
 
       <div className="space-y-6">
+        {loyaltyReward ? <div className="border-l-2 border-accent bg-background px-4 py-4"><p className="font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your Loyalty Reward</p><p className="mt-2 font-display text-2xl uppercase text-foreground">{loyaltyReward.rewardType === "free_service" ? "Free Service" : loyaltyReward.rewardType === "percentage" ? `${loyaltyReward.rewardValue}% Off` : `CHF ${Number(loyaltyReward.rewardValue ?? 0).toFixed(2)} Off`}</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><button type="button" onClick={() => setApplyLoyaltyReward(true)} className={`min-h-11 border px-4 text-[10px] uppercase tracking-[0.15em] ${applyLoyaltyReward ? "border-accent bg-accent text-background" : "border-border text-accent"}`}>Apply Reward</button><button type="button" onClick={() => setApplyLoyaltyReward(false)} className={`min-h-11 border px-4 text-[10px] uppercase tracking-[0.15em] ${!applyLoyaltyReward ? "border-foreground-muted text-foreground" : "border-border text-foreground-muted"}`}>Save for Later</button></div></div> : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="space-y-2">
             <h4 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
@@ -640,7 +646,7 @@ function ReviewStep({
               Total
             </p>
             <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-              {formatPrice(selectedService.finalPrice)}
+              {formatPrice(loyaltyTotal)}
             </p>
           </div>
         </div>
@@ -748,6 +754,7 @@ type BookingSectionClientProps = {
   content: HomepageContent;
   persistedConfirmation: PersistedBookingConfirmation | null;
   shouldClearGuestBookingCookie: boolean;
+  loyaltyReward: { id: string; rewardType: string; rewardValue: number | null } | null;
 };
 
 export default function BookingSectionClient({
@@ -761,6 +768,7 @@ export default function BookingSectionClient({
   content,
   persistedConfirmation,
   shouldClearGuestBookingCookie,
+  loyaltyReward,
 }: BookingSectionClientProps) {
   const router = useRouter();
   const [isSubmitting, startSubmitTransition] = useTransition();
@@ -772,6 +780,7 @@ export default function BookingSectionClient({
   const [bookingReference, setBookingReference] = useState<string | null>(null);
   const [manageUrl, setManageUrl] = useState<string | null>(null);
   const [hidePersistedConfirmation, setHidePersistedConfirmation] = useState(false);
+  const [applyLoyaltyReward, setApplyLoyaltyReward] = useState(false);
   const initialNameParts = customerProfile?.fullName.trim().split(/\s+/) ?? [];
   const initialFirstName = initialNameParts[0] ?? "";
   const initialLastName = initialNameParts.slice(1).join(" ");
@@ -842,6 +851,7 @@ export default function BookingSectionClient({
       formData.set("phone", state.phone);
       formData.set("note", state.note);
       if (selectedService.promotionId) formData.set("promotionId", selectedService.promotionId);
+      if (applyLoyaltyReward && loyaltyReward) formData.set("loyaltyRewardId", loyaltyReward.id);
       if (state.marketingEmailConsent) formData.set("marketingEmailConsent", "on");
 
       const result = await bookAppointment(formData);
@@ -864,7 +874,7 @@ export default function BookingSectionClient({
       setSubmitFeedback("");
       router.refresh();
     });
-  }, [router, selectedDate, selectedService, state]);
+  }, [applyLoyaltyReward, loyaltyReward, router, selectedDate, selectedService, state]);
 
   const panelContent = useMemo(() => {
     const confirmation = confirmed && selectedService && selectedDate && state.time
@@ -900,6 +910,7 @@ export default function BookingSectionClient({
               note: "",
               marketingEmailConsent: false,
             });
+            setApplyLoyaltyReward(false);
           }}
           {...confirmation}
         />
@@ -933,10 +944,13 @@ export default function BookingSectionClient({
       <ReviewStep
         {...sharedProps}
         barberName={content.barber_name}
+        loyaltyReward={loyaltyReward}
+        applyLoyaltyReward={applyLoyaltyReward}
+        setApplyLoyaltyReward={setApplyLoyaltyReward}
         onNext={handleConfirmBooking}
       />
     );
-  }, [allowGuestBookings, authRole, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, hidePersistedConfirmation, initialFirstName, initialLastName, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
+  }, [allowGuestBookings, applyLoyaltyReward, authRole, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, hidePersistedConfirmation, initialFirstName, initialLastName, loyaltyReward, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
 
   return (
     <section id="booking" className="bg-background">

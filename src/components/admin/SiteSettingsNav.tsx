@@ -9,6 +9,7 @@ const siteSettingsItems = [
   { label: "Business Hours", href: "/admin/site-settings/business-hours" },
   { label: "Selected Work", href: "/admin/site-settings/selected-work" },
   { label: "Announcements", href: "/admin/site-settings/announcements" },
+  { label: "Loyalty", href: "/admin/site-settings/loyalty" },
 ] as const;
 
 export default function SiteSettingsNav() {

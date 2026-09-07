@@ -12,6 +12,7 @@ import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/ava
 import { createClient } from "@/lib/supabase/server";
 import { clearGuestBookingCookie } from "@/lib/appointments/management";
 import { createBookingCredentials, getBookingManagementUrl } from "@/lib/appointments/management";
+import { processAppointmentStatusForLoyalty } from "@/lib/loyalty/process-completed-appointment";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -57,6 +58,7 @@ export async function bookAppointment(formData: FormData) {
     const note = (formData.get("note") ?? "").toString().trim();
     const marketingEmailConsent = formData.get("marketingEmailConsent") === "on";
     const promotionId = (formData.get("promotionId") ?? "").toString().trim() || undefined;
+    const loyaltyRewardId = (formData.get("loyaltyRewardId") ?? "").toString().trim() || undefined;
 
     if (!serviceId || !dateKey || !startTime) {
       return { error: "Choose a service, date, and time." };
@@ -73,6 +75,7 @@ export async function bookAppointment(formData: FormData) {
       phone,
       marketingEmailConsent,
       promotionId,
+      loyaltyRewardId,
     });
 
     return result;
@@ -212,19 +215,33 @@ export async function updateAdminAppointment(
       return { error: "No changes to save." };
     }
 
-    const { error } = await supabase
+    const { data: updatedAppointment, error } = await supabase
       .from("appointments")
       .update(payload)
-      .eq("id", input.appointmentId);
+      .eq("id", input.appointmentId)
+      .select("id,status")
+      .maybeSingle();
 
-    if (error) {
-      return { error: error.message };
+    if (error || !updatedAppointment) {
+      return { error: error?.message ?? "Appointment was not found or could not be updated." };
+    }
+
+    let loyaltyWarning: string | null = null;
+    if (input.status) {
+      try {
+        await processAppointmentStatusForLoyalty(updatedAppointment.id);
+      } catch (loyaltyError) {
+        loyaltyWarning = "Appointment updated, but loyalty progress could not be synchronized. Retrying this status change is safe.";
+        console.error("ADMIN APPOINTMENT LOYALTY PROCESSING ERROR", { appointmentId: updatedAppointment.id, status: updatedAppointment.status, error: loyaltyError });
+      }
     }
 
     revalidatePath("/admin/appointments");
+    revalidatePath("/admin/calendar");
     revalidatePath("/admin/customers");
     revalidatePath("/account");
-    return { error: null };
+    revalidatePath("/");
+    return { error: null, warning: loyaltyWarning };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

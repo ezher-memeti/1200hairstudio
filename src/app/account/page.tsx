@@ -9,14 +9,16 @@ import { generateUpcomingDateOptions } from "@/lib/public/booking-availability";
 import { getBookingSettings } from "@/lib/booking/settings";
 import { getCustomerManagementCapabilities } from "@/lib/booking/policy";
 import { getReceiptsForCustomer } from "@/lib/receipts/server";
+import { getMyLoyaltySummary } from "@/lib/loyalty/customer-summary";
 
 export default async function AccountPage() {
   const customer = await ensureCustomerRecord();
   const currentZurich = getCurrentZurichDateTime();
-  const [services, bookingSettings, receipts] = await Promise.all([
+  const [services, bookingSettings, receipts, loyalty] = await Promise.all([
     getActiveServices(),
     getBookingSettings(),
     getReceiptsForCustomer(customer.id),
+    getMyLoyaltySummary(customer.id),
   ]);
   const appointmentSummaries = await getCustomerAppointmentSummaries(
     customer,
@@ -66,6 +68,7 @@ export default async function AccountPage() {
             bookingDates={bookingDates}
             bookingCapabilities={bookingCapabilities}
             receipts={receipts}
+            loyalty={loyalty}
           />
         </section>
       </main>

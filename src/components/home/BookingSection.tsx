@@ -43,6 +43,7 @@ export default async function BookingSection({ content }: { content: HomepageCon
   let customerProfile: { fullName: string; email: string; phone: string } | null = null;
   let customerId: string | null = null;
   let registeredAppointment: ActiveRegisteredAppointment | null = null;
+  let loyaltyReward: { id: string; rewardType: string; rewardValue: number | null } | null = null;
   const supabase = await createClient();
   if (role === "customer" && user) {
     const { data: customer } = await supabase.from("customers").select("id,full_name,email,phone").eq("profile_id", user.id).maybeSingle();
@@ -59,6 +60,12 @@ export default async function BookingSection({ content }: { content: HomepageCon
         .limit(1)
         .maybeSingle();
       registeredAppointment = activeAppointment as ActiveRegisteredAppointment | null;
+      const nowIso = new Date().toISOString();
+      const [{ data: loyaltySettings }, { data: reward }] = await Promise.all([
+        supabase.from("loyalty_settings").select("is_enabled").limit(1).maybeSingle(),
+        supabase.from("loyalty_rewards").select("id,reward_type,reward_value,expires_at").eq("customer_id", customer.id).eq("status", "available").or(`expires_at.is.null,expires_at.gt.${nowIso}`).order("earned_at", { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      if (loyaltySettings?.is_enabled && reward) loyaltyReward = { id: reward.id, rewardType: reward.reward_type, rewardValue: reward.reward_value === null ? null : Number(reward.reward_value) };
     }
   }
   const effectivePrices = new Map((await Promise.all(services.map(async (service) => [service.id, await getEffectiveServicePrice({ serviceId: service.id, customerId, authenticatedCustomer: role === "customer", supabase })] as const))).filter((entry) => entry[1]));
@@ -177,6 +184,7 @@ export default async function BookingSection({ content }: { content: HomepageCon
       content={content}
       persistedConfirmation={persistedConfirmation}
       shouldClearGuestBookingCookie={shouldClearGuestBookingCookie}
+      loyaltyReward={loyaltyReward}
     />
   );
 }

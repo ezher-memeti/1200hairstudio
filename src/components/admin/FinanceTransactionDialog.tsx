@@ -55,7 +55,7 @@ export default function FinanceTransactionDialog({
   const [discountMode, setDiscountMode] = useState<AppointmentDiscountMode>(appointment.discountSource === "custom" ? "custom" : appointment.discountSource === "promotion" || appointment.promotionId ? "promotion" : "none");
   const [promotionId, setPromotionId] = useState(appointment.promotionId ?? "");
   const [customLabel, setCustomLabel] = useState(appointment.discountSource === "custom" ? appointment.discountLabel ?? "" : "");
-  const [customType, setCustomType] = useState<"percentage" | "fixed">(appointment.discountSource === "custom" && appointment.discountType ? appointment.discountType : "percentage");
+  const [customType, setCustomType] = useState<"percentage" | "fixed">(appointment.discountSource === "custom" && (appointment.discountType === "percentage" || appointment.discountType === "fixed") ? appointment.discountType : "percentage");
   const [customValue, setCustomValue] = useState(appointment.discountSource === "custom" && appointment.discountValue != null ? String(appointment.discountValue) : "");
   const [feedback, setFeedback] = useState("");
   const [sendReceipt, setSendReceipt] = useState(false);

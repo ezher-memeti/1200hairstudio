@@ -663,7 +663,7 @@ export default function AdminAppointmentsView({
         ),
       );
       router.refresh();
-      setFeedback("Saved.");
+      setFeedback(result.warning ?? "Saved.");
     });
   }
 

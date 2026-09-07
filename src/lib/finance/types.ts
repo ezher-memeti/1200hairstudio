@@ -50,9 +50,9 @@ export type FinanceAppointment = {
   amountDue: number;
   discountAmount: number;
   promotionId: string | null;
-  discountSource: "promotion" | "custom" | null;
+  discountSource: "promotion" | "custom" | "loyalty" | null;
   discountLabel: string | null;
-  discountType: "percentage" | "fixed" | null;
+  discountType: "percentage" | "fixed" | "fixed_discount" | "free_service" | null;
   discountValue: number | null;
   totalPaid: number;
   totalRefunded: number;

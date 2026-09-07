@@ -43,6 +43,7 @@ export type AppointmentRequestInput = {
   phone?: string;
   marketingEmailConsent?: boolean;
   promotionId?: string;
+  loyaltyRewardId?: string;
 };
 
 export async function validateAppointmentRequest(
@@ -254,6 +255,26 @@ export async function createAppointment(
     const finalPolicyError = validateCustomerBookingTime(startAt, input.dateKey, bookingSettings);
     if (finalPolicyError) return { error: finalPolicyError };
 
+    let loyaltyReward: { id: string; reward_type: string; reward_value: number | string | null; expires_at: string | null } | null = null;
+    let loyaltyDiscount = 0;
+    const adminSupabase = createAdminClient();
+    if (input.loyaltyRewardId) {
+      const [{ data: loyaltySettings }, { data: reward }] = await Promise.all([
+        adminSupabase.from("loyalty_settings").select("is_enabled").limit(1).maybeSingle(),
+        adminSupabase.from("loyalty_rewards").select("id,reward_type,reward_value,expires_at").eq("id", input.loyaltyRewardId).eq("customer_id", customer.id).eq("status", "available").maybeSingle(),
+      ]);
+      if (!loyaltySettings?.is_enabled || !reward || (reward.expires_at && new Date(reward.expires_at).getTime() <= Date.now())) return { error: "This loyalty reward is no longer available. Please review your booking." };
+      const rewardValue = Number(reward.reward_value ?? 0);
+      loyaltyDiscount = reward.reward_type === "free_service" ? Number(service.price) : reward.reward_type === "percentage" ? Number(service.price) * Math.min(100, Math.max(0, rewardValue)) / 100 : Math.min(Number(service.price), Math.max(0, rewardValue));
+      const { data: reserved } = await adminSupabase.from("loyalty_rewards").update({ status: "reserved" }).eq("id", reward.id).eq("customer_id", customer.id).eq("status", "available").select("id").maybeSingle();
+      if (!reserved) return { error: "This loyalty reward was already used. Please review your booking." };
+      loyaltyReward = reward;
+      promotionPrice = null;
+    }
+
+    const originalPrice = Number(service.price);
+    const appliedDiscount = loyaltyReward ? Math.min(originalPrice, loyaltyDiscount) : promotionPrice?.discountAmount ?? 0;
+    const finalPrice = loyaltyReward ? Math.max(0, originalPrice - appliedDiscount) : promotionPrice?.finalPrice ?? originalPrice;
     const { data: createdAppointment, error: insertError } = await supabase
       .from("appointments")
       .insert({
@@ -266,10 +287,14 @@ export async function createAppointment(
         guest_name: null,
         guest_email: null,
         guest_phone: null,
-        original_price: promotionPrice?.originalPrice ?? service.price,
-        discount_amount: promotionPrice?.discountAmount ?? 0,
-        final_price: promotionPrice?.finalPrice ?? service.price,
+        original_price: originalPrice,
+        discount_amount: appliedDiscount,
+        final_price: finalPrice,
         promotion_id: promotionPrice?.promotionId ?? null,
+        discount_source: loyaltyReward ? "loyalty" : promotionPrice ? "promotion" : null,
+        discount_label: loyaltyReward ? "Loyalty Reward" : promotionPrice?.promotionName ?? null,
+        discount_type: loyaltyReward?.reward_type ?? promotionPrice?.discountType ?? null,
+        discount_value: loyaltyReward ? Number(loyaltyReward.reward_value ?? 0) : promotionPrice?.discountValue ?? null,
         booking_reference: credentials.bookingReference,
         manage_token_hash: credentials.managementTokenHash,
       })
@@ -282,6 +307,7 @@ export async function createAppointment(
       createdAppointment.booking_reference !== credentials.bookingReference ||
       createdAppointment.manage_token_hash !== credentials.managementTokenHash
     ) {
+      if (loyaltyReward) await adminSupabase.from("loyalty_rewards").update({ status: "available" }).eq("id", loyaltyReward.id).eq("status", "reserved");
       if (!insertError) {
         console.error("CUSTOMER APPOINTMENT CREDENTIAL VERIFICATION ERROR", {
           appointmentId: createdAppointment?.id ?? null,
@@ -294,6 +320,11 @@ export async function createAppointment(
           ? getAppointmentInsertErrorMessage(insertError)
           : "Your booking could not be verified. Please contact the studio.",
       };
+    }
+
+    if (loyaltyReward) {
+      const { error: redemptionError } = await adminSupabase.from("loyalty_rewards").update({ status: "redeemed", redeemed_at: new Date().toISOString(), redeemed_appointment_id: createdAppointment.id }).eq("id", loyaltyReward.id).eq("customer_id", customer.id).eq("status", "reserved");
+      if (redemptionError) console.error("LOYALTY REWARD REDEMPTION ERROR", { rewardId: loyaltyReward.id, appointmentId: createdAppointment.id, error: redemptionError });
     }
 
     await setGuestBookingCookie(credentials.managementToken);
@@ -342,7 +373,7 @@ export async function createAppointment(
         serviceName: service.name,
         startAt,
         endAt,
-        price: promotionPrice?.finalPrice ?? service.price,
+        price: finalPrice,
         bookingReference: createdAppointment.booking_reference,
         manageUrl,
       });
@@ -354,7 +385,7 @@ export async function createAppointment(
       serviceName: service.name,
       startAt,
       endAt,
-      price: promotionPrice?.finalPrice ?? service.price,
+      price: finalPrice,
       bookingReference: createdAppointment.booking_reference,
       manageUrl,
     };
