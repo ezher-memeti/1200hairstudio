@@ -1,4 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  getAdminIdentitySets,
+  getNonAdminCustomerProfileFilter,
+  isAdminCustomerIdentity,
+} from "@/lib/customers/admin-filter";
 import type { CustomerRecord } from "@/lib/customers/types";
 import type { ServiceRecord } from "@/lib/services/types";
 import {
@@ -235,14 +240,31 @@ export async function getAvailabilityExceptionsInRange(startDateKey: string, end
 
 export async function getAdminCustomerOptions() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const adminIdentities = await getAdminIdentitySets();
+  const nonAdminFilter = getNonAdminCustomerProfileFilter(
+    adminIdentities.adminUserIds,
+  );
+  let query = supabase
     .from("customers")
-    .select("id, full_name, email, phone")
+    .select("id, profile_id, full_name, email, phone")
     .order("full_name", { ascending: true });
+
+  if (nonAdminFilter) {
+    query = query.or(nonAdminFilter);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return [] as AdminCustomerOption[];
   }
 
-  return (data ?? []) as AdminCustomerOption[];
+  return (data ?? [])
+    .filter((customer) => !isAdminCustomerIdentity(customer, adminIdentities))
+    .map(({ id, full_name, email, phone }) => ({
+      id,
+      full_name,
+      email,
+      phone,
+    })) as AdminCustomerOption[];
 }

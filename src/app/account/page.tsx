@@ -8,11 +8,16 @@ import { getActiveServices } from "@/lib/public/services";
 import { generateUpcomingDateOptions } from "@/lib/public/booking-availability";
 import { getBookingSettings } from "@/lib/booking/settings";
 import { getCustomerManagementCapabilities } from "@/lib/booking/policy";
+import { getReceiptsForCustomer } from "@/lib/receipts/server";
 
 export default async function AccountPage() {
   const customer = await ensureCustomerRecord();
   const currentZurich = getCurrentZurichDateTime();
-  const [services, bookingSettings] = await Promise.all([getActiveServices(), getBookingSettings()]);
+  const [services, bookingSettings, receipts] = await Promise.all([
+    getActiveServices(),
+    getBookingSettings(),
+    getReceiptsForCustomer(customer.id),
+  ]);
   const appointmentSummaries = await getCustomerAppointmentSummaries(
     customer,
     services,
@@ -28,6 +33,9 @@ export default async function AccountPage() {
     (appointment) =>
       appointment.status !== "confirmed" ||
       new Date(appointment.end_at).getTime() <= now,
+  ).sort(
+    (first, second) =>
+      new Date(second.start_at).getTime() - new Date(first.start_at).getTime(),
   );
   const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
     count: 14,
@@ -57,6 +65,7 @@ export default async function AccountPage() {
             pastAppointments={pastAppointments}
             bookingDates={bookingDates}
             bookingCapabilities={bookingCapabilities}
+            receipts={receipts}
           />
         </section>
       </main>

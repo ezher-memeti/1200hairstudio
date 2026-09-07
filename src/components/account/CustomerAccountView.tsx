@@ -1,288 +1,105 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import type { CustomerAppointmentSummary } from "@/lib/appointments/types";
-import type { CustomerRecord } from "@/lib/customers/types";
-import { createClient } from "@/lib/supabase/client";
-import { subscribeToMarketingEmails, unsubscribeFromMarketingEmails, updateCustomerAccount } from "@/app/account/actions";
-import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
+import { useMemo, useState, useTransition } from "react";
+import { deleteCustomerAccount, subscribeToMarketingEmails, unsubscribeFromMarketingEmails, updateCustomerAccount } from "@/app/account/actions";
 import AccountBookingActions from "@/components/account/AccountBookingActions";
+import { createClient } from "@/lib/supabase/client";
+import type { CustomerAppointmentSummary } from "@/lib/appointments/types";
 import type { CustomerManagementCapabilities } from "@/lib/booking/policy";
+import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
+import type { CustomerRecord } from "@/lib/customers/types";
+import type { ReceiptRecord } from "@/lib/receipts/types";
 
-type CustomerAccountViewProps = {
+type Tab = "overview" | "appointments" | "receipts" | "account";
+type AppointmentFilter = "upcoming" | "past" | "cancelled";
+type Props = {
   customer: Pick<CustomerRecord, "id" | "full_name" | "email" | "phone" | "marketing_email_consent" | "marketing_email_consented_at" | "marketing_email_consent_source" | "marketing_email_unsubscribed_at">;
   pastAppointments: CustomerAppointmentSummary[];
   upcomingAppointments: CustomerAppointmentSummary[];
   bookingDates: { id: string; day: string; date: string; month: string }[];
   bookingCapabilities: Record<string, CustomerManagementCapabilities>;
+  receipts: ReceiptRecord[];
 };
 
-export default function CustomerAccountView({
-  customer,
-  pastAppointments,
-  upcomingAppointments,
-  bookingDates,
-  bookingCapabilities,
-}: CustomerAccountViewProps) {
+const money = (value: number | null | undefined) => new Intl.NumberFormat("de-CH", { style: "currency", currency: "CHF" }).format(Number(value ?? 0));
+const statusColor = (status: string) => status === "completed" ? "text-emerald-300" : status === "cancelled" || status === "no_show" ? "text-rose-300" : "text-accent";
+const tabs: Array<[Tab, string, string]> = [["overview", "Overview", "Overview"], ["appointments", "Appointments", "Bookings"], ["receipts", "Receipts", "Receipts"], ["account", "Account", "Account"]];
+
+function dateParts(value: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", day: "2-digit", month: "short", year: "numeric" }).formatToParts(new Date(value));
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return { day: read("day"), month: read("month").toUpperCase(), year: read("year") };
+}
+
+function calendarUrl(appointment: CustomerAppointmentSummary) {
+  const stamp = (value: string) => new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const params = new URLSearchParams({ action: "TEMPLATE", text: `${appointment.service_name} · 1200 Hairstudio`, dates: `${stamp(appointment.start_at)}/${stamp(appointment.end_at)}`, location: "Schulstrasse 2, 8599 Salmsach, Switzerland" });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export default function CustomerAccountView(props: Props) {
+  const { customer, pastAppointments, upcomingAppointments, bookingDates, bookingCapabilities, receipts } = props;
   const router = useRouter();
+  const [tab, setTab] = useState<Tab>("overview");
+  const [appointmentFilter, setAppointmentFilter] = useState<AppointmentFilter>("upcoming");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [fullName, setFullName] = useState(customer.full_name);
   const [phone, setPhone] = useState(customer.phone);
+  const [editing, setEditing] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [marketingPreference, setMarketingPreference] = useState({
-    marketing_email_consent: customer.marketing_email_consent,
-    marketing_email_consented_at: customer.marketing_email_consented_at,
-    marketing_email_consent_source: customer.marketing_email_consent_source,
-    marketing_email_unsubscribed_at: customer.marketing_email_unsubscribed_at,
-  });
+  const [isDeleting, startDeleteTransition] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [preference, setPreference] = useState({ marketing_email_consent: customer.marketing_email_consent, marketing_email_consented_at: customer.marketing_email_consented_at, marketing_email_consent_source: customer.marketing_email_consent_source, marketing_email_unsubscribed_at: customer.marketing_email_unsubscribed_at });
   const [marketingFeedback, setMarketingFeedback] = useState("");
+  const [confirmUnsubscribe, setConfirmUnsubscribe] = useState(false);
   const [isMarketingPending, startMarketingTransition] = useTransition();
-  const [showUnsubscribeConfirmation, setShowUnsubscribeConfirmation] = useState(false);
-  const marketingStatus = getMarketingConsentStatus({ email: customer.email, ...marketingPreference });
+  const next = upcomingAppointments[0] ?? null;
+  const recentCompleted = pastAppointments.find((appointment) => appointment.status === "completed") ?? null;
+  const receiptsByAppointment = useMemo(() => new Map(receipts.map((receipt) => [receipt.appointment_id, receipt])), [receipts]);
+  const marketingStatus = getMarketingConsentStatus({ email: customer.email, ...preference });
+  const cancelled = pastAppointments.filter((appointment) => appointment.status === "cancelled");
+  const nonCancelledPast = pastAppointments.filter((appointment) => appointment.status !== "cancelled");
+  const filteredAppointments = appointmentFilter === "upcoming" ? upcomingAppointments : appointmentFilter === "cancelled" ? cancelled : nonCancelledPast;
 
-  function updateMarketingPreference(action: "subscribe" | "unsubscribe") {
-    setMarketingFeedback("");
-    startMarketingTransition(async () => {
-      const result = action === "subscribe" ? await subscribeToMarketingEmails() : await unsubscribeFromMarketingEmails();
-      if (result.error || !result.preference) {
-        setMarketingFeedback(result.error ?? "Unable to update email preferences.");
-        return;
-      }
-      setMarketingPreference(result.preference);
-      setShowUnsubscribeConfirmation(false);
-      setMarketingFeedback(action === "subscribe" ? "You are now subscribed." : "You have been unsubscribed.");
-      router.refresh();
-    });
-  }
+  function changeTab(nextTab: Tab) { setTab(nextTab); setExpandedId(null); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function saveProfile(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); const formData = new FormData(); formData.set("fullName", fullName); formData.set("phone", phone); setFeedback(""); startTransition(async () => { const result = await updateCustomerAccount(formData); if (result.error) return setFeedback(result.error); setEditing(false); setFeedback("Personal details updated."); router.refresh(); }); }
+  function updateMarketing(action: "subscribe" | "unsubscribe") { setMarketingFeedback(""); startMarketingTransition(async () => { const result = action === "subscribe" ? await subscribeToMarketingEmails() : await unsubscribeFromMarketingEmails(); if (result.error || !result.preference) return setMarketingFeedback(result.error ?? "Unable to update email preferences."); setPreference(result.preference); setConfirmUnsubscribe(false); setMarketingFeedback(action === "subscribe" ? "You are now subscribed." : "You have been unsubscribed."); router.refresh(); }); }
+  async function logout() { setIsLoggingOut(true); await createClient().auth.signOut(); router.push("/login"); router.refresh(); }
+  function deleteAccount() { startDeleteTransition(async () => { const result = await deleteCustomerAccount(); if (result.error) return setFeedback(result.error); await createClient().auth.signOut(); router.push("/"); router.refresh(); }); }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFeedback("");
+  return <div className="min-w-0 pb-20 md:pb-0">
+    <header className="flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between"><div className="min-w-0"><p className="text-[10px] uppercase tracking-[.3em] text-accent">My Account</p><h1 className="mt-3 break-words font-display text-3xl font-semibold uppercase leading-none tracking-[-.04em] text-foreground sm:text-5xl">{customer.full_name}</h1></div><a href="/#booking" className="inline-flex min-h-12 w-full items-center justify-center bg-accent px-6 text-xs uppercase tracking-[.18em] text-background sm:w-auto">Book a Session</a></header>
 
-    const formData = new FormData();
-    formData.set("fullName", fullName);
-    formData.set("phone", phone);
+    <nav aria-label="Account sections" className="hidden border-b border-border md:flex">{tabs.map(([value, desktop]) => <button key={value} onClick={() => changeTab(value)} className={`min-h-14 border-b-2 px-5 text-[10px] uppercase tracking-[.18em] ${tab === value ? "border-accent text-accent" : "border-transparent text-foreground-muted hover:text-foreground"}`}>{desktop}</button>)}</nav>
 
-    startTransition(async () => {
-      const result = await updateCustomerAccount(formData);
+    <main className="pt-7 sm:pt-9">
+      {tab === "overview" ? <Overview next={next} recent={pastAppointments.slice(0, 3)} recentCompleted={recentCompleted} bookingDates={bookingDates} capabilities={bookingCapabilities} receipts={receiptsByAppointment} onAppointments={() => changeTab("appointments")} /> : null}
+      {tab === "appointments" ? <AppointmentsView filter={appointmentFilter} setFilter={setAppointmentFilter} appointments={filteredAppointments} expandedId={expandedId} setExpandedId={setExpandedId} bookingDates={bookingDates} capabilities={bookingCapabilities} receipts={receiptsByAppointment} /> : null}
+      {tab === "receipts" ? <ReceiptsView receipts={receipts} /> : null}
+      {tab === "account" ? <AccountView customer={customer} fullName={fullName} phone={phone} setFullName={setFullName} setPhone={setPhone} editing={editing} setEditing={setEditing} saveProfile={saveProfile} feedback={feedback} isPending={isPending} marketingStatus={marketingStatus} marketingFeedback={marketingFeedback} isMarketingPending={isMarketingPending} confirmUnsubscribe={confirmUnsubscribe} setConfirmUnsubscribe={setConfirmUnsubscribe} updateMarketing={updateMarketing} logout={logout} isLoggingOut={isLoggingOut} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} deleteAccount={deleteAccount} isDeleting={isDeleting} /> : null}
+    </main>
 
-      if (result.error) {
-        setFeedback(result.error);
-        return;
-      }
-
-      setFeedback("Saved");
-      router.refresh();
-    });
-  }
-
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-
-  return (
-    <div className="space-y-10">
-      <section className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)] xl:gap-14">
-        <div className="space-y-4">
-          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            Account
-          </p>
-          <h1 className="font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-            Your Profile
-          </h1>
-          <p className="max-w-lg font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-            Manage your account details and keep your booking information up to date.
-          </p>
-        </div>
-
-        <div className="border border-border bg-surface px-5 py-6 sm:px-7 sm:py-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <label className="block space-y-3">
-              <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Full Name
-              </span>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                required
-                className="w-full border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-              />
-            </label>
-
-            <label className="block space-y-3">
-              <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Email
-              </span>
-              <input
-                type="email"
-                value={customer.email}
-                disabled
-                className="w-full cursor-not-allowed border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground-muted outline-none"
-              />
-            </label>
-
-            <label className="block space-y-3">
-              <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Phone
-              </span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                className="w-full border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-              />
-            </label>
-
-            {feedback ? (
-              <p className="font-primary text-sm text-foreground-secondary">
-                {feedback}
-              </p>
-            ) : null}
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="submit"
-                disabled={isPending}
-                className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
-              >
-                {isPending ? "Saving..." : "Save Changes"}
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground disabled:cursor-not-allowed disabled:text-foreground-muted"
-              >
-                {isLoggingOut ? "Logging Out..." : "Logout"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 border-t border-border pt-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start lg:gap-12">
-        <div className="space-y-3">
-          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">Email Preferences</p>
-          <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">News & Offers</h2>
-          <p className="max-w-xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">Manage promotional email preferences separately from important appointment confirmations, changes and reminders.</p>
-        </div>
-        <div className="border border-border bg-surface p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="font-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Marketing Email</p><p className="mt-2 font-display text-2xl uppercase tracking-[-0.04em] text-foreground">{marketingStatus === "subscribed" ? "Subscribed" : "Not Subscribed"}</p>{marketingStatus === "subscribed" && marketingPreference.marketing_email_consented_at ? <p className="mt-2 font-primary text-xs text-foreground-muted">Since {new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", day: "2-digit", month: "short", year: "numeric" }).format(new Date(marketingPreference.marketing_email_consented_at))}</p> : null}</div>
-            {marketingStatus === "subscribed" ? <button type="button" disabled={isMarketingPending} onClick={() => setShowUnsubscribeConfirmation(true)} className="inline-flex min-h-12 items-center justify-center border border-border px-5 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary hover:bg-background hover:text-foreground disabled:opacity-50">Unsubscribe</button> : <button type="button" disabled={isMarketingPending} onClick={() => updateMarketingPreference("subscribe")} className="inline-flex min-h-12 items-center justify-center bg-accent px-5 font-primary text-xs uppercase tracking-[0.18em] text-background hover:bg-accent-hover disabled:opacity-50">{isMarketingPending ? "Updating..." : "Subscribe"}</button>}
-          </div>
-          {marketingFeedback ? <p className="mt-4 font-primary text-sm text-foreground-secondary">{marketingFeedback}</p> : null}
-          {showUnsubscribeConfirmation ? <div className="mt-5 space-y-4 border-t border-border pt-5"><p className="font-primary text-sm leading-6 text-foreground-secondary">You will stop receiving news and promotional offers. Appointment confirmations, changes and reminders will still be sent.</p><div className="flex flex-col gap-3 sm:flex-row"><button type="button" disabled={isMarketingPending} onClick={() => updateMarketingPreference("unsubscribe")} className="inline-flex min-h-12 flex-1 items-center justify-center border border-border bg-foreground px-4 font-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-50">{isMarketingPending ? "Updating..." : "Confirm Unsubscribe"}</button><button type="button" disabled={isMarketingPending} onClick={() => setShowUnsubscribeConfirmation(false)} className="inline-flex min-h-12 items-center justify-center border border-border px-4 font-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">Keep Subscription</button></div></div> : null}
-        </div>
-      </section>
-
-      <section className="space-y-6 border-t border-border pt-8">
-        <div className="space-y-2">
-          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            Upcoming Bookings
-          </p>
-          <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
-            {upcomingAppointments.length > 0
-              ? "Your Next Sessions"
-              : "Nothing Scheduled Yet"}
-          </h2>
-          <p className="max-w-lg font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-            {upcomingAppointments.length > 0
-              ? "Your confirmed sessions appear here in Zurich local time."
-              : "Your upcoming sessions will appear here after your first booking."}
-          </p>
-        </div>
-
-        {upcomingAppointments.length > 0 ? (
-          <div className="space-y-4">
-            {upcomingAppointments.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="border border-border bg-surface px-5 py-5 sm:px-6"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-2">
-                    <p className="font-primary text-[10px] uppercase tracking-[0.22em] text-accent">
-                      {appointment.booking_reference ?? "Confirmed Booking"}
-                    </p>
-                    <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-                      {appointment.service_name}
-                    </p>
-                    <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                      {appointment.date_label}
-                    </p>
-                    <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                      {appointment.time_label}
-                    </p>
-                  </div>
-                  <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                    {appointment.status.replace("_", " ")}
-                  </p>
-                </div>
-                {appointment.final_price != null ? <p className="mt-3 font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">CHF {Number(appointment.final_price).toFixed(2)}</p> : null}
-                <AccountBookingActions appointmentId={appointment.id} dates={bookingDates} capabilities={bookingCapabilities[appointment.id]} />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <a
-          href="/#booking"
-          className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
-        >
-          Book a Session
-        </a>
-      </section>
-
-      <section className="space-y-6 border-t border-border pt-8">
-        <div className="space-y-2">
-          <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            Past Appointments
-          </p>
-          <h2 className="font-display text-3xl uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
-            Session History
-          </h2>
-        </div>
-
-        {pastAppointments.length > 0 ? (
-          <div className="space-y-4">
-            {pastAppointments.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="border border-border bg-background px-5 py-5 sm:px-6"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-2">
-                    <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-                      {appointment.service_name}
-                    </p>
-                    <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                      {appointment.date_label}
-                    </p>
-                    <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                      {appointment.time_label}
-                    </p>
-                  </div>
-                  <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                    {appointment.status.replace("_", " ")}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="max-w-lg font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-            Past sessions will appear here after completed appointments.
-          </p>
-        )}
-      </section>
-    </div>
-  );
+    <nav aria-label="Mobile account sections" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden">{tabs.map(([value,, mobile]) => <button key={value} onClick={() => changeTab(value)} className={`min-h-16 px-1 text-[9px] uppercase tracking-[.1em] ${tab === value ? "text-accent" : "text-foreground-muted"}`}>{mobile}</button>)}</nav>
+  </div>;
 }
+
+function Overview({ next, recent, recentCompleted, bookingDates, capabilities, receipts, onAppointments }: { next: CustomerAppointmentSummary | null; recent: CustomerAppointmentSummary[]; recentCompleted: CustomerAppointmentSummary | null; bookingDates: Props["bookingDates"]; capabilities: Props["bookingCapabilities"]; receipts: Map<string, ReceiptRecord>; onAppointments: () => void }) { return <div className="space-y-8"><section><p className="text-[10px] uppercase tracking-[.28em] text-foreground-muted">Next Appointment</p>{next ? <NextAppointment appointment={next} dates={bookingDates} capabilities={capabilities[next.id]} /> : <EmptyBooking />}</section><div className="grid border-y border-border sm:grid-cols-3"><a href="/#booking" className="flex min-h-14 items-center border-b border-border px-4 text-[10px] uppercase tracking-[.15em] text-foreground hover:text-accent sm:border-b-0 sm:border-r">Book Again{recentCompleted ? ` · ${recentCompleted.service_name}` : ""} →</a><button onClick={onAppointments} className="flex min-h-14 items-center border-b border-border px-4 text-left text-[10px] uppercase tracking-[.15em] text-foreground hover:text-accent sm:border-b-0 sm:border-r">Appointments →</button><a href="/#booking" className="flex min-h-14 items-center px-4 text-[10px] uppercase tracking-[.15em] text-foreground hover:text-accent">Book a Session →</a></div><section><div className="flex items-end justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.28em] text-foreground-muted">Recent</p><h2 className="mt-2 font-display text-2xl uppercase text-foreground sm:text-3xl">Appointments</h2></div><button onClick={onAppointments} className="min-h-11 text-[10px] uppercase tracking-[.15em] text-accent">View All →</button></div><div className="mt-3 border-t border-border">{recent.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} receipt={receipts.get(appointment.id)} />)}{!recent.length ? <p className="py-8 text-sm text-foreground-muted">No previous appointments yet.</p> : null}</div></section></div>; }
+
+function NextAppointment({ appointment, dates, capabilities }: { appointment: CustomerAppointmentSummary; dates: Props["bookingDates"]; capabilities: CustomerManagementCapabilities }) { const parts = dateParts(appointment.start_at); return <div className="mt-4 border-y border-border bg-surface/45 py-6 sm:py-8"><div className="grid gap-6 lg:grid-cols-[170px_minmax(0,1fr)_minmax(240px,auto)] lg:items-center"><div className="flex items-end gap-3 lg:block"><span className="font-display text-7xl leading-[.75] tracking-[-.06em] sm:text-8xl">{parts.day}</span><span className="text-xs uppercase tracking-[.24em] text-accent lg:mt-4 lg:block">{parts.month} {parts.year}</span></div><div className="min-w-0"><h2 className="break-words font-display text-3xl uppercase tracking-[-.04em] sm:text-4xl">{appointment.service_name}</h2><p className="mt-3 text-sm text-foreground-secondary">{appointment.date_label} · {appointment.time_label}</p><div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[10px] uppercase tracking-[.15em]"><span className={statusColor(appointment.status)}>{appointment.status}</span><span>{money(appointment.final_price)}</span></div><p className="mt-4 text-xs text-foreground-muted">Schulstrasse 2 · 8599 Salmsach</p><div className="mt-3 flex flex-wrap gap-4"><a target="_blank" rel="noreferrer" href={calendarUrl(appointment)} className="inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.14em] text-foreground-secondary">Add to Calendar →</a><a target="_blank" rel="noreferrer" href="https://www.google.com/maps/search/?api=1&query=Schulstrasse+2%2C+8599+Salmsach" className="inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.14em] text-foreground-secondary">Directions →</a></div></div><AccountBookingActions appointmentId={appointment.id} dates={dates} capabilities={capabilities} /></div></div>; }
+function EmptyBooking() { return <div className="mt-4 border-y border-border py-9"><h2 className="font-display text-3xl uppercase sm:text-4xl">Nothing Scheduled</h2><p className="mt-3 text-sm text-foreground-secondary">Your next session will appear here after booking.</p><a href="/#booking" className="mt-5 inline-flex min-h-11 items-center text-xs uppercase tracking-[.18em] text-accent">Book a Session →</a></div>; }
+
+function AppointmentsView({ filter, setFilter, appointments, expandedId, setExpandedId, bookingDates, capabilities, receipts }: { filter: AppointmentFilter; setFilter: (value: AppointmentFilter) => void; appointments: CustomerAppointmentSummary[]; expandedId: string | null; setExpandedId: (value: string | null) => void; bookingDates: Props["bookingDates"]; capabilities: Props["bookingCapabilities"]; receipts: Map<string, ReceiptRecord> }) { return <section><p className="text-[10px] uppercase tracking-[.28em] text-foreground-muted">Appointments</p><h2 className="mt-2 font-display text-3xl uppercase sm:text-4xl">Your Sessions</h2><div className="mt-6 flex overflow-x-auto border-b border-border">{(["upcoming", "past", "cancelled"] as const).map((value) => <button key={value} onClick={() => { setFilter(value); setExpandedId(null); }} className={`min-h-12 shrink-0 border-b-2 px-5 text-[10px] uppercase tracking-[.16em] ${filter === value ? "border-accent text-accent" : "border-transparent text-foreground-muted"}`}>{value}</button>)}</div><div className="border-t border-border">{appointments.map((appointment) => { const open = expandedId === appointment.id; return <article key={appointment.id} className="border-b border-border"><button onClick={() => setExpandedId(open ? null : appointment.id)} aria-expanded={open} className="w-full"><AppointmentRow appointment={appointment} receipt={receipts.get(appointment.id)} /></button>{open ? <AppointmentDetails appointment={appointment} receipt={receipts.get(appointment.id)}>{appointment.status === "confirmed" ? <AccountBookingActions appointmentId={appointment.id} dates={bookingDates} capabilities={capabilities[appointment.id]} /> : null}</AppointmentDetails> : null}</article>; })}{!appointments.length ? <p className="py-10 text-sm text-foreground-muted">No {filter} appointments.</p> : null}</div></section>; }
+function AppointmentRow({ appointment, receipt }: { appointment: CustomerAppointmentSummary; receipt?: ReceiptRecord }) { return <div className="grid min-h-16 min-w-0 gap-2 py-4 text-left sm:grid-cols-[150px_minmax(0,1fr)_140px_110px_30px] sm:items-center"><span className="text-xs uppercase tracking-[.12em] text-foreground-secondary">{appointment.date_label}</span><span className="break-words text-sm uppercase">{appointment.service_name}</span><span className="text-xs text-foreground-muted">{appointment.time_label}</span><span className={`text-[10px] uppercase tracking-[.14em] ${statusColor(appointment.status)}`}>{appointment.status.replaceAll("_", " ")}</span><span className="hidden text-right text-accent sm:block">{receipt ? "↗" : "→"}</span></div>; }
+function AppointmentDetails({ appointment, receipt, children }: { appointment: CustomerAppointmentSummary; receipt?: ReceiptRecord; children?: React.ReactNode }) { return <div className="grid gap-5 bg-surface/50 px-4 py-5 sm:grid-cols-2"><dl><Detail label="Booking reference" value={appointment.booking_reference ?? "—"} /><Detail label="Original price" value={money(appointment.original_price)} /><Detail label="Discount" value={money(appointment.discount_amount)} /><Detail label="Final price" value={money(appointment.final_price)} /></dl><div>{children}{appointment.status === "completed" ? <a href="/#booking" className="inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.16em] text-accent">Book Again →</a> : null}{receipt ? <div className="flex flex-wrap gap-4"><ReceiptLinks receipt={receipt} /></div> : null}</div></div>; }
+
+function ReceiptsView({ receipts }: { receipts: ReceiptRecord[] }) { return <section><p className="text-[10px] uppercase tracking-[.28em] text-foreground-muted">Receipts</p><h2 className="mt-2 font-display text-3xl uppercase sm:text-4xl">Receipt History</h2><div className="mt-6 divide-y divide-border border-y border-border">{receipts.map((receipt) => <div key={receipt.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm uppercase">Beleg {receipt.receipt_number}</p><p className="mt-1 text-xs text-foreground-muted">{receipt.service_name} · {new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", dateStyle: "medium" }).format(new Date(receipt.issued_at))} · {money(receipt.total)}</p></div><div className="flex flex-wrap gap-4"><ReceiptLinks receipt={receipt} /></div></div>)}{!receipts.length ? <p className="py-10 text-sm text-foreground-muted">No receipts are available yet.</p> : null}</div></section>; }
+function ReceiptLinks({ receipt }: { receipt: ReceiptRecord }) { return <><a target="_blank" rel="noreferrer" href={`/api/account/receipts/${receipt.id}`} className="inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.15em] text-accent">View Receipt →</a><a href={`/api/account/receipts/${receipt.id}?download=1`} className="inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.15em] text-foreground-secondary">Download PDF →</a></>; }
+
+type AccountViewProps = { customer: Props["customer"]; fullName: string; phone: string; setFullName: (value: string) => void; setPhone: (value: string) => void; editing: boolean; setEditing: (value: boolean) => void; saveProfile: (event: React.FormEvent<HTMLFormElement>) => void; feedback: string; isPending: boolean; marketingStatus: string; marketingFeedback: string; isMarketingPending: boolean; confirmUnsubscribe: boolean; setConfirmUnsubscribe: (value: boolean) => void; updateMarketing: (action: "subscribe" | "unsubscribe") => void; logout: () => void; isLoggingOut: boolean; confirmDelete: boolean; setConfirmDelete: (value: boolean) => void; deleteAccount: () => void; isDeleting: boolean };
+function AccountView(props: AccountViewProps) { return <div className="space-y-10"><section><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.26em] text-foreground-muted">Account</p><h2 className="mt-2 font-display text-3xl uppercase">Personal Details</h2></div><button onClick={() => props.setEditing(!props.editing)} className="min-h-11 text-[10px] uppercase tracking-[.17em] text-accent">{props.editing ? "Cancel" : "Edit →"}</button></div>{props.editing ? <form onSubmit={props.saveProfile} className="mt-5 grid gap-4 md:grid-cols-2"><Field label="Full name" value={props.fullName} onChange={props.setFullName} required /><Field label="Email" value={props.customer.email} disabled /><Field label="Phone" value={props.phone} onChange={props.setPhone} /><button disabled={props.isPending} className="min-h-12 bg-accent px-5 text-[10px] uppercase tracking-[.16em] text-background disabled:opacity-50">{props.isPending ? "Saving…" : "Save Changes"}</button></form> : <dl className="mt-5 divide-y divide-border border-y border-border"><Detail label="Full name" value={props.customer.full_name} /><Detail label="Email" value={props.customer.email} /><Detail label="Phone" value={props.customer.phone || "Not provided"} /></dl>}{props.feedback ? <p className="mt-3 text-sm text-foreground-secondary">{props.feedback}</p> : null}</section><section className="border-t border-border pt-7"><p className="text-[10px] uppercase tracking-[.26em] text-foreground-muted">Communication</p><div className="mt-4 flex flex-col gap-4 border-y border-border py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm uppercase">Marketing Email</p><p className="mt-1 text-xs text-foreground-muted">{props.marketingStatus === "subscribed" ? "Subscribed" : "Not subscribed"}. Appointment emails remain enabled separately.</p></div>{props.marketingStatus === "subscribed" ? <button disabled={props.isMarketingPending} onClick={() => props.setConfirmUnsubscribe(true)} className="min-h-11 w-fit border border-border px-4 text-[10px] uppercase tracking-[.15em]">Unsubscribe</button> : <button disabled={props.isMarketingPending} onClick={() => props.updateMarketing("subscribe")} className="min-h-11 w-fit bg-accent px-4 text-[10px] uppercase tracking-[.15em] text-background">Subscribe</button>}</div>{props.confirmUnsubscribe ? <div className="mt-4 border border-border p-4"><p className="text-sm leading-6 text-foreground-secondary">Promotional emails will stop. Appointment confirmations and updates will continue.</p><div className="mt-3 flex flex-wrap gap-3"><button disabled={props.isMarketingPending} onClick={() => props.updateMarketing("unsubscribe")} className="min-h-11 bg-foreground px-4 text-[10px] uppercase text-background">Confirm</button><button onClick={() => props.setConfirmUnsubscribe(false)} className="min-h-11 border border-border px-4 text-[10px] uppercase">Keep Subscription</button></div></div> : null}{props.marketingFeedback ? <p className="mt-3 text-sm text-foreground-secondary">{props.marketingFeedback}</p> : null}</section><section className="border-t border-border pt-7"><p className="text-[10px] uppercase tracking-[.26em] text-foreground-muted">Security</p><div className="mt-4 flex flex-col gap-3 sm:flex-row"><Link href="/forgot-password" className="inline-flex min-h-11 items-center justify-center border border-border px-5 text-[10px] uppercase tracking-[.16em]">Change Password</Link><button onClick={props.logout} disabled={props.isLoggingOut} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground-secondary">{props.isLoggingOut ? "Signing Out…" : "Logout"}</button></div></section><section className="border-t border-rose-900/50 pt-7"><p className="text-[10px] uppercase tracking-[.26em] text-rose-300">Danger Zone</p>{props.confirmDelete ? <div className="mt-4 border border-rose-900/50 p-4"><p className="text-sm leading-6 text-foreground-secondary">Permanently delete your login account? This action cannot be undone.</p><div className="mt-3 flex flex-col gap-3 sm:flex-row"><button disabled={props.isDeleting} onClick={props.deleteAccount} className="min-h-11 bg-rose-900 px-5 text-[10px] uppercase tracking-[.15em] text-white">{props.isDeleting ? "Deleting…" : "Delete Permanently"}</button><button onClick={() => props.setConfirmDelete(false)} className="min-h-11 border border-border px-5 text-[10px] uppercase">Cancel</button></div></div> : <button onClick={() => props.setConfirmDelete(true)} className="mt-4 min-h-11 text-[10px] uppercase tracking-[.16em] text-rose-300">Delete Account →</button>}</section></div>; }
+function Detail({ label, value }: { label: string; value: string }) { return <div className="flex min-w-0 items-start justify-between gap-4 py-3"><dt className="text-[10px] uppercase tracking-[.14em] text-foreground-muted">{label}</dt><dd className="min-w-0 break-words text-right text-sm">{value}</dd></div>; }
+function Field({ label, value, onChange, required, disabled }: { label: string; value: string; onChange?: (value: string) => void; required?: boolean; disabled?: boolean }) { return <label><span className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">{label}</span><input value={value} onChange={(event) => onChange?.(event.target.value)} required={required} disabled={disabled} className="mt-2 min-h-12 w-full border border-border bg-transparent px-4 text-base outline-none focus:border-accent disabled:text-foreground-muted" /></label>; }

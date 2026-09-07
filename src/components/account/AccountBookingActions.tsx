@@ -22,7 +22,7 @@ export default function AccountBookingActions({
   capabilities: CustomerManagementCapabilities;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"closed" | "manage" | "reschedule" | "cancel">("closed");
+  const [mode, setMode] = useState<"closed" | "reschedule" | "cancel">("closed");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -71,19 +71,11 @@ export default function AccountBookingActions({
 
   return (
     <div className="mt-5 border-t border-border pt-4">
-      {capabilities.canReschedule || capabilities.canCancel ? <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <button type="button" onClick={() => setMode(mode === "manage" ? "closed" : "manage")} className="min-h-11 border border-accent px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-accent transition-colors hover:bg-accent hover:text-background">Manage Booking</button>
+      {capabilities.canReschedule || capabilities.canCancel ? <div className="grid gap-2 sm:flex sm:flex-wrap">
         {capabilities.canReschedule ? <button type="button" onClick={() => setMode("reschedule")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground">Change Date &amp; Time</button> : null}
         {capabilities.canCancel ? <button type="button" onClick={() => setMode("cancel")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground">Cancel Booking</button> : null}
       </div> : <div className="space-y-1 border-l border-accent pl-3 text-sm leading-6 text-foreground-secondary">{Array.from(new Set([capabilities.rescheduleBlockedReason, capabilities.cancellationBlockedReason].filter(Boolean))).map((reason) => <p key={reason}>{reason}</p>)}</div>}
       {capabilities.canReschedule || capabilities.canCancel ? <div className="mt-3 space-y-1 text-sm leading-6 text-foreground-secondary">{!capabilities.canReschedule && capabilities.rescheduleBlockedReason ? <p>{capabilities.rescheduleBlockedReason}</p> : null}{!capabilities.canCancel && capabilities.cancellationBlockedReason ? <p>{capabilities.cancellationBlockedReason}</p> : null}</div> : null}
-
-      {mode === "manage" ? (
-        <div className="mt-4 border border-border bg-background p-4">
-          <p className="font-primary text-sm leading-6 text-foreground-secondary">Choose whether you want to move this appointment or cancel it.</p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">{capabilities.canReschedule ? <button type="button" onClick={() => setMode("reschedule")} className="min-h-11 bg-accent px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-background">Change Date &amp; Time →</button> : null}{capabilities.canCancel ? <button type="button" onClick={() => setMode("cancel")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary">Cancel Booking</button> : null}</div>
-        </div>
-      ) : null}
 
       {mode === "reschedule" ? (
         <div className="mt-4 space-y-5 border border-border bg-background p-4 sm:p-5">

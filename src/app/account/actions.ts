@@ -8,6 +8,7 @@ import {
   getResolvedAppointmentSlots,
   rescheduleResolvedAppointment,
 } from "@/lib/appointments/managed-mutations";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -142,5 +143,22 @@ export async function unsubscribeFromMarketingEmails() {
     return { error: null, preference: data };
   } catch (error) {
     return { error: toErrorMessage(error), preference: null };
+  }
+}
+
+export async function deleteCustomerAccount() {
+  try {
+    const { user } = await requireCustomerUser();
+    const adminSupabase = createAdminClient();
+    const { error } = await adminSupabase.auth.admin.deleteUser(user.id);
+
+    if (error) {
+      console.error("Customer account deletion failed", error);
+      return { error: "Your account could not be deleted right now." };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
   }
 }

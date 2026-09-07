@@ -4,8 +4,30 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdminReceipt, ReceiptRecord } from "@/lib/receipts/types";
 import { getFinanceSettings } from "@/lib/admin/runtime-settings";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const money = (value: unknown) => Math.round(Number(value ?? 0) * 100) / 100;
+
+export async function getReceiptsForCustomer(customerId: string) {
+  const supabase = createAdminClient();
+  const { data: appointments, error: appointmentsError } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("customer_id", customerId);
+
+  if (appointmentsError) throw appointmentsError;
+  const appointmentIds = (appointments ?? []).map((appointment) => appointment.id);
+  if (!appointmentIds.length) return [] as ReceiptRecord[];
+
+  const { data, error } = await supabase
+    .from("receipts")
+    .select("*")
+    .in("appointment_id", appointmentIds)
+    .order("issued_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as ReceiptRecord[];
+}
 
 export async function getOrCreateReceipt(
   supabase: SupabaseClient,

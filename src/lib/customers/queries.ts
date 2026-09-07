@@ -10,10 +10,12 @@ import type {
 } from "@/lib/customers/types";
 import type { ServiceRecord } from "@/lib/services/types";
 import { createClient } from "@/lib/supabase/server";
-
-function normalizeEmail(value: string | null | undefined) {
-  return value?.trim().toLowerCase() ?? "";
-}
+import {
+  getAdminIdentitySets,
+  getNonAdminCustomerProfileFilter,
+  isAdminCustomerIdentity,
+  normalizeEmail,
+} from "@/lib/customers/admin-filter";
 
 function normalizePhone(value: string | null | undefined) {
   return (value ?? "").replace(/\D+/g, "");
@@ -83,13 +85,25 @@ type MutableCustomerEntry = {
 export async function getAdminCustomerDirectory() {
   const supabase = await createClient();
   const todayTimestamp = Date.now();
+  const adminIdentities = await getAdminIdentitySets();
+  const nonAdminFilter = getNonAdminCustomerProfileFilter(
+    adminIdentities.adminUserIds,
+  );
+  let customersQuery = supabase
+    .from("customers")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (nonAdminFilter) {
+    customersQuery = customersQuery.or(nonAdminFilter);
+  }
 
   const [
     { data: customers, error: customersError },
     { data: appointments, error: appointmentsError },
     { data: services, error: servicesError },
   ] = await Promise.all([
-    supabase.from("customers").select("*").order("created_at", { ascending: false }),
+    customersQuery,
     supabase.from("appointments").select("*").order("start_at", { ascending: true }),
     supabase.from("services").select("id, name, price, duration_min, duration_max").order("sort_order", {
       ascending: true,
@@ -108,7 +122,14 @@ export async function getAdminCustomerDirectory() {
     throw new Error(`Unable to load services: ${servicesError.message}`);
   }
 
-  const customerRows = (customers ?? []) as CustomerRecord[];
+  const customerRows = ((customers ?? []) as CustomerRecord[]).filter(
+    (customer) => !isAdminCustomerIdentity(customer, adminIdentities),
+  );
+  const excludedCustomerIds = new Set(
+    ((customers ?? []) as CustomerRecord[])
+      .filter((customer) => isAdminCustomerIdentity(customer, adminIdentities))
+      .map((customer) => customer.id),
+  );
   const appointmentRows = (appointments ?? []) as AppointmentRecord[];
   const serviceRows = (services ?? []) as Pick<
     ServiceRecord,
@@ -149,6 +170,20 @@ export async function getAdminCustomerDirectory() {
   }
 
   for (const appointment of appointmentRows) {
+    const appointmentEmails = [
+      appointment.customer_email,
+      appointment.guest_email,
+    ].map(normalizeEmail);
+
+    if (
+      (appointment.customer_id && excludedCustomerIds.has(appointment.customer_id)) ||
+      appointmentEmails.some(
+        (email) => email && adminIdentities.adminEmails.has(email),
+      )
+    ) {
+      continue;
+    }
+
     const serviceName = servicesById.get(appointment.service_id) ?? "Service";
     const summary = toAppointmentSummary(appointment, serviceName);
 
@@ -160,7 +195,9 @@ export async function getAdminCustomerDirectory() {
       continue;
     }
 
-    const guestEmail = normalizeEmail(appointment.customer_email ?? appointment.guest_email);
+    const guestEmail =
+      normalizeEmail(appointment.customer_email) ??
+      normalizeEmail(appointment.guest_email);
     const guestPhone = normalizePhone(appointment.customer_phone ?? appointment.guest_phone);
     const matchedCustomerId =
       (guestEmail ? emailToCustomerId.get(guestEmail) : undefined) ??
@@ -207,6 +244,13 @@ export async function getAdminCustomerDirectory() {
   }
 
   const directory = Array.from(entries.values())
+    .filter(
+      (entry) =>
+        !isAdminCustomerIdentity(
+          { email: entry.email },
+          adminIdentities,
+        ),
+    )
     .map<AdminCustomerDirectoryEntry>((entry) => {
       const history = entry.appointment_history
         .slice()
