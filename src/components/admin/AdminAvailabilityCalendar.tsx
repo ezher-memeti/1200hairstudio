@@ -183,6 +183,15 @@ export default function AdminAvailabilityCalendar({
   const [isRangePending, startRangeTransition] = useTransition();
 
   useEffect(() => {
+    if (!selectedDateKey && !isRangeEditorOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isRangeEditorOpen, selectedDateKey]);
+
+  useEffect(() => {
     if (saveState !== "saved") {
       return;
     }
@@ -405,7 +414,7 @@ export default function AdminAvailabilityCalendar({
   }
 
   return (
-    <section className="space-y-8">
+    <section className="min-w-0 space-y-6 sm:space-y-8">
       <div className="space-y-4">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
           Calendar
@@ -428,8 +437,8 @@ export default function AdminAvailabilityCalendar({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 border border-border bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+      <div className="flex flex-col gap-4 border border-border bg-surface px-3 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="grid grid-cols-2 gap-2 min-[430px]:flex min-[430px]:flex-wrap min-[430px]:items-center sm:gap-3">
           <button
             type="button"
             onClick={() => setVisibleMonthKey((current) => addMonthsToDateKey(current, -1))}
@@ -437,7 +446,7 @@ export default function AdminAvailabilityCalendar({
           >
             ← Prev
           </button>
-          <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
+          <h2 className="col-span-2 row-start-1 text-center font-display text-2xl uppercase tracking-[-0.04em] text-foreground min-[430px]:order-first min-[430px]:col-auto min-[430px]:text-left sm:text-3xl">
             {formatDateKey(visibleMonthKey, { month: "long", year: "numeric" })}
           </h2>
           <button
@@ -520,7 +529,7 @@ export default function AdminAvailabilityCalendar({
                 key={day.key}
                 type="button"
                 onClick={() => openDateEditor(day.key)}
-                className={`group flex min-h-[8.5rem] flex-col justify-between border-b border-r border-border px-2 py-2 text-left transition-colors sm:min-h-[10rem] sm:px-3 sm:py-3 ${
+                className={`group flex min-h-[5.25rem] flex-col justify-between overflow-hidden border-b border-r border-border px-1.5 py-2 text-left transition-colors sm:min-h-[10rem] sm:px-3 sm:py-3 ${
                   day.isCurrentMonth
                     ? "bg-background text-foreground hover:bg-background-secondary"
                     : "bg-background/40 text-foreground-muted hover:bg-background/70"
@@ -535,13 +544,15 @@ export default function AdminAvailabilityCalendar({
                     {formatDateKey(day.key, { day: "numeric" })}
                   </span>
                   {day.isToday ? (
-                    <span className="font-primary text-[9px] uppercase tracking-[0.22em] text-accent sm:text-[10px]">
+                    <span className="hidden font-primary text-[9px] uppercase tracking-[0.22em] text-accent sm:inline sm:text-[10px]">
                       Today
                     </span>
                   ) : null}
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1 sm:space-y-1.5">
+                  <span className={`block h-1 w-full sm:hidden ${isClosed ? "bg-error/60" : exception ? "bg-accent" : metrics.count ? "bg-accent/70" : "bg-border"}`} aria-hidden="true" />
+                  <div className="hidden space-y-1.5 sm:block">
                   {metrics.count ? <p className="font-primary text-[10px] uppercase tracking-[0.13em] text-foreground sm:text-[11px]">{metrics.count} appointment{metrics.count === 1 ? "" : "s"}</p> : <p className="font-primary text-[9px] uppercase tracking-[0.13em] text-foreground-muted">No appointments</p>}
                   {metrics.revenue ? <p className="font-primary text-[10px] text-foreground-secondary">CHF {metrics.revenue.toFixed(2)}</p> : null}
                   {!isClosed && availableMinutes ? <p className="font-primary text-[9px] uppercase tracking-[0.13em] text-foreground-muted">{occupancy}% booked</p> : null}
@@ -563,6 +574,7 @@ export default function AdminAvailabilityCalendar({
                       {isClosed ? "Closed" : "Normal hours"}
                     </p>
                   )}
+                  </div>
                 </div>
               </button>
             );
@@ -579,7 +591,7 @@ export default function AdminAvailabilityCalendar({
             className="absolute inset-0 cursor-default"
           />
 
-          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto border border-border bg-background-secondary px-5 py-5 sm:m-6 sm:max-w-2xl sm:px-6 sm:py-6">
+          <div className="admin-scrollbar relative z-10 max-h-[calc(100dvh-16px)] w-full overflow-y-auto overscroll-contain border border-border bg-background-secondary px-4 py-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:m-6 sm:max-h-[calc(100dvh-48px)] sm:max-w-2xl sm:px-6 sm:py-6">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-primary text-xs uppercase tracking-[0.3em] text-foreground-secondary">
@@ -747,7 +759,7 @@ export default function AdminAvailabilityCalendar({
             className="absolute inset-0 cursor-default"
           />
 
-          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto border border-border bg-background-secondary px-5 py-5 sm:m-6 sm:max-w-xl sm:px-6 sm:py-6">
+          <div className="admin-scrollbar relative z-10 max-h-[calc(100dvh-16px)] w-full overflow-y-auto overscroll-contain border border-border bg-background-secondary px-4 py-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:m-6 sm:max-h-[calc(100dvh-48px)] sm:max-w-xl sm:px-6 sm:py-6">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-primary text-xs uppercase tracking-[0.3em] text-foreground-secondary">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Mail, Send, Users, X, type LucideIcon } from "lucide-react";
 import {
@@ -76,6 +76,15 @@ export default function AdminMarketingView({ templates, campaigns, subscribers, 
   const [isPending, startTransition] = useTransition();
   const templateNameById = useMemo(() => new Map(templates.map((template) => [template.id, template.name])), [templates]);
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === content.templateId) ?? null, [content.templateId, templates]);
+
+  useEffect(() => {
+    if (!detail) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [detail]);
   const editorPlaceholders = selectedTemplate ? {
     subject: `Add a subject for the ${selectedTemplate.name} campaign`,
     preheader: `Preheader for ${selectedTemplate.name} (Optional)`,

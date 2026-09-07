@@ -404,7 +404,7 @@ export default function AdminAppointmentsView({
   }, [selectedDetail]);
 
   useEffect(() => {
-    if (!selectedDetail) {
+    if (!selectedDetail && !isCreateOpen && !isEditOpen && !isRemoveOpen) {
       return;
     }
 
@@ -414,7 +414,7 @@ export default function AdminAppointmentsView({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [selectedDetail]);
+  }, [isCreateOpen, isEditOpen, isRemoveOpen, selectedDetail]);
 
   function generateReceipt() {
     if (!selectedDetail) return;
@@ -1433,7 +1433,7 @@ export default function AdminAppointmentsView({
 
       {isEditOpen && selectedDetail && editForm ? (
         <div className="fixed inset-0 z-[95] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="w-full max-w-2xl border border-border bg-surface px-5 py-6 sm:px-6">
+          <div className="admin-scrollbar max-h-[calc(100dvh-24px)] w-full max-w-2xl overflow-y-auto overscroll-contain border border-border bg-surface px-5 py-6 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
@@ -1562,7 +1562,7 @@ export default function AdminAppointmentsView({
 
       {isRemoveOpen && selectedDetail ? (
         <div className="fixed inset-0 z-[95] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="w-full max-w-xl border border-border bg-surface px-5 py-6 sm:px-6">
+          <div className="admin-scrollbar max-h-[calc(100dvh-24px)] w-full max-w-xl overflow-y-auto overscroll-contain border border-border bg-surface px-5 py-6 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6">
             <div className="space-y-2">
               <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
                 Appointments
@@ -1627,7 +1627,7 @@ export default function AdminAppointmentsView({
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="w-full max-w-3xl border border-border bg-surface px-5 py-6 sm:px-6">
+          <div className="admin-scrollbar max-h-[calc(100dvh-24px)] w-full max-w-3xl overflow-y-auto overscroll-contain border border-border bg-surface px-5 py-6 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">

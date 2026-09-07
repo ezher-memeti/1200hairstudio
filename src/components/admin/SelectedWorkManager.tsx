@@ -104,6 +104,15 @@ export default function SelectedWorkManager({
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderedItems, setOrderedItems] = useState<SelectedWorkRecord[]>([]);
 
+  useEffect(() => {
+    if (!isOrderModalOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOrderModalOpen]);
+
   const items = useMemo(
     () =>
       [...initialItems].sort(
@@ -708,7 +717,7 @@ export default function SelectedWorkManager({
 
       {isOrderModalOpen ? (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="w-full max-w-2xl border border-border bg-surface px-5 py-6 sm:px-6">
+          <div className="admin-scrollbar max-h-[calc(100dvh-24px)] w-full max-w-2xl overflow-y-auto overscroll-contain border border-border bg-surface px-4 py-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">

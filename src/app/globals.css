@@ -31,6 +31,39 @@ body {
   font-family: var(--font-admin-primary);
 }
 
+.admin-theme {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-theme :where(main, section, article, form, fieldset, table, tbody, tr, td, th, div) {
+  min-width: 0;
+}
+
+.admin-theme :where(p, dd, td, th, a, button, label) {
+  overflow-wrap: anywhere;
+}
+
+.admin-scrollbar {
+  scrollbar-color: rgba(216, 177, 116, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.admin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.admin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(216, 177, 116, 0.28);
+}
+
+@media (max-width: 767px) {
+  .admin-theme :where(input:not([type="checkbox"]):not([type="radio"]), textarea) {
+    font-size: 16px;
+  }
+}
+
 @keyframes booking-panel-in {
   from {
     opacity: 0;
