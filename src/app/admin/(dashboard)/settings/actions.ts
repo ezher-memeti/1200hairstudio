@@ -11,6 +11,7 @@ import {
   type NotificationSettings,
   updateAdminSetting,
 } from "@/lib/admin/settings";
+import type { AppointmentReminderSettings } from "@/lib/reminders/settings";
 
 type BusinessHourUpdate = {
   id: string;
@@ -124,6 +125,25 @@ export async function saveNotificationSettings(input: NotificationSettings): Pro
     if (value.senderName.length > 100) return { success: false, message: "Sender name is too long." };
     await updateAdminSetting("notifications", value);
     return success("Notification");
+  } catch (error) { return { success: false, message: toActionError(error).error }; }
+}
+
+export async function saveAppointmentReminderSettings(input: AppointmentReminderSettings): Promise<SettingsActionResult> {
+  try {
+    if (!Number.isInteger(input.hoursBefore) || input.hoursBefore < 1 || input.hoursBefore > 720) return { success: false, message: "Reminder timing must be between 1 and 720 whole hours." };
+    const supabase = await requireAdminClient();
+    const payload = {
+      appointment_reminders_enabled: input.enabled,
+      appointment_reminder_hours_before: input.hoursBefore,
+      appointment_reminder_email_enabled: input.emailEnabled,
+      appointment_reminder_whatsapp_enabled: input.whatsappEnabled,
+    };
+    const { data: existing, error: loadError } = await supabase.from("notification_settings").select("id").limit(1).maybeSingle();
+    if (loadError) throw new Error("Unable to load reminder settings.");
+    const query = existing?.id ? supabase.from("notification_settings").update(payload).eq("id", existing.id) : supabase.from("notification_settings").insert(payload);
+    const { error } = await query;
+    if (error) throw new Error("Unable to save reminder settings.");
+    return success("Appointment reminder");
   } catch (error) { return { success: false, message: toActionError(error).error }; }
 }
 
