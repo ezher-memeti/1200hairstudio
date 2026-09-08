@@ -10,6 +10,7 @@ import {
   updateAdminAppointment,
 } from "@/app/actions/appointments";
 import { generateAdminReceiptForAppointment, resendAdminReceipt } from "@/app/actions/finance";
+import { removeAdminRecurringAppointment } from "@/app/actions/recurring-bookings";
 import { formatZurichTime } from "@/lib/appointments/availability";
 import type {
   AdminAppointmentDetail,
@@ -27,6 +28,8 @@ import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialo
 import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion, TransactionType } from "@/lib/finance/types";
 import type { ReceiptRecord } from "@/lib/receipts/types";
 import type { PaymentMethodSetting } from "@/lib/admin/settings";
+import RecurringBookingManager from "@/components/recurring-bookings/RecurringBookingManager";
+import type { RecurringBookingRecord } from "@/lib/recurring-bookings/types";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -44,6 +47,7 @@ type Props = {
   receipts: ReceiptRecord[];
   enabledPaymentMethods: PaymentMethodSetting[];
   receiptEmailEnabled: boolean;
+  recurringBookings: RecurringBookingRecord[];
 };
 
 type AppointmentCard = AdminAppointmentDetail & {
@@ -303,6 +307,7 @@ export default function AdminAppointmentsView({
   receipts,
   enabledPaymentMethods,
   receiptEmailEnabled,
+  recurringBookings,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -673,6 +678,19 @@ export default function AdminAppointmentsView({
     }
 
     startTransition(async () => {
+      if (selectedDetail.recurring_booking_id) {
+        const recurringResult = await removeAdminRecurringAppointment(selectedDetail.id);
+        if (recurringResult.error) {
+          setRemoveFeedback(recurringResult.error);
+          return;
+        }
+        setAppointmentState((current) => current.filter((appointment) => appointment.id !== selectedDetail.id));
+        setFeedback("Recurring appointment removed. The regular booking remains active.");
+        setSelectedAppointmentId(null);
+        setIsRemoveOpen(false);
+        router.refresh();
+        return;
+      }
       const result = await removeAdminAppointment({
         appointmentId: selectedDetail.id,
         sendNotification: sendCancellationEmail,
@@ -1262,6 +1280,13 @@ export default function AdminAppointmentsView({
         </div>
       ) : null}
 
+      <RecurringBookingManager
+        mode="admin"
+        services={services.map((service) => ({ id: service.id, name: service.name }))}
+        customers={customers}
+        series={recurringBookings}
+      />
+
       {selectedDetail ? (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-background/80 px-3 backdrop-blur-sm sm:px-6"
@@ -1418,7 +1443,7 @@ export default function AdminAppointmentsView({
                 onClick={openRemoveModal}
                 className="inline-flex min-h-11 items-center justify-center border border-rose-500/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
               >
-                Remove Appointment
+                {selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment"}
               </button>
             </div>
 
@@ -1568,10 +1593,12 @@ export default function AdminAppointmentsView({
                 Appointments
               </p>
               <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                Remove Appointment
+                {selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment"}
               </h2>
               <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
-                This permanently removes the appointment. You can optionally notify the customer by email.
+                {selectedDetail.recurring_booking_id
+                  ? "This permanently removes only this future appointment. The recurring series and later appointments remain active."
+                  : "This permanently removes the appointment. You can optionally notify the customer by email."}
               </p>
             </div>
 
@@ -1584,7 +1611,7 @@ export default function AdminAppointmentsView({
               </p>
             </div>
 
-            <label className="mt-6 inline-flex items-center gap-3">
+            {!selectedDetail.recurring_booking_id ? <label className="mt-6 inline-flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={sendCancellationEmail}
@@ -1594,7 +1621,7 @@ export default function AdminAppointmentsView({
               <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
                 Send cancellation email
               </span>
-            </label>
+            </label> : null}
 
             {removeFeedback ? (
               <div className="mt-4 border border-border bg-background/35 px-4 py-3">
@@ -1618,7 +1645,7 @@ export default function AdminAppointmentsView({
                 onClick={removeAppointment}
                 className="inline-flex min-h-12 items-center justify-center border border-rose-500/40 px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
               >
-                {isPending ? "Removing..." : "Remove Appointment"}
+                {isPending ? "Removing..." : selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment"}
               </button>
             </div>
           </div>

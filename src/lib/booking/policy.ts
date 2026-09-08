@@ -9,12 +9,20 @@ export type CustomerManagementCapabilities = {
   cancellationBlockedReason: string | null;
 };
 
+export type BookingPolicyContext = "normal" | "recurring";
+
 const INACTIVE_REASON = "This booking is past or no longer active.";
 const RESCHEDULE_DISABLED_REASON = "Online rescheduling is currently unavailable. Please contact 1200 Hairstudio.";
 const CANCELLATION_DISABLED_REASON = "Online cancellation is currently unavailable. Please contact 1200 Hairstudio.";
 const CANCELLATION_CUTOFF_REASON = "Online cancellation is no longer available for this appointment. Please contact 1200 Hairstudio.";
 
-export function validateCustomerBookingTime(startAt: string, dateKey: string, settings: BookingSettings, now = new Date()) {
+export function validateCustomerBookingTime(
+  startAt: string,
+  dateKey: string,
+  settings: BookingSettings,
+  now = new Date(),
+  context: BookingPolicyContext = "normal",
+) {
   const startMs = new Date(startAt).getTime();
   if (!Number.isFinite(startMs)) return "Choose a valid appointment time.";
 
@@ -24,8 +32,12 @@ export function validateCustomerBookingTime(startAt: string, dateKey: string, se
   }
 
   const currentDateKey = getCurrentZurichDateTime(now).dateKey;
+  if (dateKey < currentDateKey) {
+    return "Choose a future appointment date.";
+  }
+
   const lastAllowedDateKey = addDaysToDateKey(currentDateKey, settings.maximumHorizonDays);
-  if (dateKey < currentDateKey || dateKey > lastAllowedDateKey) {
+  if (context === "normal" && dateKey > lastAllowedDateKey) {
     return `Bookings are available up to ${settings.maximumHorizonDays} days in advance.`;
   }
 

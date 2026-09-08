@@ -60,6 +60,14 @@ export function getBusinessHourDayLabelUpper(dayOfWeek: number) {
   return weekdayShortUpper[dayOfWeek - 1] ?? `DAY ${dayOfWeek}`;
 }
 
+export function getOpenBusinessWeekdays(hours: BusinessHourFields[]) {
+  return Array.from(new Set(
+    hours
+      .filter((hour) => !hour.is_closed && Boolean(hour.open_time) && Boolean(hour.close_time))
+      .map((hour) => hour.day_of_week),
+  )).sort((first, second) => first - second);
+}
+
 export type BookingDate = {
   id: string;
   day: string;

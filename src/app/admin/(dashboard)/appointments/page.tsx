@@ -10,6 +10,7 @@ import {
 import { getActiveServices } from "@/lib/public/services";
 import { getAdminFinancePromotions, getAppointmentFinanceSummaries, getAppointmentReceipts } from "@/lib/finance/queries";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
+import { getRecurringBookings } from "@/lib/recurring-bookings/service";
 
 type SearchParams = {
   view?: string;
@@ -81,11 +82,12 @@ export default async function AdminAppointmentsPage({
     getAdminCustomerOptions(),
     getActiveServices(),
   ]);
-  const [financeSummaries, promotions, receipts, runtimeSettings] = await Promise.all([
+  const [financeSummaries, promotions, receipts, runtimeSettings, recurringBookings] = await Promise.all([
     getAppointmentFinanceSummaries(appointments.map((appointment) => appointment.id)),
     getAdminFinancePromotions(),
     getAppointmentReceipts(appointments.map((appointment) => appointment.id)),
     getRuntimeSettings(),
+    getRecurringBookings(),
   ]);
 
   return (
@@ -103,6 +105,7 @@ export default async function AdminAppointmentsPage({
       receipts={receipts}
       enabledPaymentMethods={runtimeSettings.finance.enabledPaymentMethods}
       receiptEmailEnabled={runtimeSettings.notifications.receiptEmailEnabled}
+      recurringBookings={recurringBookings}
     />
   );
 }

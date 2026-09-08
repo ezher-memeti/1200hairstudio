@@ -9,6 +9,7 @@ import {
   rescheduleResolvedAppointment,
 } from "@/lib/appointments/managed-mutations";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { removeRecurringAppointmentOccurrence } from "@/lib/recurring-bookings/service";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -66,6 +67,21 @@ export async function cancelAccountBooking(appointmentId: string) {
     return cancelResolvedAppointment(appointment);
   } catch (error) {
     return { error: toErrorMessage(error), emailWarning: null };
+  }
+}
+
+export async function removeAccountRecurringAppointment(appointmentId: string) {
+  try {
+    const appointment = await resolveOwnedAppointment(appointmentId);
+    if (!appointment?.recurring_booking_id) return { error: "Recurring appointment not found." };
+    await removeRecurringAppointmentOccurrence(appointment.id);
+    revalidatePath("/account");
+    revalidatePath("/");
+    revalidatePath("/admin/appointments");
+    revalidatePath("/admin/calendar");
+    return { error: null };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
   }
 }
 

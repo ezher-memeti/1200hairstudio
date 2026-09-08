@@ -3,7 +3,7 @@ import { addMinutesToTime, getUtcIsoForZurichDateTime, removeBookedSlots } from 
 import type { AppointmentRecord } from "@/lib/appointments/types";
 import { getEffectiveHours } from "@/lib/public/booking-availability-utils";
 import type { BookingSettings } from "@/lib/admin/settings";
-import { validateCustomerBookingTime } from "@/lib/booking/policy";
+import { validateCustomerBookingTime, type BookingPolicyContext } from "@/lib/booking/policy";
 import { getBookingSettings } from "@/lib/booking/settings";
 
 const ZURICH_TIME_ZONE = "Europe/Zurich";
@@ -21,6 +21,7 @@ type GetAvailableSlotsOptions = {
   excludeAppointmentId?: string;
   bookingSettings?: BookingSettings;
   enforceCustomerPolicy?: boolean;
+  bookingContext?: BookingPolicyContext;
 };
 
 function applyCustomerPolicy(
@@ -28,10 +29,11 @@ function applyCustomerPolicy(
   dateKey: string,
   settings: BookingSettings,
   enforce: boolean,
+  context: BookingPolicyContext,
 ) {
   if (!enforce) return slots;
   const now = new Date();
-  return slots.filter((slot) => !validateCustomerBookingTime(slot.slot_start, dateKey, settings, now));
+  return slots.filter((slot) => !validateCustomerBookingTime(slot.slot_start, dateKey, settings, now, context));
 }
 
 function getSafeSlotInterval(settings: BookingSettings) {
@@ -128,7 +130,7 @@ export async function getAvailableSlots(
     return applyCustomerPolicy(filtered.map((time) => ({
       slot_start: getUtcIsoForZurichDateTime(dateKey, time),
       slot_end: getUtcIsoForZurichDateTime(dateKey, addMinutesToTime(time, duration)),
-    })), dateKey, bookingSettings, options?.enforceCustomerPolicy === true);
+    })), dateKey, bookingSettings, options?.enforceCustomerPolicy === true, options?.bookingContext ?? "normal");
   }
 
   const { data, error } = await supabase.rpc("get_available_slots", {
@@ -144,7 +146,7 @@ export async function getAvailableSlots(
   const slots = ((data ?? []) as AvailableSlotRecord[]).filter(
     (slot) => Boolean(slot.slot_start) && Boolean(slot.slot_end),
   );
-  return applyCustomerPolicy(slots, dateKey, bookingSettings, options?.enforceCustomerPolicy === true);
+  return applyCustomerPolicy(slots, dateKey, bookingSettings, options?.enforceCustomerPolicy === true, options?.bookingContext ?? "normal");
 }
 
 export function mapAvailableSlotsForDisplay(slots: AvailableSlotRecord[]) {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   cancelAccountBooking,
   getAccountBookingSlots,
+  removeAccountRecurringAppointment,
   rescheduleAccountBooking,
 } from "@/app/account/actions";
 import type { CustomerManagementCapabilities } from "@/lib/booking/policy";
@@ -14,15 +15,17 @@ type Slot = { time: string; slot_start: string; slot_end: string };
 
 export default function AccountBookingActions({
   appointmentId,
+  recurringBookingId,
   dates,
   capabilities,
 }: {
   appointmentId: string;
+  recurringBookingId?: string | null;
   dates: DateOption[];
   capabilities: CustomerManagementCapabilities;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"closed" | "reschedule" | "cancel">("closed");
+  const [mode, setMode] = useState<"closed" | "reschedule" | "cancel" | "remove">("closed");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -69,13 +72,27 @@ export default function AccountBookingActions({
     });
   }
 
+  function removeOccurrence() {
+    setFeedback("");
+    startTransition(async () => {
+      const result = await removeAccountRecurringAppointment(appointmentId);
+      if (result.error) {
+        setFeedback(result.error);
+        return;
+      }
+      setFeedback("This appointment was removed. Your regular booking remains active.");
+      setMode("closed");
+      router.refresh();
+    });
+  }
+
   return (
     <div className="mt-5 border-t border-border pt-4">
-      {capabilities.canReschedule || capabilities.canCancel ? <div className="grid gap-2 sm:flex sm:flex-wrap">
+      {capabilities.canReschedule || capabilities.canCancel || recurringBookingId ? <div className="grid gap-2 sm:flex sm:flex-wrap">
         {capabilities.canReschedule ? <button type="button" onClick={() => setMode("reschedule")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground">Change Date &amp; Time</button> : null}
-        {capabilities.canCancel ? <button type="button" onClick={() => setMode("cancel")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground">Cancel Booking</button> : null}
+        {capabilities.canCancel || recurringBookingId ? <button type="button" onClick={() => setMode(recurringBookingId ? "remove" : "cancel")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground">{recurringBookingId ? "Remove This Appointment" : "Cancel Booking"}</button> : null}
       </div> : <div className="space-y-1 border-l border-accent pl-3 text-sm leading-6 text-foreground-secondary">{Array.from(new Set([capabilities.rescheduleBlockedReason, capabilities.cancellationBlockedReason].filter(Boolean))).map((reason) => <p key={reason}>{reason}</p>)}</div>}
-      {capabilities.canReschedule || capabilities.canCancel ? <div className="mt-3 space-y-1 text-sm leading-6 text-foreground-secondary">{!capabilities.canReschedule && capabilities.rescheduleBlockedReason ? <p>{capabilities.rescheduleBlockedReason}</p> : null}{!capabilities.canCancel && capabilities.cancellationBlockedReason ? <p>{capabilities.cancellationBlockedReason}</p> : null}</div> : null}
+      {capabilities.canReschedule || capabilities.canCancel || recurringBookingId ? <div className="mt-3 space-y-1 text-sm leading-6 text-foreground-secondary">{!capabilities.canReschedule && capabilities.rescheduleBlockedReason ? <p>{capabilities.rescheduleBlockedReason}</p> : null}{!recurringBookingId && !capabilities.canCancel && capabilities.cancellationBlockedReason ? <p>{capabilities.cancellationBlockedReason}</p> : null}</div> : null}
 
       {mode === "reschedule" ? (
         <div className="mt-4 space-y-5 border border-border bg-background p-4 sm:p-5">
@@ -87,6 +104,10 @@ export default function AccountBookingActions({
 
       {mode === "cancel" ? (
         <div className="mt-4 border border-border bg-background p-4 sm:p-5"><p className="font-display text-xl uppercase text-foreground">Cancel this booking?</p><p className="mt-2 font-primary text-sm leading-6 text-foreground-secondary">The appointment time will be released. This cannot be undone here.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><button type="button" disabled={isPending} onClick={cancel} className="min-h-11 bg-accent px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-background disabled:opacity-50">{isPending ? "Cancelling..." : "Confirm Cancellation"}</button><button type="button" disabled={isPending} onClick={() => setMode("closed")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary">Keep Booking</button></div></div>
+      ) : null}
+
+      {mode === "remove" ? (
+        <div className="mt-4 border border-border bg-background p-4 sm:p-5"><p className="font-display text-xl uppercase text-foreground">Remove this appointment?</p><p className="mt-2 font-primary text-sm leading-6 text-foreground-secondary">Only this future appointment will be permanently removed. Your regular booking and later reservations remain active.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><button type="button" disabled={isPending} onClick={removeOccurrence} className="min-h-11 border border-rose-500/50 px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-rose-200 disabled:opacity-50">{isPending ? "Removing..." : "Remove This Appointment"}</button><button type="button" disabled={isPending} onClick={() => setMode("closed")} className="min-h-11 border border-border px-4 font-primary text-[10px] uppercase tracking-[0.18em] text-foreground-secondary">Keep Appointment</button></div></div>
       ) : null}
 
       {feedback ? <p className="mt-4 font-primary text-sm text-foreground-secondary" role="status">{feedback}</p> : null}

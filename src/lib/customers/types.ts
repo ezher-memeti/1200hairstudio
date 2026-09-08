@@ -47,3 +47,15 @@ export type AdminCustomerDirectoryEntry = {
   last_appointment: AdminCustomerAppointment | null;
   appointment_history: AdminCustomerAppointment[];
 };
+
+export type AdminCustomerLoyaltySummary = {
+  is_enabled: boolean;
+  visits_required: number;
+  eligible_visits: number;
+  visits_remaining: number;
+  progress_percent: number;
+  available_reward: {
+    reward_type: "fixed_discount" | "percentage" | "free_service";
+    reward_value: number | null;
+  } | null;
+};

@@ -6,6 +6,7 @@ import type { AppointmentRecord } from "@/lib/appointments/types";
 import type {
   AdminCustomerAppointment,
   AdminCustomerDirectoryEntry,
+  AdminCustomerLoyaltySummary,
   CustomerRecord,
 } from "@/lib/customers/types";
 import type { ServiceRecord } from "@/lib/services/types";
@@ -16,6 +17,7 @@ import {
   isAdminCustomerIdentity,
   normalizeEmail,
 } from "@/lib/customers/admin-filter";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function normalizePhone(value: string | null | undefined) {
   return (value ?? "").replace(/\D+/g, "");
@@ -297,4 +299,37 @@ export async function getAdminCustomerDirectory() {
     .sort((first, second) => first.full_name.localeCompare(second.full_name));
 
   return directory;
+}
+
+export async function getAdminCustomerLoyaltySummaries(customerIds: string[]) {
+  const summaries: Record<string, AdminCustomerLoyaltySummary> = {};
+  if (!customerIds.length) return summaries;
+  const admin = createAdminClient();
+  const [{ data: settings, error: settingsError }, { data: visits, error: visitsError }, { data: rewards, error: rewardsError }] = await Promise.all([
+    admin.from("loyalty_settings").select("is_enabled,visits_required").limit(1).maybeSingle(),
+    admin.from("loyalty_visits").select("customer_id,is_eligible,reward_cycle").in("customer_id", customerIds),
+    admin.from("loyalty_rewards").select("customer_id,reward_type,reward_value,status,expires_at,earned_at").in("customer_id", customerIds),
+  ]);
+  if (settingsError || visitsError || rewardsError) throw new Error("Unable to load customer loyalty summaries.");
+  const visitsRequired = Math.max(1, Number(settings?.visits_required ?? 10));
+  for (const customerId of customerIds) {
+    const customerVisits = (visits ?? []).filter((visit) => visit.customer_id === customerId);
+    const currentCycle = Math.max(1, ...customerVisits.map((visit) => Number(visit.reward_cycle ?? 1)));
+    const eligibleVisits = Math.min(visitsRequired, customerVisits.filter((visit) => visit.is_eligible && Number(visit.reward_cycle ?? 1) === currentCycle).length);
+    const availableReward = (rewards ?? [])
+      .filter((reward) => reward.customer_id === customerId && reward.status === "available" && (!reward.expires_at || new Date(reward.expires_at).getTime() > Date.now()))
+      .sort((first, second) => new Date(first.earned_at).getTime() - new Date(second.earned_at).getTime())[0];
+    summaries[customerId] = {
+      is_enabled: settings?.is_enabled ?? false,
+      visits_required: visitsRequired,
+      eligible_visits: eligibleVisits,
+      visits_remaining: Math.max(0, visitsRequired - eligibleVisits),
+      progress_percent: Math.min(100, (eligibleVisits / visitsRequired) * 100),
+      available_reward: availableReward ? {
+        reward_type: availableReward.reward_type as "fixed_discount" | "percentage" | "free_service",
+        reward_value: availableReward.reward_value === null ? null : Number(availableReward.reward_value),
+      } : null,
+    };
+  }
+  return summaries;
 }

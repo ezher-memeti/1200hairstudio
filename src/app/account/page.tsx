@@ -10,15 +10,17 @@ import { getBookingSettings } from "@/lib/booking/settings";
 import { getCustomerManagementCapabilities } from "@/lib/booking/policy";
 import { getReceiptsForCustomer } from "@/lib/receipts/server";
 import { getMyLoyaltySummary } from "@/lib/loyalty/customer-summary";
+import { getRecurringBookings } from "@/lib/recurring-bookings/service";
 
 export default async function AccountPage() {
   const customer = await ensureCustomerRecord();
   const currentZurich = getCurrentZurichDateTime();
-  const [services, bookingSettings, receipts, loyalty] = await Promise.all([
+  const [services, bookingSettings, receipts, loyalty, recurringBookings] = await Promise.all([
     getActiveServices(),
     getBookingSettings(),
     getReceiptsForCustomer(customer.id),
     getMyLoyaltySummary(customer.id),
+    getRecurringBookings(customer.id),
   ]);
   const appointmentSummaries = await getCustomerAppointmentSummaries(
     customer,
@@ -69,6 +71,8 @@ export default async function AccountPage() {
             bookingCapabilities={bookingCapabilities}
             receipts={receipts}
             loyalty={loyalty}
+            services={services.map((service) => ({ id: service.id, name: service.name }))}
+            recurringBookings={recurringBookings}
           />
         </section>
       </main>

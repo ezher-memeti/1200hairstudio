@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  CalendarDays,
   ChevronDown,
   ChevronRight,
   Clock3,
@@ -13,7 +12,6 @@ import {
   Phone,
   Search,
   SlidersHorizontal,
-  UserRound,
   X,
 } from "lucide-react";
 import { updateAdminCustomer, updateAdminCustomerNotes } from "@/app/actions/customers";
@@ -21,6 +19,7 @@ import { getZurichDateKeyFromIso } from "@/lib/appointments/date-utils";
 import type {
   AdminCustomerAppointment,
   AdminCustomerDirectoryEntry,
+  AdminCustomerLoyaltySummary,
 } from "@/lib/customers/types";
 import {
   formatCustomerStatus,
@@ -29,12 +28,18 @@ import {
 } from "@/lib/customers/status";
 import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
 import AdminSelect from "@/components/admin/AdminSelect";
+import RecurringBookingManager from "@/components/recurring-bookings/RecurringBookingManager";
+import type { RecurringBookingRecord } from "@/lib/recurring-bookings/types";
 
 type Props = {
   customers: AdminCustomerDirectoryEntry[];
-  activeServices: string[];
+  activeServices: { id: string; name: string }[];
+  recurringBookings: RecurringBookingRecord[];
+  loyaltySummaries: Record<string, AdminCustomerLoyaltySummary>;
   todayIso: string;
 };
+
+type CustomerWorkspaceTab = "overview" | "appointments" | "regular" | "activity" | "notes";
 
 type FilterMode = "all" | "registered" | "guest";
 type SortMode = "name" | "newest" | "most_visits" | "last_visit" | "next_appointment" | "most_no_shows";
@@ -48,10 +53,6 @@ type EditFormState = {
   email: string;
   phone: string;
 };
-
-function formatCountLabel(count: number, singular: string, plural: string) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
 
 function toTimestamp(value: string | null | undefined) {
   return value ? new Date(value).getTime() : null;
@@ -181,15 +182,6 @@ function getDurationLabel(appointment: AdminCustomerAppointment) {
   return `${minutes} min`;
 }
 
-function getInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "C";
-}
-
 function formatActivityDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Zurich",
@@ -256,7 +248,7 @@ function getCreateAppointmentLink(customer: AdminCustomerDirectoryEntry) {
   return `/admin/appointments?new=1&customerId=${encodeURIComponent(customer.id)}`;
 }
 
-export default function AdminCustomersView({ customers, activeServices, todayIso }: Props) {
+export default function AdminCustomersView({ customers, activeServices, recurringBookings, loyaltySummaries, todayIso }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -283,6 +275,7 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
   const [notesFeedback, setNotesFeedback] = useState("");
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [workspaceTab, setWorkspaceTab] = useState<CustomerWorkspaceTab>("overview");
   const [isPending, startTransition] = useTransition();
   const [isNotesPending, startNotesTransition] = useTransition();
 
@@ -293,10 +286,19 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
   const selectedStatistics = selectedCustomer
     ? getCustomerStatistics(selectedCustomer, todayTimestamp)
     : null;
-  const selectedActivity = selectedCustomer ? getCustomerActivity(selectedCustomer) : [];
+  const selectedRecurringBookings = selectedCustomer ? recurringBookings.filter((series) => series.customer_id === selectedCustomer.id) : [];
+  const selectedActivity = selectedCustomer ? [
+    ...getCustomerActivity(selectedCustomer),
+    ...selectedRecurringBookings.flatMap((series) => [
+      { id: `series-created-${series.id}`, timestamp: series.created_at, title: "Regular booking created", detail: series.service_name ?? "Service" },
+      ...(series.cancelled_at ? [{ id: `series-removed-${series.id}`, timestamp: series.cancelled_at, title: "Regular booking removed", detail: series.service_name ?? "Service" }] : []),
+      ...(series.paused_at ? [{ id: `series-paused-${series.id}`, timestamp: series.paused_at, title: "Regular booking paused", detail: series.service_name ?? "Service" }] : []),
+    ]),
+  ].sort((first, second) => new Date(second.timestamp).getTime() - new Date(first.timestamp).getTime()) : [];
   const selectedStatus = selectedCustomer
     ? getCustomerStatusDetails(selectedCustomer, todayTimestamp)
     : null;
+  const selectedLoyalty = selectedCustomer ? loyaltySummaries[selectedCustomer.id] ?? null : null;
 
   useEffect(() => {
     if (!selectedCustomer) {
@@ -427,6 +429,7 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
     setNotesFeedback("");
     setIsActionsOpen(false);
     setShowAllHistory(false);
+    setWorkspaceTab("overview");
     setEditForm({
       fullName: customer.full_name,
       email: customer.email,
@@ -605,7 +608,7 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
           <AdminSelect label="Visit Recency" value={recencyFilter} onChange={(value) => setRecencyFilter(value as RecencyFilter)} options={[{ value: "all", label: "All" }, { value: "30", label: "Last 30 days" }, { value: "60", label: "Last 60 days" }, { value: "90", label: "Last 90 days" }, { value: "120_plus", label: "120+ days inactive" }]} />
           <AdminSelect label="Completed Visits" value={visitFilter} onChange={(value) => setVisitFilter(value as VisitFilter)} options={[{ value: "all", label: "All" }, { value: "0_1", label: "0-1" }, { value: "2_4", label: "2-4" }, { value: "5_plus", label: "5+" }]} />
           <AdminSelect label="No-Shows" value={noShowFilter} onChange={(value) => setNoShowFilter(value as NoShowFilter)} options={[{ value: "all", label: "All" }, { value: "1", label: "1+" }, { value: "2", label: "2+" }, { value: "3", label: "3+" }]} />
-          <AdminSelect label="Favorite Service" value={favoriteServiceFilter} onChange={setFavoriteServiceFilter} options={[{ value: "all", label: "All active services" }, ...activeServices.map((service) => ({ value: service, label: service }))]} searchable={activeServices.length > 8} className="sm:col-span-2" />
+          <AdminSelect label="Favorite Service" value={favoriteServiceFilter} onChange={setFavoriteServiceFilter} options={[{ value: "all", label: "All active services" }, ...activeServices.map((service) => ({ value: service.name, label: service.name }))]} searchable={activeServices.length > 8} className="sm:col-span-2" />
         </div><div className="mt-5 flex gap-3"><button type="button" onClick={() => setIsFilterOpen(false)} className="inline-flex min-h-11 flex-1 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background">Show {filteredCustomers.length} Customers</button><button type="button" onClick={clearAllFilters} className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">Clear</button></div></div></div> : null}
       </div>
 
@@ -732,79 +735,32 @@ export default function AdminCustomersView({ customers, activeServices, todayIso
               <button type="button" onClick={closeCustomer} className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center border border-border text-foreground-secondary transition-colors hover:bg-background hover:text-foreground sm:right-6 lg:right-8 lg:top-5" aria-label="Close customer details"><X size={17} /></button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                <section className="border border-border bg-background/35 p-4 lg:col-span-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Contact Information</p>
-                      <div className="mt-4 space-y-3">
-                        <a href={selectedCustomer.email ? `mailto:${selectedCustomer.email}` : undefined} className="flex items-center gap-3 break-all font-admin-primary text-sm text-foreground-secondary transition-colors hover:text-foreground"><Mail size={16} className="shrink-0 text-accent" />{selectedCustomer.email || "No email"}</a>
-                        <a href={selectedCustomer.phone ? `tel:${selectedCustomer.phone}` : undefined} className="flex items-center gap-3 font-admin-primary text-sm text-foreground-secondary transition-colors hover:text-foreground"><Phone size={16} className="shrink-0 text-accent" />{selectedCustomer.phone || "No phone"}</a>
-                      </div>
-                    </div>
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-border bg-surface font-admin-display text-2xl text-foreground sm:h-24 sm:w-24 sm:text-3xl">{getInitials(selectedCustomer.full_name)}</div>
-                  </div>
-                  <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                    {selectedCustomer.email ? <a href={`mailto:${selectedCustomer.email}`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border font-admin-primary text-[10px] uppercase tracking-[0.15em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"><Mail size={14} /> Email</a> : null}
-                    {selectedCustomer.phone ? <a href={`tel:${selectedCustomer.phone}`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border font-admin-primary text-[10px] uppercase tracking-[0.15em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"><Phone size={14} /> Call</a> : null}
-                    {selectedCustomer.phone ? <a href={`https://wa.me/${selectedCustomer.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-border font-admin-primary text-[10px] uppercase tracking-[0.15em] text-emerald-300 transition-colors hover:bg-emerald-500/10"><MessageCircle size={14} /> WhatsApp</a> : null}
-                  </div>
-
-                  {isEditing && !selectedCustomer.id.startsWith("legacy-guest:") ? (
-                    <div className="mt-5 space-y-3 border-t border-border pt-4">
-                      <label className="block space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Full Name</span><input type="text" value={editForm.fullName} onChange={(event) => setEditForm((current) => ({ ...current, fullName: event.target.value }))} className="w-full border border-border bg-background px-4 py-3 font-admin-primary text-sm text-foreground outline-none" /></label>
-                      <label className="block space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Email</span><input type="email" value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} className="w-full border border-border bg-background px-4 py-3 font-admin-primary text-sm text-foreground outline-none" /></label>
-                      <label className="block space-y-2"><span className="font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-muted">Phone</span><input type="tel" placeholder="Phone (Optional)" value={editForm.phone} onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))} className="w-full border border-border bg-background px-4 py-3 font-admin-primary text-sm text-foreground outline-none" /></label>
-                      {editFeedback ? <p className="font-admin-primary text-sm text-foreground-secondary">{editFeedback}</p> : null}
-                      <div className="flex gap-2"><button type="button" onClick={saveCustomer} disabled={isPending} className="inline-flex min-h-11 flex-1 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-50">{isPending ? "Saving..." : "Save"}</button><button type="button" onClick={() => setIsEditing(false)} className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-foreground-secondary">Cancel</button></div>
-                    </div>
-                  ) : null}
-                </section>
-
-                <section className="border border-border bg-background/35 p-4 lg:col-span-8">
-                  <p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Customer Statistics</p>
-                  <div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-3 xl:grid-cols-5">
-                    {[["Total Bookings", selectedStatistics?.totalBookings ?? 0], ["Completed Visits", selectedStatistics?.completedVisits ?? 0], ["Upcoming", selectedStatistics?.upcomingCount ?? 0], ["Cancelled", selectedStatistics?.cancellations ?? 0], ["No Shows", selectedStatistics?.noShows ?? 0]].map(([label, value]) => <div key={label} className="bg-surface px-3 py-4"><p className="font-admin-primary text-[9px] uppercase tracking-[0.13em] text-foreground-muted">{label}</p><p className="mt-2 font-admin-display text-2xl text-foreground">{value}</p></div>)}
-                  </div>
-                  <div className="mt-px grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-3">
-                    {[["Last Visit", selectedStatistics?.lastVisit ? `${selectedStatistics.lastVisit.date_label} · ${selectedStatistics.lastVisit.time_label}` : "—"], ["Next Visit", selectedStatistics?.nextVisit ? `${selectedStatistics.nextVisit.date_label} · ${selectedStatistics.nextVisit.time_label}` : "—"], ["Favorite Service", selectedStatistics?.favoriteService ?? "—"]].map(([label, value]) => <div key={label} className="min-w-0 bg-surface px-4 py-4"><p className="font-admin-primary text-[9px] uppercase tracking-[0.13em] text-foreground-muted">{label}</p><p className="mt-2 break-words font-admin-primary text-sm leading-5 text-foreground">{value}</p></div>)}
-                  </div>
-                </section>
-
-                <section className="border border-border bg-background/35 p-4 lg:col-span-4">
-                  <div className="flex items-center justify-between gap-3"><p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Upcoming Appointments</p><span className="inline-flex min-w-7 items-center justify-center rounded-full border border-accent/30 bg-accent/10 px-2 py-1 font-admin-primary text-[10px] text-accent">{selectedStatistics?.upcomingAppointments.length ?? 0}</span></div>
-                  <div className="mt-4 space-y-2">
-                    {selectedStatistics?.upcomingAppointments.map((appointment) => <Link key={appointment.id} href={getAppointmentLink(appointment)} className="group flex min-h-20 items-center justify-between gap-3 border border-border bg-surface px-3 py-3 transition-colors hover:border-foreground-muted hover:bg-background/60"><div className="min-w-0"><p className="font-admin-primary text-sm text-foreground">{appointment.date_label}</p><p className="mt-1 font-admin-primary text-xs text-foreground-secondary">{appointment.time_label} · {appointment.service_name}</p><span className={`mt-2 inline-flex border px-2 py-1 font-admin-primary text-[9px] uppercase tracking-[0.12em] ${getStatusClasses(appointment.status)}`}>{formatStatusLabel(appointment.status)}</span></div><ChevronRight size={16} className="shrink-0 text-foreground-muted transition-transform group-hover:translate-x-0.5" /></Link>)}
-                    {selectedStatistics?.upcomingAppointments.length === 0 ? <div className="border border-dashed border-border px-4 py-7 text-center"><p className="font-admin-primary text-sm text-foreground-secondary">No upcoming appointments.</p><Link href={getCreateAppointmentLink(selectedCustomer)} className="mt-4 inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-[10px] uppercase tracking-[0.16em] text-background">Create Appointment</Link></div> : null}
-                  </div>
-                </section>
-
-                <section className="border border-border bg-background/35 p-4 lg:col-span-4">
-                  <div className="flex items-center gap-2"><Clock3 size={15} className="text-foreground-muted" /><p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Activity Timeline</p></div>
-                  <div className="mt-4 space-y-0">
-                    {selectedActivity.slice(0, 8).map((event, index) => <div key={event.id} className="relative flex gap-3 pb-4 last:pb-0"><div className="relative flex w-3 shrink-0 justify-center"><span className="mt-1.5 h-2.5 w-2.5 rounded-full border border-accent/50 bg-accent/60" />{index < Math.min(selectedActivity.length, 8) - 1 ? <span className="absolute bottom-0 top-4 w-px bg-border" /> : null}</div><div className="min-w-0"><p className="font-admin-primary text-[10px] text-foreground-muted">{formatActivityDate(event.timestamp)}</p><p className="mt-1 font-admin-primary text-sm text-foreground">{event.title}</p><p className="mt-1 font-admin-primary text-xs text-foreground-secondary">{event.detail}</p></div></div>)}
-                  </div>
-                </section>
-
-                <div className="space-y-4 lg:col-span-4">
-                  <section className="border border-border bg-background/35 p-4">
-                    <div className="flex items-center justify-between gap-3"><p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Internal Notes</p>{!selectedCustomer.id.startsWith("legacy-guest:") ? <button type="button" onClick={() => { setIsEditingNotes((current) => !current); setNotesFeedback(""); }} className="inline-flex min-h-10 items-center justify-center border border-border px-3 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary">{isEditingNotes ? "Cancel" : "Edit"}</button> : null}</div>
-                    {isEditingNotes ? <div className="mt-4 space-y-3"><textarea rows={5} value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} className="w-full resize-none border border-border bg-background px-4 py-3 font-admin-primary text-sm leading-6 text-foreground outline-none" placeholder="Add notes (Optional)" />{notesFeedback ? <p className="font-admin-primary text-sm text-foreground-secondary">{notesFeedback}</p> : null}<button type="button" onClick={saveNotes} disabled={isNotesPending} className="inline-flex min-h-11 w-full items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-50">{isNotesPending ? "Saving..." : "Save Notes"}</button></div> : <><p className="mt-4 min-h-20 whitespace-pre-wrap border border-border bg-surface px-3 py-3 font-admin-primary text-sm leading-6 text-foreground-secondary">{selectedCustomer.notes || "No internal notes yet."}</p>{notesFeedback ? <p className="mt-3 font-admin-primary text-sm text-foreground-secondary">{notesFeedback}</p> : null}<p className="mt-3 font-admin-primary text-[10px] text-foreground-muted">Notes are only visible to admins.</p></>}
-                  </section>
-                  <section className="border border-border bg-background/35 p-4"><div className="flex items-center gap-2"><UserRound size={15} className="text-foreground-muted" /><p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Customer Status</p></div>{selectedStatus ? <div className="mt-4 space-y-3"><div className="flex items-center justify-between gap-4"><span className={`inline-flex border px-3 py-2 font-admin-primary text-[10px] uppercase tracking-[0.16em] ${getCustomerStatusClasses(selectedStatus.status)}`}>{formatCustomerStatus(selectedStatus.status)}</span><p className="font-admin-primary text-xs text-foreground-muted">Dynamically calculated</p></div><div className="space-y-1 border-t border-border pt-3 font-admin-primary text-xs text-foreground-secondary"><p>{selectedStatus.completedVisits} completed visits</p><p>Last completed: {selectedStatus.lastCompletedAppointment ? `${selectedStatus.lastCompletedAppointment.date_label} · ${selectedStatus.lastCompletedAppointment.time_label}` : "—"}</p><p>Next confirmed: {selectedStatus.nextConfirmedAppointment ? `${selectedStatus.nextConfirmedAppointment.date_label} · ${selectedStatus.nextConfirmedAppointment.time_label}` : "—"}</p>{selectedStatus.daysSinceLastCompleted !== null ? <p>{selectedStatus.daysSinceLastCompleted} days since last completed visit</p> : null}</div></div> : null}</section>
-                  <section className="border border-border bg-background/35 p-4"><div className="flex items-center gap-2"><Mail size={15} className="text-foreground-muted" /><p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Email Marketing</p></div>{(() => { const marketingStatus = getMarketingConsentStatus(selectedCustomer); return <div className="mt-4 space-y-2"><span className={`inline-flex border px-3 py-2 font-admin-primary text-[10px] uppercase tracking-[0.16em] ${marketingStatus === "subscribed" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200" : marketingStatus === "unsubscribed" ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-border bg-background/60 text-foreground-muted"}`}>{marketingStatus.replace("_", " ")}</span>{selectedCustomer.marketing_email_consented_at ? <p className="font-admin-primary text-xs text-foreground-secondary">Consent: {formatActivityDate(selectedCustomer.marketing_email_consented_at)}</p> : null}{selectedCustomer.marketing_email_consent_source ? <p className="font-admin-primary text-xs text-foreground-secondary">Source: {selectedCustomer.marketing_email_consent_source.replace(/_/g, " ")}</p> : null}{selectedCustomer.marketing_email_unsubscribed_at ? <p className="font-admin-primary text-xs text-foreground-secondary">Unsubscribed: {formatActivityDate(selectedCustomer.marketing_email_unsubscribed_at)}</p> : null}<p className="font-admin-primary text-[10px] leading-5 text-foreground-muted">Read-only. Subscription requires customer consent.</p></div>; })()}</section>
-                </div>
-
-                <section className="border border-border bg-background/35 lg:col-span-12">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-4"><div className="flex items-center gap-2"><CalendarDays size={15} className="text-accent" /><p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Appointment History</p></div><span className="font-admin-primary text-xs text-foreground-muted">{formatCountLabel(selectedStatistics?.history.length ?? 0, "appointment", "appointments")}</span></div>
-                  <div className="divide-y divide-border">
-                    {(showAllHistory ? selectedStatistics?.history : selectedStatistics?.history.slice(0, 6))?.map((appointment) => <Link key={appointment.id} href={getAppointmentLink(appointment)} className="group grid min-h-20 grid-cols-1 gap-2 px-4 py-4 transition-colors hover:bg-surface sm:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_minmax(140px,0.8fr)_120px_80px_32px] sm:items-center sm:gap-4"><div><p className="font-admin-primary text-sm text-foreground">{appointment.date_label}</p></div><p className="font-admin-primary text-sm text-foreground-secondary">{appointment.service_name}</p><p className="font-admin-primary text-sm text-foreground-secondary">{appointment.time_label}</p><span className={`w-fit border px-2 py-1 font-admin-primary text-[9px] uppercase tracking-[0.12em] ${getStatusClasses(appointment.status)}`}>{formatStatusLabel(appointment.status)}</span><p className="font-admin-primary text-xs text-foreground-muted">{getDurationLabel(appointment)}</p><ChevronRight size={16} className="hidden text-foreground-muted transition-transform group-hover:translate-x-0.5 sm:block" /></Link>)}
-                    {selectedStatistics?.history.length === 0 ? <div className="px-4 py-10 text-center"><p className="font-admin-primary text-sm text-foreground-secondary">No past appointments yet.</p></div> : null}
-                  </div>
-                  {(selectedStatistics?.history.length ?? 0) > 6 ? <div className="border-t border-border p-3 text-center"><button type="button" onClick={() => setShowAllHistory((current) => !current)} className="inline-flex min-h-11 items-center justify-center border border-border px-5 font-admin-primary text-[10px] uppercase tracking-[0.16em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground">{showAllHistory ? "Show Recent" : "View Full History"}</button></div> : null}
-                </section>
+            <nav className="shrink-0 overflow-x-auto border-b border-border bg-surface px-4 sm:px-6 lg:px-8" aria-label="Customer workspace">
+              <div className="flex min-w-max gap-7">
+                {([['overview','Overview'],['appointments','Appointments'],['regular','Regular Booking'],['activity','Activity'],['notes','Notes']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setWorkspaceTab(value)} className={`min-h-12 border-b-2 font-admin-primary text-[10px] uppercase tracking-[0.18em] transition-colors ${workspaceTab === value ? "border-accent text-accent" : "border-transparent text-foreground-muted hover:text-foreground"}`}>{label}</button>)}
               </div>
+            </nav>
+
+            <div className="admin-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-7">
+              {workspaceTab === "overview" ? <div className="grid gap-4 lg:grid-cols-2">
+                <section className="border border-border bg-background/35 p-4 sm:p-5">
+                  <p className="font-admin-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Contact</p>
+                  <div className="mt-4 space-y-3"><p className="break-all font-admin-primary text-sm text-foreground">{selectedCustomer.email || "No email"}</p><p className="font-admin-primary text-sm text-foreground">{selectedCustomer.phone || "No phone"}</p></div>
+                  <div className="mt-5 grid gap-2 sm:grid-cols-3">{selectedCustomer.email ? <a href={`mailto:${selectedCustomer.email}`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border text-[10px] uppercase tracking-[.15em]"><Mail size={14}/>Email</a> : null}{selectedCustomer.phone ? <a href={`tel:${selectedCustomer.phone}`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border text-[10px] uppercase tracking-[.15em]"><Phone size={14}/>Call</a> : null}{selectedCustomer.phone ? <a href={`https://wa.me/${selectedCustomer.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-border text-[10px] uppercase tracking-[.15em] text-emerald-300"><MessageCircle size={14}/>WhatsApp</a> : null}</div>
+                  {isEditing && !selectedCustomer.id.startsWith("legacy-guest:") ? <div className="mt-5 space-y-3 border-t border-border pt-5"><label className="block space-y-2"><span className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">Full Name</span><input value={editForm.fullName} onChange={(event) => setEditForm((current) => ({...current, fullName:event.target.value}))} className="min-h-12 w-full border border-border bg-background px-4 text-base text-foreground outline-none sm:text-sm"/></label><label className="block space-y-2"><span className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">Email</span><input type="email" value={editForm.email} onChange={(event) => setEditForm((current) => ({...current, email:event.target.value}))} className="min-h-12 w-full border border-border bg-background px-4 text-base text-foreground outline-none sm:text-sm"/></label><label className="block space-y-2"><span className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">Phone</span><input value={editForm.phone} onChange={(event) => setEditForm((current) => ({...current, phone:event.target.value}))} placeholder="Phone (Optional)" className="min-h-12 w-full border border-border bg-background px-4 text-base text-foreground outline-none sm:text-sm"/></label>{editFeedback ? <p className="text-sm text-foreground-secondary">{editFeedback}</p> : null}<div className="flex gap-2"><button onClick={saveCustomer} disabled={isPending} className="min-h-11 flex-1 bg-accent px-4 text-xs uppercase text-background">{isPending ? "Saving..." : "Save"}</button><button onClick={() => setIsEditing(false)} className="min-h-11 border border-border px-4 text-xs uppercase">Cancel</button></div></div> : null}
+                </section>
+                <section className="border border-border bg-background/35 p-4 sm:p-5"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Customer Statistics</p><div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-5">{[["Bookings",selectedStatistics?.totalBookings ?? 0],["Completed",selectedStatistics?.completedVisits ?? 0],["Upcoming",selectedStatistics?.upcomingCount ?? 0],["Cancelled",selectedStatistics?.cancellations ?? 0],["No Shows",selectedStatistics?.noShows ?? 0]].map(([label,value]) => <div key={label} className="bg-surface p-3"><p className="text-[9px] uppercase tracking-[.12em] text-foreground-muted">{label}</p><p className="mt-2 font-admin-display text-2xl">{value}</p></div>)}</div><div className="mt-4 grid gap-3 sm:grid-cols-3">{[["Last Visit",selectedStatistics?.lastVisit?.date_label ?? "—"],["Next Visit",selectedStatistics?.nextVisit ? `${selectedStatistics.nextVisit.date_label} · ${selectedStatistics.nextVisit.time_label}` : "—"],["Favorite Service",selectedStatistics?.favoriteService ?? "—"]].map(([label,value]) => <div key={label} className="border-t border-border pt-3"><p className="text-[9px] uppercase tracking-[.14em] text-foreground-muted">{label}</p><p className="mt-2 break-words text-sm">{value}</p></div>)}</div></section>
+                <section className="border border-border bg-background/35 p-4 sm:p-5"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Loyalty</p>{selectedLoyalty?.is_enabled ? <><div className="mt-4 flex items-end justify-between gap-4"><p className="font-admin-display text-3xl">{selectedLoyalty.eligible_visits} / {selectedLoyalty.visits_required}</p><p className="text-xs text-foreground-muted">{selectedLoyalty.visits_remaining} visits remaining</p></div><div className="mt-3 h-1 bg-border"><div className="h-full bg-accent" style={{width:`${selectedLoyalty.progress_percent}%`}}/></div>{selectedLoyalty.available_reward ? <p className="mt-4 border-l border-accent pl-3 text-sm uppercase text-accent">Reward available · {selectedLoyalty.available_reward.reward_type === "free_service" ? "Free service" : selectedLoyalty.available_reward.reward_type === "percentage" ? `${selectedLoyalty.available_reward.reward_value}% off` : `CHF ${selectedLoyalty.available_reward.reward_value?.toFixed(2)} off`}</p> : null}</> : <p className="mt-4 text-sm text-foreground-muted">Loyalty program is not active.</p>}</section>
+                <section className="border border-border bg-background/35 p-4 sm:p-5"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Marketing</p>{(() => { const status = getMarketingConsentStatus(selectedCustomer); return <><span className={`mt-4 inline-flex border px-3 py-2 text-[10px] uppercase tracking-[.16em] ${status === "subscribed" ? "border-emerald-500/30 text-emerald-200" : "border-border text-foreground-muted"}`}>{status.replace("_"," ")}</span><p className="mt-3 text-xs text-foreground-muted">Customer consent is read-only from this workspace.</p></>; })()}</section>
+              </div> : null}
+
+              {workspaceTab === "appointments" ? <div className="space-y-7"><section><div className="flex items-center justify-between border-b border-border pb-3"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Upcoming Appointments</p><span className="text-xs text-accent">{selectedStatistics?.upcomingCount ?? 0}</span></div><div className="divide-y divide-border">{selectedStatistics?.upcomingAppointments.map((appointment) => <Link key={appointment.id} href={getAppointmentLink(appointment)} className="group grid min-h-16 gap-2 py-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center"><p className="text-sm">{appointment.date_label} · {appointment.time_label}</p><p className="text-sm text-foreground-secondary">{appointment.service_name}</p><span className={`w-fit border px-2 py-1 text-[9px] uppercase ${getStatusClasses(appointment.status)}`}>{formatStatusLabel(appointment.status)}</span><ChevronRight size={15} className="hidden text-foreground-muted sm:block"/></Link>)}{!selectedStatistics?.upcomingCount ? <p className="py-8 text-sm text-foreground-muted">No upcoming appointments.</p> : null}</div></section><section><div className="flex items-center justify-between border-b border-border pb-3"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Appointment History</p><span className="text-xs text-foreground-muted">{selectedStatistics?.history.length ?? 0}</span></div><div className="divide-y divide-border">{(showAllHistory ? selectedStatistics?.history : selectedStatistics?.history.slice(0,8))?.map((appointment) => <Link key={appointment.id} href={getAppointmentLink(appointment)} className="group grid min-h-16 gap-2 py-4 sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center"><p className="text-sm">{appointment.date_label} · {appointment.time_label}</p><p className="text-sm text-foreground-secondary">{appointment.service_name}</p><span className={`w-fit border px-2 py-1 text-[9px] uppercase ${getStatusClasses(appointment.status)}`}>{formatStatusLabel(appointment.status)}</span><span className="text-xs text-foreground-muted">{getDurationLabel(appointment)}</span><ChevronRight size={15} className="hidden text-foreground-muted sm:block"/></Link>)}{!selectedStatistics?.history.length ? <p className="py-8 text-sm text-foreground-muted">No appointment history yet.</p> : null}</div>{(selectedStatistics?.history.length ?? 0) > 8 ? <button onClick={() => setShowAllHistory((value) => !value)} className="mt-4 min-h-11 border border-border px-4 text-[10px] uppercase tracking-[.16em]">{showAllHistory ? "Show Recent" : "View Full History"}</button> : null}</section></div> : null}
+
+              {workspaceTab === "regular" ? <RecurringBookingManager mode="admin" services={activeServices} customers={selectedCustomer.id.startsWith("legacy-guest:") ? [] : [{id:selectedCustomer.id,full_name:selectedCustomer.full_name,email:selectedCustomer.email}]} series={selectedRecurringBookings}/> : null}
+
+              {workspaceTab === "activity" ? <section className="mx-auto max-w-3xl"><div className="flex items-center gap-2 border-b border-border pb-4"><Clock3 size={15} className="text-accent"/><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Activity Timeline</p></div><div className="mt-5">{selectedActivity.map((event,index) => <div key={event.id} className="relative flex gap-4 pb-6"><div className="relative flex w-3 shrink-0 justify-center"><span className="mt-1.5 size-2.5 border border-accent bg-accent/50"/>{index < selectedActivity.length-1 ? <span className="absolute bottom-0 top-4 w-px bg-border"/> : null}</div><div className="min-w-0"><p className="text-[10px] text-foreground-muted">{formatActivityDate(event.timestamp)}</p><p className="mt-1 text-sm">{event.title}</p><p className="mt-1 text-xs text-foreground-secondary">{event.detail}</p></div></div>)}</div></section> : null}
+
+              {workspaceTab === "notes" ? <section className="mx-auto max-w-3xl border border-border bg-background/35 p-4 sm:p-6"><div className="flex items-center justify-between gap-3"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Internal Notes</p>{!selectedCustomer.id.startsWith("legacy-guest:") ? <button onClick={() => {setIsEditingNotes((value) => !value);setNotesFeedback("");}} className="min-h-11 border border-border px-4 text-[10px] uppercase tracking-[.14em]">{isEditingNotes ? "Cancel" : "Edit Notes"}</button> : null}</div>{isEditingNotes ? <div className="mt-5"><textarea rows={9} value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} placeholder="Add notes (Optional)" className="w-full resize-y border border-border bg-background p-4 text-base leading-7 text-foreground outline-none sm:text-sm"/>{notesFeedback ? <p className="mt-3 text-sm text-foreground-secondary">{notesFeedback}</p> : null}<button onClick={saveNotes} disabled={isNotesPending} className="mt-4 min-h-11 bg-accent px-5 text-xs uppercase text-background disabled:opacity-50">{isNotesPending ? "Saving..." : "Save Notes"}</button></div> : <><p className="mt-5 min-h-32 whitespace-pre-wrap border-t border-border pt-5 text-sm leading-7 text-foreground-secondary">{selectedCustomer.notes || "No internal notes yet."}</p>{notesFeedback ? <p className="mt-3 text-sm text-foreground-secondary">{notesFeedback}</p> : null}<p className="mt-4 text-[10px] text-foreground-muted">Only administrators can view these notes.</p></>}</section> : null}
             </div>
           </section>
         </div>
