@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { CustomerEmailLog } from "@/lib/customers/types";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -118,5 +119,37 @@ export async function updateAdminCustomerNotes(input: {
     return { error: null };
   } catch (error) {
     return { error: toErrorMessage(error) };
+  }
+}
+
+export async function getAdminCustomerEmailLogs(input: {
+  customerId: string;
+  offset?: number;
+  limit?: number;
+}) {
+  try {
+    const supabase = await requireAdminClient();
+    const customerId = input.customerId.trim();
+    const offset = Math.max(0, Math.floor(input.offset ?? 0));
+    const limit = Math.min(50, Math.max(1, Math.floor(input.limit ?? 20)));
+    if (!customerId || customerId.startsWith("legacy-guest:")) {
+      return { error: null, logs: [] as CustomerEmailLog[], total: 0 };
+    }
+
+    const { data, error, count } = await supabase
+      .from("customer_email_logs")
+      .select("id,customer_id,appointment_id,recipient_email,email_type,subject,status,provider_message_id,sent_at,failed_at,error_message,metadata,created_at", { count: "exact" })
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("ADMIN CUSTOMER EMAIL LOG QUERY ERROR", { customerId, error });
+      return { error: "Unable to load email history.", logs: [] as CustomerEmailLog[], total: 0 };
+    }
+
+    return { error: null, logs: (data ?? []) as CustomerEmailLog[], total: count ?? 0 };
+  } catch (error) {
+    return { error: toErrorMessage(error), logs: [] as CustomerEmailLog[], total: 0 };
   }
 }

@@ -38,7 +38,7 @@ async function finalizeReceipt(
     if (!detailedReceipt?.customer_email) {
       return { receiptId: receipt.id, receiptNumber: receipt.receipt_number, receiptEmailStatus: "skipped" as const, receiptEmailWarning: "Receipt created, but the customer has no email address." };
     }
-    await sendReceiptEmail({ to: detailedReceipt.customer_email, receipt, pdf: await generateReceiptPdf(receipt) });
+    await sendReceiptEmail({ to: detailedReceipt.customer_email, customerId: detailedReceipt.customer_id, customerName: detailedReceipt.customer_name, receipt, pdf: await generateReceiptPdf(receipt) });
     const emailedAt = new Date().toISOString();
     const { error } = await supabase.from("receipts").update({ emailed_at: emailedAt }).eq("id", receipt.id);
     if (error) console.error("RECEIPT EMAILED_AT UPDATE ERROR", error);
@@ -228,7 +228,7 @@ export async function resendAdminReceipt(receiptId: string) {
     const receipt = await getAdminReceipt(supabase, receiptId);
     if (!receipt) return { error: "Receipt not found." };
     if (!receipt.customer_email) return { error: "This customer does not have an email address." };
-    await sendReceiptEmail({ to: receipt.customer_email, receipt, pdf: await generateReceiptPdf(receipt) });
+    await sendReceiptEmail({ to: receipt.customer_email, customerId: receipt.customer_id, customerName: receipt.customer_name, receipt, pdf: await generateReceiptPdf(receipt) });
     const emailedAt = new Date().toISOString();
     const { error } = await supabase.from("receipts").update({ emailed_at: emailedAt }).eq("id", receipt.id);
     if (error) return { error: "Receipt was sent, but its email status could not be updated." };

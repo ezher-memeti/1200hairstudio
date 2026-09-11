@@ -5,11 +5,14 @@ import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/avai
 import { formatServicePrice } from "@/lib/public/services";
 import { getSiteUrl } from "@/lib/auth/url";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const GMAIL_SENDER_EMAIL = "1200hairstudio@gmail.com";
 const DEFAULT_SENDER_NAME = "1200 Hairstudio";
 
 type BookingEmailDetails = {
+  customerId?: string | null;
+  appointmentId?: string | null;
   to: string;
   customerName: string;
   serviceName: string;
@@ -31,6 +34,10 @@ export type GmailMessage = {
     content: Uint8Array;
   }>;
 };
+
+export const CUSTOMER_EMAIL_TYPES = ["appointment_confirmation", "appointment_rescheduled", "appointment_cancelled", "appointment_reminder", "regular_booking_confirmation", "regular_booking_updated", "regular_booking_removed", "regular_booking_paused", "regular_booking_resumed", "receipt", "marketing", "other"] as const;
+export type CustomerEmailType = (typeof CUSTOMER_EMAIL_TYPES)[number];
+export type CustomerEmailMessage = GmailMessage & { customerId?: string | null; appointmentId?: string | null; customerName?: string | null; emailType: CustomerEmailType; metadata?: Record<string, unknown> };
 
 function getRequiredEnv(name: "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "GOOGLE_REFRESH_TOKEN") {
   const value = process.env[name];
@@ -131,12 +138,37 @@ export async function sendGmailMessage(message: GmailMessage) {
   const settings = await getRuntimeSettings();
   const senderName = settings.notifications.senderName.trim() || settings.business.businessName.trim() || DEFAULT_SENDER_NAME;
 
-  await gmail.users.messages.send({
+  const response = await gmail.users.messages.send({
     userId: "me",
     requestBody: {
       raw: buildMessage(message, senderName),
     },
   });
+  return { providerMessageId: response.data.id ?? null };
+}
+
+export async function sendCustomerEmail(message: CustomerEmailMessage) {
+  const admin = createAdminClient();
+  const recipientEmail = message.to.trim().toLowerCase();
+  const metadata = { ...(message.metadata ?? {}), ...(message.customerName ? { customer_name: message.customerName } : {}) };
+  const { data: log, error: logError } = await admin.from("customer_email_logs").insert({ customer_id: message.customerId ?? null, appointment_id: message.appointmentId ?? null, recipient_email: recipientEmail, email_type: message.emailType, subject: message.subject, status: "processing", metadata }).select("id").single();
+  if (logError || !log) {
+    console.error("CUSTOMER EMAIL LOG CREATION ERROR", { emailType: message.emailType, customerId: message.customerId ?? null, appointmentId: message.appointmentId ?? null, error: logError });
+    throw new Error("Unable to initialize customer email delivery.");
+  }
+  try {
+    const delivery = await sendGmailMessage({ to: recipientEmail, subject: message.subject, html: message.html, text: message.text, attachments: message.attachments });
+    const sentAt = new Date().toISOString();
+    const { error } = await admin.from("customer_email_logs").update({ status: "sent", sent_at: sentAt, failed_at: null, error_message: null, provider_message_id: delivery.providerMessageId }).eq("id", log.id);
+    if (error) console.error("CRITICAL: CUSTOMER EMAIL SENT BUT LOG UPDATE FAILED", { emailLogId: log.id, providerMessageId: delivery.providerMessageId, error });
+    return { ...delivery, emailLogId: log.id };
+  } catch (error) {
+    const failedAt = new Date().toISOString();
+    const errorMessage = error instanceof Error ? error.message.slice(0, 1000) : "Email delivery failed.";
+    const { error: updateError } = await admin.from("customer_email_logs").update({ status: "failed", failed_at: failedAt, sent_at: null, error_message: errorMessage }).eq("id", log.id);
+    if (updateError) console.error("CRITICAL: CUSTOMER EMAIL FAILURE LOG UPDATE FAILED", { emailLogId: log.id, error: updateError, deliveryError: error });
+    throw error;
+  }
 }
 
 function buildBookingSummary(details: BookingEmailDetails) {
@@ -328,7 +360,11 @@ export async function sendBookingConfirmationEmail(details: BookingEmailDetails)
     ctaHref: details.manageUrl ?? `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
-  await sendGmailMessage({
+  await sendCustomerEmail({
+    customerId: details.customerId,
+    appointmentId: details.appointmentId,
+    customerName: details.customerName,
+    emailType: "appointment_confirmation",
     to: details.to,
     subject: `Booking confirmed: ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),
@@ -347,7 +383,11 @@ export async function sendBookingCancellationEmail(details: BookingEmailDetails)
     ctaHref: `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
-  await sendGmailMessage({
+  await sendCustomerEmail({
+    customerId: details.customerId,
+    appointmentId: details.appointmentId,
+    customerName: details.customerName,
+    emailType: "appointment_cancelled",
     to: details.to,
     subject: `Booking cancelled: ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),
@@ -366,7 +406,11 @@ export async function sendBookingUpdateEmail(details: BookingEmailDetails) {
     ctaHref: `${getSiteUrl()}/account`,
   } satisfies EmailTemplateContent;
 
-  await sendGmailMessage({
+  await sendCustomerEmail({
+    customerId: details.customerId,
+    appointmentId: details.appointmentId,
+    customerName: details.customerName,
+    emailType: "appointment_rescheduled",
     to: details.to,
     subject: `Booking updated: ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),

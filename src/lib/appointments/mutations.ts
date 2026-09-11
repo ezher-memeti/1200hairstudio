@@ -176,6 +176,8 @@ function getAppointmentInsertErrorMessage(
 
 export async function sendConfirmationEmailSafely(details: {
   to: string;
+  customerId?: string | null;
+  appointmentId?: string | null;
   customerName: string;
   serviceName: string;
   startAt: string;
@@ -369,6 +371,8 @@ export async function createAppointment(
     if (recipientEmail && runtimeSettings.notifications.bookingConfirmationEmail) {
       await sendConfirmationEmailSafely({
         to: recipientEmail,
+        customerId: customer.id,
+        appointmentId: createdAppointment.id,
         customerName: fullName || customer.full_name || "Customer",
         serviceName: service.name,
         startAt,
@@ -493,6 +497,8 @@ export async function createAppointment(
 
     const emailDetails = {
       to: email,
+      customerId: guestCustomerId,
+      appointmentId: createdAppointment.id,
       customerName: fullName,
       serviceName: service.name,
       startAt,

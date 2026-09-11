@@ -28,7 +28,7 @@ async function getRecurringEmailDetails(series: RecurringBookingRecord): Promise
     admin.from("appointments").select("start_at").eq("recurring_booking_id", series.id).eq("status", "confirmed").gt("start_at", new Date().toISOString()).order("start_at", { ascending: true }),
   ]);
   if (!customer?.email || !service || !series.ends_on) return null;
-  return { to: customer.email, customerName: customer.full_name, serviceName: service.name, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on, reservedCount: appointments?.length ?? 0, upcomingAppointments: (appointments ?? []).map((appointment) => ({ startAt: appointment.start_at })) };
+  return { to: customer.email, customerId: series.customer_id, recurringBookingId: series.id, customerName: customer.full_name, serviceName: service.name, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on, reservedCount: appointments?.length ?? 0, upcomingAppointments: (appointments ?? []).map((appointment) => ({ startAt: appointment.start_at })) };
 }
 
 async function sendRecurringNotification(event: "paused" | "resumed" | "removed", details: RecurringEmailDetails | null) {

@@ -86,6 +86,8 @@ export async function cancelResolvedAppointment(
     try {
       await sendBookingCancellationEmail({
         to: details.customerEmail,
+        customerId: appointment.customer_id,
+        appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: details.serviceName,
         startAt: appointment.start_at,
@@ -158,6 +160,8 @@ export async function rescheduleResolvedAppointment(
     try {
       await sendBookingUpdateEmail({
         to: details.customerEmail,
+        customerId: appointment.customer_id,
+        appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: validation.service.name,
         startAt: updatedAppointment.start_at,

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const email = (customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "").trim().toLowerCase();
   if (!email) return NextResponse.json({ error: "Customer email is unavailable" }, { status: 422 });
   try {
-    await sendAppointmentReminderEmail({ to: email, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
+    await sendAppointmentReminderEmail({ to: email, customerId: appointment.customer_id, appointmentId: appointment.id, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
     return NextResponse.json({ ok: true });
   } catch (sendError) {
     console.error("INTERNAL APPOINTMENT REMINDER EMAIL ERROR", { appointmentId: appointment.id, error: sendError });

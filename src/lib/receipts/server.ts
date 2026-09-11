@@ -91,7 +91,7 @@ export async function getAdminReceipt(supabase: SupabaseClient, receiptId: strin
   if (error || !receipt) return null;
   const { data: appointment } = await supabase.from("appointments").select("customer_id,customer_email,guest_email").eq("id", receipt.appointment_id).maybeSingle();
   const { data: customer } = appointment?.customer_id ? await supabase.from("customers").select("email").eq("id", appointment.customer_id).maybeSingle() : { data: null };
-  return { ...(receipt as ReceiptRecord), customer_email: customer?.email ?? appointment?.customer_email ?? appointment?.guest_email ?? "" };
+  return { ...(receipt as ReceiptRecord), customer_email: customer?.email ?? appointment?.customer_email ?? appointment?.guest_email ?? "", customer_id: appointment?.customer_id ?? null };
 }
 
 function drawRight(page: PDFPage, font: PDFFont, text: string, y: number, size = 10) {

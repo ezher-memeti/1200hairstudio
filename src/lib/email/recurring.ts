@@ -2,13 +2,15 @@ import "server-only";
 
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 import { getSiteUrl } from "@/lib/auth/url";
-import { sendGmailMessage } from "@/lib/email/gmail";
+import { sendCustomerEmail, type CustomerEmailType } from "@/lib/email/gmail";
 import type { RecurringFrequency } from "@/lib/recurring-bookings/types";
 
 type RecurringEmailOccurrence = { startAt: string };
 
 export type RecurringEmailDetails = {
   to: string;
+  customerId?: string | null;
+  recurringBookingId?: string | null;
   customerName?: string | null;
   serviceName: string;
   frequency: RecurringFrequency;
@@ -25,6 +27,14 @@ export type RecurringEmailDetails = {
 };
 
 type RecurringEmailVariant = "confirmed" | "updated" | "removed" | "paused" | "resumed";
+
+const EMAIL_TYPES: Record<RecurringEmailVariant, CustomerEmailType> = {
+  confirmed: "regular_booking_confirmation",
+  updated: "regular_booking_updated",
+  removed: "regular_booking_removed",
+  paused: "regular_booking_paused",
+  resumed: "regular_booking_resumed",
+};
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -108,7 +118,20 @@ async function buildRecurringEmail(variant: RecurringEmailVariant, details: Recu
 
 async function sendRecurringEmail(variant: RecurringEmailVariant, details: RecurringEmailDetails) {
   const message = await buildRecurringEmail(variant, details);
-  await sendGmailMessage({ to: details.to, ...message });
+  await sendCustomerEmail({
+    to: details.to,
+    customerId: details.customerId,
+    customerName: details.customerName,
+    emailType: EMAIL_TYPES[variant],
+    metadata: {
+      recurring_booking_id: details.recurringBookingId ?? null,
+      service_name: details.serviceName,
+      frequency: details.frequency,
+      starts_on: details.startsOn,
+      ends_on: details.endsOn,
+    },
+    ...message,
+  });
 }
 
 export const sendRecurringBookingConfirmationEmail = (details: RecurringEmailDetails) => sendRecurringEmail("confirmed", details);

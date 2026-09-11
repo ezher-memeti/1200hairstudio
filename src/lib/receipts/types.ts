@@ -22,4 +22,5 @@ export type ReceiptRecord = {
 
 export type AdminReceipt = ReceiptRecord & {
   customer_email: string;
+  customer_id: string | null;
 };

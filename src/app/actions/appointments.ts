@@ -179,6 +179,8 @@ export async function updateAdminAppointment(
           await import("@/lib/email/transactional").then(({ sendBookingUpdateEmail }) =>
             sendBookingUpdateEmail({
               to: customerEmail,
+              customerId: currentAppointment.customer_id,
+              appointmentId: currentAppointment.id,
               customerName,
               serviceName: validation.service.name,
               startAt: validation.startAt,
@@ -307,6 +309,8 @@ export async function removeAdminAppointment(input: {
         await import("@/lib/email/transactional").then(({ sendBookingCancellationEmail }) =>
           sendBookingCancellationEmail({
             to: customerEmail,
+            customerId: appointment.customer_id,
+            appointmentId: appointment.id,
             customerName,
             serviceName: service.name,
             startAt: appointment.start_at,
@@ -511,6 +515,8 @@ export async function createAdminAppointment(input: {
       try {
         await sendBookingConfirmationEmail({
           to: customerEmail,
+          customerId: appointmentCustomerId,
+          appointmentId: createdAppointment.id,
           customerName,
           serviceName: validation.service.name,
           startAt: validation.startAt,
