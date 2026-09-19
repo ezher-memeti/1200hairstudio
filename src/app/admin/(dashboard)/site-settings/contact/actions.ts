@@ -46,6 +46,11 @@ export async function saveContactSectionSettings(input: ContactSectionSettings):
       reviewsCtaLabel: clean(input.reviewsCtaLabel, 80),
       leaveReviewCtaLabel: clean(input.leaveReviewCtaLabel, 80),
     };
+    if (settings.instagramEnabled && !settings.instagramUrl) throw new Error("Instagram URL is required when Instagram is enabled.");
+    if (settings.instagramEnabled && !settings.instagramCtaLabel) throw new Error("Instagram CTA label is required when Instagram is enabled.");
+    if (settings.googleReviewsEnabled && !settings.googleReviewsUrl) throw new Error("Reviews URL is required when Google Reviews is enabled.");
+    if (settings.googleReviewsEnabled && !settings.googleLeaveReviewUrl) throw new Error("Leave-review URL is required when Google Reviews is enabled.");
+    if (settings.googleReviewsEnabled && (!settings.reviewsCtaLabel || !settings.leaveReviewCtaLabel)) throw new Error("Both Google Reviews CTA labels are required when Google Reviews is enabled.");
     await persistContactSectionSettings(settings);
     revalidatePath("/");
     revalidatePath("/admin/site-settings/contact");
