@@ -7,14 +7,16 @@ import SelectedWork from "@/components/home/SelectedWork";
 import ServicesSection from "@/components/home/ServicesSection";
 import ScrollVideoSection from "@/components/home/ScrollVideoSection";
 import SectionTwo from "@/components/home/SectionTwo";
+import ContactSection from "@/components/home/ContactSection";
 import VisitStudio from "@/components/home/VisitStudio";
 import BookingAnnouncement from "@/components/announcements/BookingAnnouncement";
 import AnnouncementModal from "@/components/announcements/AnnouncementModal";
 import { getActiveAnnouncements, selectAnnouncement } from "@/lib/announcements/queries";
 import { getHomepageContent } from "@/lib/homepage-content";
+import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 
 export default async function Home() {
-  const [announcements, content] = await Promise.all([getActiveAnnouncements(), getHomepageContent()]);
+  const [announcements, content, contactSettings] = await Promise.all([getActiveAnnouncements(), getHomepageContent(), getPublicContactSectionSettings()]);
   return (
     <>
       <Header />
@@ -28,7 +30,8 @@ export default async function Home() {
         <BookingSection content={content} />
         <SelectedWork content={content} />
         <MeetTheBarber content={content} />
-        <VisitStudio content={content} />
+        {contactSettings ? <ContactSection settings={contactSettings} /> : null}
+        <VisitStudio content={content} directionsUrl={contactSettings?.mapUrl} />
       </main>
       <Footer content={content} />
       <AnnouncementModal announcement={selectAnnouncement(announcements, "modal")} />

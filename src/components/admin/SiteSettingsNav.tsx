@@ -8,6 +8,7 @@ const siteSettingsItems = [
   { label: "Services", href: "/admin/site-settings/services" },
   { label: "Business Hours", href: "/admin/site-settings/business-hours" },
   { label: "Selected Work", href: "/admin/site-settings/selected-work" },
+  { label: "Contact", href: "/admin/site-settings/contact" },
   { label: "Announcements", href: "/admin/site-settings/announcements" },
   { label: "Loyalty", href: "/admin/site-settings/loyalty" },
 ] as const;
@@ -25,7 +26,7 @@ export default function SiteSettingsNav() {
           Site Settings
         </h1>
         <p className="mt-3 max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
-          Manage public website content, services, availability, and gallery.
+          Manage public website content, services, availability, contact details, and gallery.
         </p>
       </div>
 
