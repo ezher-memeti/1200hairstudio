@@ -16,7 +16,41 @@ import { getHomepageContent } from "@/lib/homepage-content";
 import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 
 export default async function Home() {
-  const [announcements, content, contactSettings] = await Promise.all([getActiveAnnouncements(), getHomepageContent(), getPublicContactSectionSettings()]);
+
+  console.time("HOME_TOTAL");
+
+  const announcementsPromise = (async () => {
+    console.time("getActiveAnnouncements");
+    const result = await getActiveAnnouncements();
+    console.timeEnd("getActiveAnnouncements");
+    return result;
+  })();
+
+  const contentPromise = (async () => {
+    console.time("getHomepageContent");
+    const result = await getHomepageContent();
+    console.timeEnd("getHomepageContent");
+    return result;
+  })();
+
+  const contactPromise = (async () => {
+    console.time("getPublicContactSectionSettings");
+    const result = await getPublicContactSectionSettings();
+    console.timeEnd("getPublicContactSectionSettings");
+    return result;
+  })();
+
+  const [announcements, content, contactSettings] = await Promise.all([
+    announcementsPromise,
+    contentPromise,
+    contactPromise,
+  ]);
+
+  console.timeEnd("HOME_TOTAL");
+
+  // existing return...
+  // const [announcements, content, contactSettings] = await Promise.all([getActiveAnnouncements(), getHomepageContent(), getPublicContactSectionSettings()]);
+
   return (
     <>
       <Header />
