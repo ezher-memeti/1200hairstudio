@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { clearGuestBookingCookie } from "@/lib/appointments/management";
 import { createBookingCredentials, getBookingManagementUrl } from "@/lib/appointments/management";
 import { processAppointmentStatusForLoyalty } from "@/lib/loyalty/process-completed-appointment";
+import { APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, getProtectedAppointmentIds, isAppointmentForeignKeyError } from "@/lib/appointments/deletion-protection";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -271,6 +272,11 @@ export async function removeAdminAppointment(input: {
       return { error: "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
     }
 
+    const protectedIds = await getProtectedAppointmentIds(supabase, [appointment.id]);
+    if (protectedIds.has(appointment.id)) {
+      return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
+    }
+
     const { data: appointmentCustomer } = appointment.customer_id
       ? await supabase
           .from("customers")
@@ -288,7 +294,12 @@ export async function removeAdminAppointment(input: {
     const { error } = await supabase.from("appointments").delete().eq("id", input.appointmentId);
 
     if (error) {
-      return { error: error.message, emailError: null, emailStatus: "skipped" as const };
+      if (isAppointmentForeignKeyError(error)) {
+        console.error("ADMIN APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", error);
+        return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
+      }
+      console.error("ADMIN APPOINTMENT DELETE ERROR:", error);
+      return { error: "The appointment could not be deleted. Please try again.", emailError: null, emailStatus: "skipped" as const };
     }
 
     const customerName =

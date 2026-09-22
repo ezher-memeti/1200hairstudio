@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download, Eye, Mail, X } from "lucide-react";
 import {
   createAdminAppointment,
@@ -24,12 +25,13 @@ import { getEffectiveHours, toDateKey } from "@/lib/public/booking-availability-
 import type { ServiceRecord } from "@/lib/services/types";
 import AdminSelect from "@/components/admin/AdminSelect";
 import DateTimePicker from "@/components/admin/ui/DateTimePicker";
-import FinanceTransactionDialog from "@/components/admin/FinanceTransactionDialog";
-import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion, TransactionType } from "@/lib/finance/types";
+import CheckoutDialog from "@/components/admin/CheckoutDialog";
+import type { AppointmentFinanceSummary, FinanceAppointment, FinancePromotion } from "@/lib/finance/types";
 import type { ReceiptRecord } from "@/lib/receipts/types";
 import type { PaymentMethodSetting } from "@/lib/admin/settings";
 import RecurringBookingManager from "@/components/recurring-bookings/RecurringBookingManager";
 import type { RecurringBookingRecord } from "@/lib/recurring-bookings/types";
+import type { AppointmentSaleLink } from "@/lib/sales/types";
 
 type ViewMode = "week" | "day" | "list";
 
@@ -46,8 +48,8 @@ type Props = {
   promotions: FinancePromotion[];
   receipts: ReceiptRecord[];
   enabledPaymentMethods: PaymentMethodSetting[];
-  receiptEmailEnabled: boolean;
   recurringBookings: RecurringBookingRecord[];
+  sales: AppointmentSaleLink[];
 };
 
 type AppointmentCard = AdminAppointmentDetail & {
@@ -306,8 +308,8 @@ export default function AdminAppointmentsView({
   promotions,
   receipts,
   enabledPaymentMethods,
-  receiptEmailEnabled,
   recurringBookings,
+  sales,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -340,7 +342,7 @@ export default function AdminAppointmentsView({
   const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [draftNotes, setDraftNotes] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [financeDialogType, setFinanceDialogType] = useState<TransactionType | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [receiptState, setReceiptState] = useState(receipts);
   const [receiptFeedback, setReceiptFeedback] = useState("");
   const [isReceiptPending, startReceiptTransition] = useTransition();
@@ -378,6 +380,9 @@ export default function AdminAppointmentsView({
     ? financeSummaries.find((item) => item.appointment_id === selectedDetail.id) ?? null
     : null;
   const selectedReceipt = selectedDetail ? receiptState.find((receipt) => receipt.appointment_id === selectedDetail.id) ?? null : null;
+  const selectedSale = selectedDetail
+    ? sales.find((sale) => sale.appointment_id === selectedDetail.id) ?? null
+    : null;
   const selectedFinanceAppointment: FinanceAppointment | null = selectedDetail && selectedFinance
     ? {
         appointmentId: selectedDetail.id,
@@ -1374,8 +1379,13 @@ export default function AdminAppointmentsView({
                 {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{selectedFinanceAppointment.discountSource === "custom" ? "Custom discount" : "Promotion"} — {selectedFinanceAppointment.discountLabel ?? "Discount"}</p> : null}
                 {selectedDetail.status === "completed" && selectedFinanceAppointment.netPaid < selectedFinanceAppointment.amountDue ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-rose-300">Completed appointment · payment outstanding</p> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" disabled={selectedFinanceAppointment.amountDue > 0 && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue} onClick={() => setFinanceDialogType("payment")} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background disabled:opacity-40">Record Payment</button>
-                  <button type="button" disabled={selectedFinanceAppointment.netPaid <= 0} onClick={() => setFinanceDialogType("refund")} className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary disabled:opacity-40">Record Refund</button>
+                  {selectedSale ? <>
+                    <span className="inline-flex min-h-11 items-center justify-center border border-emerald-400/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-emerald-300">Paid</span>
+                    <Link href={`/admin/finance/sales?saleId=${encodeURIComponent(selectedSale.id)}`} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background">View Sale</Link>
+                    {selectedSale.refundableAmount > 0 ? <Link href={`/admin/finance/sales?saleId=${encodeURIComponent(selectedSale.id)}&refund=1`} className="inline-flex min-h-11 items-center justify-center border border-accent/60 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-accent">Record Refund</Link> : null}
+                  </> : (
+                    <button type="button" onClick={() => setIsCheckoutOpen(true)} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background">Checkout</button>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -1573,15 +1583,12 @@ export default function AdminAppointmentsView({
         </div>
       ) : null}
 
-      {financeDialogType && selectedFinanceAppointment ? (
-        <FinanceTransactionDialog
+      {isCheckoutOpen && selectedFinanceAppointment ? (
+        <CheckoutDialog
           appointment={selectedFinanceAppointment}
           promotions={promotions}
-          transactionType={financeDialogType}
           enabledPaymentMethods={enabledPaymentMethods}
-          receiptEmailEnabled={receiptEmailEnabled}
-          onClose={() => setFinanceDialogType(null)}
-          onSuccess={(message) => setFeedback(message)}
+          onClose={() => setIsCheckoutOpen(false)}
         />
       ) : null}
 

@@ -97,7 +97,7 @@ export async function calculateFinancialReport(
   const bounds = reportUtcBounds(input.startDate, input.endDate);
   const [{ data: appointments, error: appointmentError }, { data: payments, error: paymentError }] = await Promise.all([
     supabase.from("appointment_finance_summary").select("appointment_id,start_at,appointment_status,original_price,discount_amount,amount_due,net_paid").gte("start_at", bounds.start).lt("start_at", bounds.endExclusive).neq("appointment_status", "cancelled"),
-    supabase.from("payments").select("appointment_id,transaction_type,amount,payment_method,status,paid_at").eq("status", "completed").gte("paid_at", bounds.start).lt("paid_at", bounds.endExclusive),
+    supabase.from("payments").select("appointment_id,transaction_type,amount,tip_amount,payment_method,status,paid_at").eq("status", "completed").gte("paid_at", bounds.start).lt("paid_at", bounds.endExclusive),
   ]);
   if (appointmentError) throw new Error(`Financial appointments could not be loaded: ${appointmentError.message}`);
   if (paymentError) throw new Error(`Financial payments could not be loaded: ${paymentError.message}`);
@@ -126,6 +126,8 @@ export async function calculateFinancialReport(
     const amount = money(payment.amount);
     if (payment.transaction_type === "refund") { totals.refunds += amount; row.refunds += amount; continue; }
     const method = payment.payment_method === "bank_transfer" ? "bankTransfer" : (["twint", "cash", "card", "other"].includes(payment.payment_method) ? payment.payment_method : "other") as "twint" | "cash" | "card" | "bankTransfer" | "other";
+    const tip = money(payment.tip_amount);
+    totals.tips += tip; row.tips += tip;
     totals[method] += amount; row[method] += amount;
     const appointmentStart = appointmentStarts.get(payment.appointment_id);
     if (appointmentStart && appointmentStart >= bounds.start && appointmentStart < bounds.endExclusive) { totals.paymentsForSalesInPeriod += amount; row.paymentsForSalesInPeriod += amount; }

@@ -366,7 +366,7 @@ export default function SelectedWorkManager({
           <div className="grid grid-cols-1 gap-5">
             <label className="space-y-3">
               <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Title
+                Title (Optional)
               </span>
               <input
                 type="text"

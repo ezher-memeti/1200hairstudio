@@ -41,7 +41,7 @@ export async function getOrCreateReceipt(
   const [{ data: appointment, error: appointmentError }, { data: finance, error: financeError }, { data: payments, error: paymentsError }, financeSettings] = await Promise.all([
     supabase.from("appointments").select("id,customer_id,customer_name,guest_name,service_id,start_at,discount_label").eq("id", appointmentId).maybeSingle(),
     supabase.from("appointment_finance_summary").select("appointment_id,original_price,discount_amount,amount_due,net_paid").eq("appointment_id", appointmentId).maybeSingle(),
-    supabase.from("payments").select("transaction_type,amount,payment_method,status,paid_at").eq("appointment_id", appointmentId).eq("status", "completed").order("paid_at"),
+    supabase.from("payments").select("transaction_type,amount,tip_amount,payment_method,status,paid_at").eq("appointment_id", appointmentId).eq("status", "completed").order("paid_at"),
     getFinanceSettings(),
   ]);
   if (appointmentError || !appointment || financeError || !finance || paymentsError) throw new Error("Receipt data could not be loaded.");
@@ -58,6 +58,7 @@ export async function getOrCreateReceipt(
   ]);
   if (!service?.name) throw new Error("Receipt service snapshot could not be created.");
   const methods = [...new Set((payments ?? []).filter((payment) => payment.transaction_type === "payment").map((payment) => payment.payment_method).filter(Boolean))];
+  const tipAmount = money((payments ?? []).filter((payment) => payment.transaction_type === "payment").reduce((sum, payment) => sum + money(payment.tip_amount), 0));
   const payload = {
     appointment_id: appointment.id,
     receipt_number: Number(latestReceipt?.receipt_number ?? 1000) + 1,
@@ -69,6 +70,8 @@ export async function getOrCreateReceipt(
     discount_amount: money(finance.discount_amount),
     discount_label: appointment.discount_label ?? null,
     total,
+    tip_amount: tipAmount,
+    tax_amount: 0,
     amount_paid: amountPaid,
     balance,
     payment_method: methods.length ? methods.join(" + ") : null,
@@ -122,6 +125,7 @@ export async function generateReceiptPdf(receipt: ReceiptRecord) {
     ["Subtotal", `${currency} ${receipt.subtotal.toFixed(2)}`],
     [receipt.discount_label ? `Discount · ${receipt.discount_label}` : "Discount", `-${currency} ${receipt.discount_amount.toFixed(2)}`],
     ["Total", `${currency} ${receipt.total.toFixed(2)}`, true],
+    ...(receipt.tip_amount ? [["Tip", `${currency} ${receipt.tip_amount.toFixed(2)}`] as [string, string, boolean?]] : []),
     [receipt.payment_method ? `Payment with ${receipt.payment_method.toUpperCase()}` : "No payment required", `${currency} ${receipt.amount_paid.toFixed(2)}`],
     ["Balance", `${currency} ${receipt.balance.toFixed(2)}`, true],
   ];
