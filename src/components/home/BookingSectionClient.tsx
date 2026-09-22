@@ -171,7 +171,7 @@ function formatPrice(value: number) {
 function ServicePrice({ service, compact = false }: { service: Service; compact?: boolean }) {
   if (!service.promotionId) return <span className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">{service.price}</span>;
   const badge = service.discountType === "percentage" ? `${service.discountValue}% OFF` : `CHF ${service.discountValue} OFF`;
-  return <span className={`flex ${compact ? "items-center" : "items-end"} flex-wrap gap-2`}><span className="font-primary text-xs uppercase tracking-[0.16em] text-foreground-muted line-through">{formatPrice(service.originalPrice)}</span><span className="border border-accent/50 bg-accent/10 px-2 py-1 font-primary text-[9px] font-semibold uppercase tracking-[0.16em] text-accent">{badge}</span><span className="font-display text-2xl uppercase text-foreground">{formatPrice(service.finalPrice)}</span>{compact ? null : <span className="basis-full font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your promotional price</span>}</span>;
+  return <span className={`flex ${compact ? "items-center justify-end text-right" : "items-end"} flex-wrap gap-2`}><span className="font-primary text-xs uppercase tracking-[0.16em] text-foreground-muted line-through">{formatPrice(service.originalPrice)}</span><span className="border border-accent/50 bg-accent/10 px-2 py-1 font-primary text-[9px] font-semibold uppercase tracking-[0.16em] text-accent">{badge}</span><span className="font-display text-2xl uppercase text-foreground">{formatPrice(service.finalPrice)}</span>{compact ? null : <span className="basis-full font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your promotional price</span>}</span>;
 }
 
 function ServiceStep({
@@ -201,7 +201,7 @@ function ServiceStep({
               type="button"
               onClick={() => onServiceSelect(service.id)}
               aria-pressed={isSelected}
-              className={`group relative flex w-full cursor-pointer items-start justify-between gap-4 border-b px-4 py-5 text-left transition-colors sm:py-6 ${
+              className={`group relative grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_6.75rem_1.25rem] items-start gap-x-2.5 border-b px-3 py-5 text-left transition-colors min-[430px]:grid-cols-[minmax(0,1fr)_7.5rem_1.25rem] min-[430px]:gap-x-3 min-[430px]:px-4 sm:grid-cols-[minmax(0,1fr)_13rem_1.25rem] sm:gap-x-4 sm:py-6 ${
                 isSelected
                   ? "border-accent/60 bg-background text-foreground"
                   : "border-border text-foreground-secondary hover:bg-background/70 hover:text-foreground"
@@ -213,27 +213,16 @@ function ServiceStep({
                 }`}
                 aria-hidden="true"
               />
-              <div className="space-y-2">
-                <div className="flex items-baseline gap-4">
-                  <span
-                    className={`font-display text-2xl uppercase tracking-[-0.04em] transition-colors sm:text-3xl ${
-                      isSelected
-                        ? "text-foreground"
-                        : "text-foreground-secondary group-hover:text-foreground"
-                    }`}
-                  >
-                    {service.title}
-                  </span>
-                  <span
-                    className={`font-primary text-sm uppercase tracking-[0.2em] transition-colors ${
-                      isSelected
-                        ? "text-foreground-secondary"
-                        : "text-foreground-muted group-hover:text-foreground-secondary"
-                    }`}
-                  >
-                    <ServicePrice service={service} compact />
-                  </span>
-                </div>
+              <div className="min-w-0 space-y-2">
+                <span
+                  className={`block break-words font-display text-2xl uppercase tracking-[-0.04em] transition-colors sm:text-3xl ${
+                    isSelected
+                      ? "text-foreground"
+                      : "text-foreground-secondary group-hover:text-foreground"
+                  }`}
+                >
+                  {service.title}
+                </span>
                 <p
                   className={`font-primary text-sm leading-6 transition-colors ${
                     isSelected
@@ -253,6 +242,16 @@ function ServiceStep({
                   {service.duration}
                 </p>
               </div>
+
+              <span
+                className={`flex w-full justify-end pt-1 text-right transition-colors ${
+                  isSelected
+                    ? "text-foreground-secondary"
+                    : "text-foreground-muted group-hover:text-foreground-secondary"
+                }`}
+              >
+                <ServicePrice service={service} compact />
+              </span>
 
               <span
                 className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] transition-colors ${

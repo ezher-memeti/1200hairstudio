@@ -32,7 +32,7 @@ export default function SiteSettingsNav() {
 
       <nav
         aria-label="Site settings sections"
-        className="-mx-5 mt-7 overflow-x-auto border-b border-border px-5 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
+        className="-mx-5 mt-7 overflow-x-auto overscroll-x-contain scroll-smooth border-b border-border px-5 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
       >
         <div className="flex min-w-max">
           {siteSettingsItems.map((item) => {

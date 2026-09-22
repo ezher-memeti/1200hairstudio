@@ -66,7 +66,7 @@ export default function HeaderClient({
 
         <button
           type="button"
-          className="inline-flex items-center justify-center border border-border bg-surface p-2 font-primary text-foreground md:hidden"
+          className="inline-flex size-11 items-center justify-center border border-border bg-surface font-primary text-foreground md:hidden"
           aria-expanded={isMenuOpen}
           aria-controls="mobile-navigation"
           aria-label="Toggle navigation"

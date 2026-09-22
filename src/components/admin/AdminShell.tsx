@@ -28,6 +28,10 @@ export default function AdminShell({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
+    setIsMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     if (!isMenuOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -89,8 +93,8 @@ export default function AdminShell({
         </aside>
 
         <div className="min-w-0">
-          <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm lg:hidden">
-            <div className="page-container flex items-center justify-between py-4">
+          <header className="sticky top-0 z-50 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:hidden">
+            <div className="page-container flex min-h-16 items-center justify-between py-2">
               <Link
                 href="/admin"
                 className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground"
@@ -106,7 +110,7 @@ export default function AdminShell({
                 className="inline-flex size-11 items-center justify-center border border-border bg-surface text-foreground"
               >
                 <span className="sr-only">Toggle admin navigation</span>
-                <Menu size={20} />
+                {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </div>
 
@@ -144,6 +148,13 @@ export default function AdminShell({
                   </nav>
                   </div>
                   <div className="space-y-3 border-t border-border px-4 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+                    <Link
+                      href="/admin/settings"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="inline-flex min-h-12 w-full items-center justify-center border border-border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
+                    >
+                      Profile
+                    </Link>
                     <Link
                       href="/"
                       onClick={() => setIsMenuOpen(false)}

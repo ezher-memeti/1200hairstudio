@@ -61,9 +61,9 @@ export default function CheckoutDialog({ appointment, promotions, enabledPayment
   return (
     <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-background/80 p-3 backdrop-blur-sm sm:items-center">
       <section className="my-auto w-full max-w-3xl overflow-visible border border-border bg-surface">
-        <header className="sticky top-0 z-10 flex justify-between border-b border-border bg-surface p-5">
-          <div><p className="text-xs uppercase tracking-[.18em] text-accent">Checkout</p><h2 className="mt-2 font-admin-display text-3xl uppercase text-foreground">{appointment.serviceName}</h2><p className="mt-1 text-sm text-foreground-muted">{appointment.customerName} · {appointment.bookingReference}</p></div>
-          <button type="button" onClick={onClose} className="size-11 border border-border">×</button>
+        <header className="sticky top-0 z-10 flex justify-between gap-4 border-b border-border bg-surface p-4 sm:p-5">
+          <div className="min-w-0"><p className="text-xs uppercase tracking-[.18em] text-accent">Checkout</p><h2 className="mt-2 break-words font-admin-display text-2xl uppercase text-foreground sm:text-3xl">{appointment.serviceName}</h2><p className="mt-1 break-words text-sm text-foreground-muted">{appointment.customerName} · {appointment.bookingReference}</p></div>
+          <button type="button" onClick={onClose} className="size-11 shrink-0 border border-border">×</button>
         </header>
         <div className="space-y-6 p-5 sm:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -82,7 +82,7 @@ export default function CheckoutDialog({ appointment, promotions, enabledPayment
           <div className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm"><div><span className="text-foreground-muted">Due</span><p>CHF {due.toFixed(2)}</p></div><div><span className="text-foreground-muted">Paid</span><p>CHF {paid.toFixed(2)}</p></div><div><span className="text-foreground-muted">Change</span><p className="text-accent">CHF {change.toFixed(2)}</p></div></div>
           {feedback ? <p className="text-sm text-rose-300">{feedback}</p> : null}
         </div>
-        <footer className="sticky bottom-0 flex justify-end gap-3 border-t border-border bg-surface p-4"><button type="button" onClick={onClose} className="min-h-11 border border-border px-5 text-xs uppercase">Cancel</button><button type="button" disabled={pending || Math.round(paid * 100) !== Math.round(due * 100)} onClick={submit} className="min-h-11 bg-accent px-5 text-xs uppercase text-background disabled:opacity-40">{pending ? "Completing…" : "Complete Sale"}</button></footer>
+        <footer className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-border bg-surface p-4 min-[430px]:flex-row min-[430px]:justify-end"><button type="button" onClick={onClose} className="min-h-11 border border-border px-5 text-xs uppercase">Cancel</button><button type="button" disabled={pending || Math.round(paid * 100) !== Math.round(due * 100)} onClick={submit} className="min-h-11 bg-accent px-5 text-xs uppercase text-background disabled:opacity-40">{pending ? "Completing…" : "Complete Sale"}</button></footer>
       </section>
     </div>
   );
