@@ -9,7 +9,6 @@ export default async function SelectedWork({ content }: { content: HomepageConte
   const works: WorkItem[] = selectedWork.map((item) => ({
     id: item.id,
     title: item.title?.trim() || null,
-    subtitle: item.description?.trim() || "Selected Work",
     meta: undefined,
     image: item.image_url.trim(),
   }));
@@ -35,9 +34,6 @@ export default async function SelectedWork({ content }: { content: HomepageConte
           <h2 className="whitespace-pre-line font-display max-w-lg text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
             {content.work_title}
           </h2>
-          <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base">
-            {content.work_description}
-          </p>
         </div>
 
         {hasWorks ? (

@@ -32,7 +32,6 @@ type SelectedWorkManagerProps = {
 type FormState = {
   id?: string;
   title: string;
-  description: string;
   isActive: boolean;
   imageFile: File | null;
   currentImageUrl: string;
@@ -72,7 +71,6 @@ function SelectedWorkThumbnail({
 
 const blankForm: FormState = {
   title: "",
-  description: "",
   isActive: true,
   imageFile: null,
   currentImageUrl: "",
@@ -82,7 +80,6 @@ function toFormState(item: SelectedWorkRecord): FormState {
   return {
     id: item.id,
     title: item.title ?? "",
-    description: item.description ?? "",
     isActive: item.is_active,
     imageFile: null,
     currentImageUrl: item.image_url,
@@ -234,7 +231,6 @@ export default function SelectedWorkManager({
         payload.set("id", formState.id);
       }
       payload.set("title", formState.title);
-      payload.set("description", formState.description);
       payload.set("isActive", String(formState.isActive));
       payload.set("currentImageUrl", formState.currentImageUrl);
 
@@ -383,28 +379,6 @@ export default function SelectedWorkManager({
                 }
                 className="w-full border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
                 placeholder="Work title (Optional)"
-              />
-            </label>
-
-            <label className="space-y-3">
-              <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Description
-              </span>
-              <textarea
-                rows={5}
-                value={formState.description}
-                onChange={(event) =>
-                  setFormState((current) =>
-                    current
-                      ? {
-                          ...current,
-                          description: event.target.value,
-                        }
-                      : current,
-                  )
-                }
-                className="w-full resize-none border border-border bg-transparent px-4 py-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                placeholder="Description (Optional)"
               />
             </label>
 
@@ -651,10 +625,6 @@ export default function SelectedWorkManager({
                       Order {item.sort_order}
                     </span>
                   </div>
-
-                  <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                    {item.description || "No description set."}
-                  </p>
 
                   <div className="flex flex-wrap gap-x-6 gap-y-2">
                     <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">

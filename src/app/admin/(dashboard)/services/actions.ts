@@ -159,9 +159,6 @@ export async function upsertService(formData: FormData) {
     } = await supabase.auth.getUser();
     const id = (formData.get("id") ?? "").toString().trim() || undefined;
     const name = (formData.get("name") ?? "").toString().trim();
-    const description = (formData.get("description") ?? "")
-      .toString()
-      .trim();
     const price = toNumber(formData.get("price"));
     const durationMin = toNumber(formData.get("durationMin"));
     const durationMax = toNullableNumber(
@@ -259,7 +256,6 @@ export async function upsertService(formData: FormData) {
 
     const values = {
       name,
-      description: description || null,
       price,
       duration_min: durationMin,
       duration_max: durationMax,

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpRight, AtSign, MessageSquareText, PenLine, Phone } from "lucide-react";
+import { ArrowUpRight, AtSign, PenLine, Phone } from "lucide-react";
 import type { ContactSectionSettings } from "@/lib/contact-section/types";
 
 type Props = { settings: ContactSectionSettings; preview?: boolean };
@@ -42,7 +42,6 @@ export default function ContactSection({ settings, preview = false }: Props) {
   const actions: ContactAction[] = [
     phoneHref && settings.callCtaLabel.trim() ? { href: phoneHref, label: settings.callCtaLabel, compactLabel: "Call", ariaLabel: "Call 1200 Hairstudio", icon: Phone } : null,
     settings.instagramEnabled && settings.instagramUrl.trim() && settings.instagramCtaLabel.trim() ? { href: settings.instagramUrl, label: settings.instagramCtaLabel, compactLabel: "Insta", ariaLabel: "Open 1200 Hairstudio on Instagram", icon: AtSign, external: true } : null,
-    settings.googleReviewsEnabled && settings.googleReviewsUrl.trim() && settings.reviewsCtaLabel.trim() ? { href: settings.googleReviewsUrl, label: settings.reviewsCtaLabel, compactLabel: "Reviews", ariaLabel: "Read 1200 Hairstudio Google reviews", icon: MessageSquareText, external: true } : null,
     settings.googleReviewsEnabled && settings.googleLeaveReviewUrl.trim() && settings.leaveReviewCtaLabel.trim() ? { href: settings.googleLeaveReviewUrl, label: settings.leaveReviewCtaLabel, compactLabel: "Review", ariaLabel: "Leave a Google review for 1200 Hairstudio", icon: PenLine, external: true } : null,
   ].filter((action): action is ContactAction => action !== null);
 

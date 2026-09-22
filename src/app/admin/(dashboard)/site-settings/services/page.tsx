@@ -25,7 +25,7 @@ export default async function AdminSiteSettingsServicesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("services")
-    .select("*")
+    .select("id,name,price,duration_min,duration_max,image_url,is_active,sort_order,created_at,updated_at")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 

@@ -64,7 +64,6 @@ export default async function BookingSection({ content }: { content: HomepageCon
   const bookingServices = services.map((service) => ({
     id: service.id,
     title: service.name,
-    description: service.description ?? "Service details coming soon",
     duration: formatServiceDuration(service),
     durationMinutes: getServiceBookingDuration(service),
     price: formatServicePrice(service.price),

@@ -20,7 +20,6 @@ import type { HomepageContent } from "@/lib/homepage-content-defaults";
 type Service = {
   id: string;
   title: string;
-  description: string;
   duration: string;
   durationMinutes: number;
   price: string;
@@ -223,15 +222,6 @@ function ServiceStep({
                 >
                   {service.title}
                 </span>
-                <p
-                  className={`font-primary text-sm leading-6 transition-colors ${
-                    isSelected
-                      ? "text-foreground-secondary"
-                      : "text-foreground-muted group-hover:text-foreground-secondary"
-                  }`}
-                >
-                  {service.description}
-                </p>
                 <p
                   className={`font-primary text-xs uppercase tracking-[0.24em] transition-colors ${
                     isSelected

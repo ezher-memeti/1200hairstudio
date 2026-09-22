@@ -5,7 +5,7 @@ import { requireAdminUser } from "@/lib/auth/customer";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_CONTACT_SECTION_SETTINGS, type ContactSectionSettings, type ContactSectionSettingsRow } from "@/lib/contact-section/types";
 
-const columns = "id,is_enabled,eyebrow,title,description,address,map_url,phone_number,phone_display,instagram_enabled,instagram_username,instagram_url,google_reviews_enabled,google_reviews_url,google_leave_review_url,call_cta_label,instagram_cta_label,reviews_cta_label,leave_review_cta_label";
+const columns = "id,is_enabled,eyebrow,title,description,address,map_url,phone_number,phone_display,instagram_enabled,instagram_username,instagram_url,google_reviews_enabled,google_leave_review_url,call_cta_label,instagram_cta_label,leave_review_cta_label";
 
 function text(value: string | null | undefined, fallback = "") {
   return typeof value === "string" ? value : fallback;
@@ -27,11 +27,9 @@ export function normalizeContactSectionSettings(row: ContactSectionSettingsRow |
     instagramUsername: text(row.instagram_username),
     instagramUrl: text(row.instagram_url),
     googleReviewsEnabled: row.google_reviews_enabled ?? false,
-    googleReviewsUrl: text(row.google_reviews_url),
     googleLeaveReviewUrl: text(row.google_leave_review_url),
     callCtaLabel: text(row.call_cta_label),
     instagramCtaLabel: text(row.instagram_cta_label),
-    reviewsCtaLabel: text(row.reviews_cta_label),
     leaveReviewCtaLabel: text(row.leave_review_cta_label),
   };
 }
@@ -78,11 +76,9 @@ export async function persistContactSectionSettings(settings: Omit<ContactSectio
     instagram_username: settings.instagramUsername || null,
     instagram_url: settings.instagramUrl || null,
     google_reviews_enabled: settings.googleReviewsEnabled,
-    google_reviews_url: settings.googleReviewsUrl || null,
     google_leave_review_url: settings.googleLeaveReviewUrl || null,
     call_cta_label: settings.callCtaLabel || null,
     instagram_cta_label: settings.instagramCtaLabel || null,
-    reviews_cta_label: settings.reviewsCtaLabel || null,
     leave_review_cta_label: settings.leaveReviewCtaLabel || null,
     updated_at: new Date().toISOString(),
   };

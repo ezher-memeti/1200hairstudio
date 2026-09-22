@@ -12,11 +12,9 @@ export type ContactSectionSettings = {
   instagramUsername: string;
   instagramUrl: string;
   googleReviewsEnabled: boolean;
-  googleReviewsUrl: string;
   googleLeaveReviewUrl: string;
   callCtaLabel: string;
   instagramCtaLabel: string;
-  reviewsCtaLabel: string;
   leaveReviewCtaLabel: string;
 };
 
@@ -34,11 +32,9 @@ export type ContactSectionSettingsRow = {
   instagram_username: string | null;
   instagram_url: string | null;
   google_reviews_enabled: boolean | null;
-  google_reviews_url: string | null;
   google_leave_review_url: string | null;
   call_cta_label: string | null;
   instagram_cta_label: string | null;
-  reviews_cta_label: string | null;
   leave_review_cta_label: string | null;
 };
 
@@ -56,10 +52,8 @@ export const DEFAULT_CONTACT_SECTION_SETTINGS: ContactSectionSettings = {
   instagramUsername: "",
   instagramUrl: "",
   googleReviewsEnabled: true,
-  googleReviewsUrl: "",
   googleLeaveReviewUrl: "",
   callCtaLabel: "Call",
   instagramCtaLabel: "Instagram",
-  reviewsCtaLabel: "Reviews",
   leaveReviewCtaLabel: "Leave Review",
 };

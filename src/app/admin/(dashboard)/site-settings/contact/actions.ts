@@ -39,18 +39,15 @@ export async function saveContactSectionSettings(input: ContactSectionSettings):
       instagramUsername: clean(input.instagramUsername, 80),
       instagramUrl: optionalUrl(input.instagramUrl, "Instagram URL"),
       googleReviewsEnabled: input.googleReviewsEnabled === true,
-      googleReviewsUrl: optionalUrl(input.googleReviewsUrl, "Reviews URL"),
       googleLeaveReviewUrl: optionalUrl(input.googleLeaveReviewUrl, "Leave-review URL"),
       callCtaLabel: clean(input.callCtaLabel, 80),
       instagramCtaLabel: clean(input.instagramCtaLabel, 80),
-      reviewsCtaLabel: clean(input.reviewsCtaLabel, 80),
       leaveReviewCtaLabel: clean(input.leaveReviewCtaLabel, 80),
     };
     if (settings.instagramEnabled && !settings.instagramUrl) throw new Error("Instagram URL is required when Instagram is enabled.");
     if (settings.instagramEnabled && !settings.instagramCtaLabel) throw new Error("Instagram CTA label is required when Instagram is enabled.");
-    if (settings.googleReviewsEnabled && !settings.googleReviewsUrl) throw new Error("Reviews URL is required when Google Reviews is enabled.");
-    if (settings.googleReviewsEnabled && !settings.googleLeaveReviewUrl) throw new Error("Leave-review URL is required when Google Reviews is enabled.");
-    if (settings.googleReviewsEnabled && (!settings.reviewsCtaLabel || !settings.leaveReviewCtaLabel)) throw new Error("Both Google Reviews CTA labels are required when Google Reviews is enabled.");
+    if (settings.googleReviewsEnabled && !settings.googleLeaveReviewUrl) throw new Error("Leave-review URL is required when Leave a Review is enabled.");
+    if (settings.googleReviewsEnabled && !settings.leaveReviewCtaLabel) throw new Error("Leave Review CTA label is required when Leave a Review is enabled.");
     await persistContactSectionSettings(settings);
     revalidatePath("/");
     revalidatePath("/admin/site-settings/contact");

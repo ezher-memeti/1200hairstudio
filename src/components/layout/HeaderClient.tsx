@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 const navigationLinks = [
   { label: "Services", href: "/#services" },
@@ -29,9 +30,10 @@ export default function HeaderClient({
       <div className="page-container flex items-center justify-between py-4">
         <a
           href="/#top"
-          className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground sm:text-lg"
+          className="inline-flex min-h-11 items-center"
+          aria-label="1200 Hairstudio home"
         >
-          1200
+          <BrandLogo className="h-5 w-[6.75rem] sm:h-6 sm:w-32" priority />
         </a>
 
         <nav

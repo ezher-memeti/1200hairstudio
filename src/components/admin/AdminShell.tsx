@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import LogoutButton from "@/components/admin/LogoutButton";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 const navigationItems = [
   { label: "Dashboard", href: "/admin" },
@@ -52,9 +53,10 @@ export default function AdminShell({
           <div className="flex h-full flex-col px-6 py-8">
             <Link
               href="/admin"
-              className="font-display text-lg font-semibold uppercase tracking-[0.28em] text-foreground"
+              className="inline-flex min-h-11 items-center self-start"
+              aria-label="1200 Hairstudio admin dashboard"
             >
-              1200
+              <BrandLogo className="h-6 w-32" priority />
             </Link>
 
             <nav className="mt-10 flex flex-1 flex-col gap-2" aria-label="Admin">
@@ -97,9 +99,10 @@ export default function AdminShell({
             <div className="page-container flex min-h-16 items-center justify-between py-2">
               <Link
                 href="/admin"
-                className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground"
+                className="inline-flex min-h-11 items-center"
+                aria-label="1200 Hairstudio admin dashboard"
               >
-                1200
+                <BrandLogo className="h-5 w-28 sm:h-6 sm:w-32" priority />
               </Link>
 
               <button
@@ -119,7 +122,10 @@ export default function AdminShell({
                 <button type="button" className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)} aria-label="Close admin navigation" />
                 <div className="absolute inset-y-0 right-0 flex w-[min(88vw,22rem)] flex-col border-l border-border bg-background-secondary shadow-2xl">
                   <div className="flex min-h-16 items-center justify-between border-b border-border px-5 pt-[env(safe-area-inset-top)]">
-                    <span className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground">1200 Admin</span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <BrandLogo className="h-5 w-28" />
+                      <span className="font-primary text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Admin</span>
+                    </div>
                     <button type="button" onClick={() => setIsMenuOpen(false)} className="inline-flex size-11 items-center justify-center border border-border text-foreground-secondary" aria-label="Close admin navigation"><X size={19} /></button>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5">

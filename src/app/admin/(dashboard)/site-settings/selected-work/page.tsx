@@ -25,7 +25,7 @@ export default async function AdminSiteSettingsSelectedWorkPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("selected_work")
-    .select("*")
+    .select("id,title,image_url,is_active,sort_order,created_at,updated_at")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 

@@ -9,6 +9,7 @@ import {
   isValidEmail,
 } from "@/lib/auth/shared";
 import { createClient } from "@/lib/supabase/client";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -70,9 +71,12 @@ export default function LoginForm() {
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
           Admin Login
         </p>
-        <h1 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-          1200 Admin
-        </h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <BrandLogo className="h-7 w-36 sm:h-8 sm:w-44" priority />
+          <h1 className="font-display text-2xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-3xl">
+            Admin
+          </h1>
+        </div>
       </div>
 
       <div className="space-y-5">

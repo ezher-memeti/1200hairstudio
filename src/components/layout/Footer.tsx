@@ -1,4 +1,5 @@
 import { homepageContentDefaults, type HomepageContent } from "@/lib/homepage-content-defaults";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function Footer({ content = homepageContentDefaults }: { content?: HomepageContent }) {
   return (
@@ -6,9 +7,7 @@ export default function Footer({ content = homepageContentDefaults }: { content?
       <div className="page-container py-8 sm:py-10">
         <div className="flex flex-col gap-6 sm:gap-8 md:flex-row md:items-end md:justify-between">
           <div className="space-y-3">
-            <p className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground sm:text-lg">
-              1200
-            </p>
+            <BrandLogo className="h-6 w-32 sm:h-7 sm:w-36" />
             <p className="font-primary text-sm leading-6 text-foreground-secondary">
               {content.visit_address_line_1}, {content.visit_address_line_2}
             </p>

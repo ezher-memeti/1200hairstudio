@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 import AnnouncementLink from "@/components/announcements/AnnouncementLink";
 import { useAnnouncementDismissal } from "@/components/announcements/useAnnouncementDismissal";
 import type { Announcement, AnnouncementRenderMode } from "@/lib/announcements/types";
@@ -124,9 +125,8 @@ export default function AnnouncementModal({ announcement, mode = "public", onClo
           ) : null}
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/[0.07] px-6 py-4 sm:px-10 md:px-12">
-          <span className="font-display text-xs font-semibold uppercase tracking-[0.28em] text-foreground-muted">1200</span>
-          <span className="font-primary text-[8px] uppercase tracking-[0.28em] text-foreground-muted/70">Hairstudio</span>
+        <div className="flex items-center border-t border-white/[0.07] px-6 py-4 sm:px-10 md:px-12">
+          <BrandLogo className="h-4 w-24 opacity-60" />
         </div>
       </article>
     </div>
