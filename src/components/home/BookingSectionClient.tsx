@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { bookAppointment, clearGuestBookingSession } from "@/app/actions/appointments";
+import { getServiceBookingAvailability } from "@/app/actions/booking-availability";
 import {
   groupTimeSlots,
   type BookingDateOption,
@@ -176,10 +177,11 @@ function ServicePrice({ service, compact = false }: { service: Service; compact?
 function ServiceStep({
   services,
   state,
-  setState,
   onNext,
-}: Pick<StepProps, "state" | "setState" | "onNext"> & {
+  onServiceSelect,
+}: Pick<StepProps, "state" | "onNext"> & {
   services: Service[];
+  onServiceSelect: (serviceId: string) => void;
 }) {
   return (
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
@@ -197,12 +199,7 @@ function ServiceStep({
             <button
               key={service.id}
               type="button"
-              onClick={() =>
-                setState((current) => ({
-                  ...current,
-                  serviceId: service.id,
-                }))
-              }
+              onClick={() => onServiceSelect(service.id)}
               aria-pressed={isSelected}
               className={`group relative flex w-full cursor-pointer items-start justify-between gap-4 border-b px-4 py-5 text-left transition-colors sm:py-6 ${
                 isSelected
@@ -420,6 +417,11 @@ function DateTimeStep({
     </div>
   );
 }
+
+type AvailabilitySlots = Record<
+  string,
+  { time: string; slot_start: string; slot_end: string }[]
+>;
 
 function DetailsStep({
   authRole,
@@ -745,11 +747,6 @@ type BookingSectionClientProps = {
     phone: string;
   } | null;
   services: Service[];
-  dates: BookingDate[];
-  slotMap: Record<
-    string,
-    Record<string, { time: string; slot_start: string; slot_end: string }[]>
-  >;
   loadError: string | null;
   content: HomepageContent;
   persistedConfirmation: PersistedBookingConfirmation | null;
@@ -762,8 +759,6 @@ export default function BookingSectionClient({
   allowGuestBookings,
   customerProfile,
   services,
-  dates,
-  slotMap,
   loadError,
   content,
   persistedConfirmation,
@@ -772,9 +767,11 @@ export default function BookingSectionClient({
 }: BookingSectionClientProps) {
   const router = useRouter();
   const [isSubmitting, startSubmitTransition] = useTransition();
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [dates, setDates] = useState<BookingDate[]>([]);
+  const [slotsByDate, setSlotsByDate] = useState<AvailabilitySlots>({});
   const [submitFeedback, setSubmitFeedback] = useState("");
-  const firstAvailableDateId =
-    dates.find((date) => date.isAvailable)?.id ?? null;
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
   const [bookingReference, setBookingReference] = useState<string | null>(null);
@@ -786,7 +783,7 @@ export default function BookingSectionClient({
   const initialLastName = initialNameParts.slice(1).join(" ");
   const [state, setState] = useState<BookingState>({
     serviceId: null,
-    dateId: firstAvailableDateId,
+    dateId: null,
     time: null,
     bookingMode: authRole === "customer" ? "account" : "guest",
     firstName: initialFirstName,
@@ -806,31 +803,61 @@ export default function BookingSectionClient({
   const selectedService =
     services.find((service) => service.id === state.serviceId) ??
     null;
-  const visibleDates = useMemo(
-    () =>
-      dates.map((date) => ({
-        ...date,
-        isAvailable: Boolean(
-          selectedService && slotMap[selectedService.id]?.[date.id]?.length,
-        ),
-      })),
-    [dates, selectedService, slotMap],
-  );
   const selectedDate =
-    visibleDates.find((date) => date.id === state.dateId) ??
-    visibleDates.find((date) => date.isAvailable) ??
+    dates.find((date) => date.id === state.dateId) ??
+    dates.find((date) => date.isAvailable) ??
     null;
   const timeGroups = useMemo(
     () =>
       selectedDate && selectedService
         ? groupTimeSlots(
-            (slotMap[selectedService.id]?.[selectedDate.id] ?? []).map(
+            (slotsByDate[selectedDate.id] ?? []).map(
               (slot) => slot.time,
             ),
           )
         : [],
-    [selectedDate, selectedService, slotMap],
+    [selectedDate, selectedService, slotsByDate],
   );
+
+  const handleServiceSelected = useCallback((serviceId: string) => {
+    setState((current) => ({
+      ...current,
+      serviceId,
+      dateId: null,
+      time: null,
+    }));
+    setDates([]);
+    setSlotsByDate({});
+    setAvailabilityError("");
+  }, []);
+
+  const handleLoadAvailability = useCallback(async () => {
+    if (!state.serviceId || isLoadingAvailability) return;
+
+    const requestedServiceId = state.serviceId;
+    setStep(1);
+    setIsLoadingAvailability(true);
+    setAvailabilityError("");
+    setDates([]);
+    setSlotsByDate({});
+
+    try {
+      const result = await getServiceBookingAvailability(requestedServiceId);
+
+      setState((current) => {
+        if (current.serviceId !== requestedServiceId) return current;
+        const firstAvailableDateId = result.dates.find((date) => date.isAvailable)?.id ?? null;
+        return { ...current, dateId: firstAvailableDateId, time: null };
+      });
+      setDates(result.dates);
+      setSlotsByDate(result.slotsByDate);
+      setAvailabilityError(result.error ?? "");
+    } catch {
+      setAvailabilityError("Booking availability is unavailable right now.");
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  }, [isLoadingAvailability, state.serviceId]);
 
   const handleConfirmBooking = useCallback(async () => {
     if (!selectedService || !selectedDate || !state.time) {
@@ -900,7 +927,7 @@ export default function BookingSectionClient({
             setStep(0);
             setState({
               serviceId: null,
-              dateId: firstAvailableDateId,
+              dateId: null,
               time: null,
               bookingMode: authRole === "customer" ? "account" : "guest",
               firstName: initialFirstName,
@@ -927,12 +954,42 @@ export default function BookingSectionClient({
     };
 
     if (step === 0) {
-      return <ServiceStep {...sharedProps} services={services} />;
+      return (
+        <ServiceStep
+          {...sharedProps}
+          services={services}
+          onServiceSelect={handleServiceSelected}
+          onNext={handleLoadAvailability}
+        />
+      );
     }
 
     if (step === 1) {
+      if (isLoadingAvailability) {
+        return (
+          <div className="border border-border bg-background px-4 py-5">
+            <p className="font-primary text-sm leading-6 text-foreground-secondary">
+              Loading available times…
+            </p>
+          </div>
+        );
+      }
+
+      if (availabilityError) {
+        return (
+          <div className="space-y-4">
+            <div className="border border-border bg-background px-4 py-5">
+              <p className="font-primary text-sm leading-6 text-foreground-secondary">
+                {availabilityError}
+              </p>
+            </div>
+            <StepButton onClick={() => setStep(0)} variant="secondary">← Back</StepButton>
+          </div>
+        );
+      }
+
       return (
-        <DateTimeStep {...sharedProps} dates={visibleDates} timeGroups={timeGroups} />
+        <DateTimeStep {...sharedProps} dates={dates} timeGroups={timeGroups} />
       );
     }
 
@@ -950,7 +1007,7 @@ export default function BookingSectionClient({
         onNext={handleConfirmBooking}
       />
     );
-  }, [allowGuestBookings, applyLoyaltyReward, authRole, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, firstAvailableDateId, handleConfirmBooking, hidePersistedConfirmation, initialFirstName, initialLastName, loyaltyReward, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups, visibleDates]);
+  }, [allowGuestBookings, applyLoyaltyReward, authRole, availabilityError, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, dates, handleConfirmBooking, handleLoadAvailability, handleServiceSelected, hidePersistedConfirmation, initialFirstName, initialLastName, isLoadingAvailability, loyaltyReward, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups]);
 
   return (
     <section id="booking" className="bg-background">
@@ -988,15 +1045,7 @@ export default function BookingSectionClient({
                 </div>
               ) : null}
 
-              {!loadError && services.length > 0 && dates.length === 0 ? (
-                <div className="border border-border bg-background px-4 py-5">
-                  <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                    No upcoming booking dates are available right now.
-                  </p>
-                </div>
-              ) : null}
-
-              {!loadError && services.length > 0 && dates.length > 0 ? (
+              {!loadError && services.length > 0 ? (
                 <>
               {!confirmed && <BookingProgress step={step} />}
 

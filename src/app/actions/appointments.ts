@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { clearGuestBookingCookie } from "@/lib/appointments/management";
 import { createBookingCredentials, getBookingManagementUrl } from "@/lib/appointments/management";
 import { processAppointmentStatusForLoyalty } from "@/lib/loyalty/process-completed-appointment";
+import { APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, getProtectedAppointmentIds, isAppointmentForeignKeyError } from "@/lib/appointments/deletion-protection";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -179,6 +180,8 @@ export async function updateAdminAppointment(
           await import("@/lib/email/transactional").then(({ sendBookingUpdateEmail }) =>
             sendBookingUpdateEmail({
               to: customerEmail,
+              customerId: currentAppointment.customer_id,
+              appointmentId: currentAppointment.id,
               customerName,
               serviceName: validation.service.name,
               startAt: validation.startAt,
@@ -269,6 +272,11 @@ export async function removeAdminAppointment(input: {
       return { error: "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
     }
 
+    const protectedIds = await getProtectedAppointmentIds(supabase, [appointment.id]);
+    if (protectedIds.has(appointment.id)) {
+      return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
+    }
+
     const { data: appointmentCustomer } = appointment.customer_id
       ? await supabase
           .from("customers")
@@ -286,7 +294,12 @@ export async function removeAdminAppointment(input: {
     const { error } = await supabase.from("appointments").delete().eq("id", input.appointmentId);
 
     if (error) {
-      return { error: error.message, emailError: null, emailStatus: "skipped" as const };
+      if (isAppointmentForeignKeyError(error)) {
+        console.error("ADMIN APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", error);
+        return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
+      }
+      console.error("ADMIN APPOINTMENT DELETE ERROR:", error);
+      return { error: "The appointment could not be deleted. Please try again.", emailError: null, emailStatus: "skipped" as const };
     }
 
     const customerName =
@@ -307,6 +320,8 @@ export async function removeAdminAppointment(input: {
         await import("@/lib/email/transactional").then(({ sendBookingCancellationEmail }) =>
           sendBookingCancellationEmail({
             to: customerEmail,
+            customerId: appointment.customer_id,
+            appointmentId: appointment.id,
             customerName,
             serviceName: service.name,
             startAt: appointment.start_at,
@@ -511,6 +526,8 @@ export async function createAdminAppointment(input: {
       try {
         await sendBookingConfirmationEmail({
           to: customerEmail,
+          customerId: appointmentCustomerId,
+          appointmentId: createdAppointment.id,
           customerName,
           serviceName: validation.service.name,
           startAt: validation.startAt,

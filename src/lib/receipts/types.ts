@@ -10,6 +10,8 @@ export type ReceiptRecord = {
   discount_amount: number;
   discount_label: string | null;
   total: number;
+  tip_amount: number;
+  tax_amount: number;
   amount_paid: number;
   balance: number;
   payment_method: string | null;
@@ -22,4 +24,5 @@ export type ReceiptRecord = {
 
 export type AdminReceipt = ReceiptRecord & {
   customer_email: string;
+  customer_id: string | null;
 };

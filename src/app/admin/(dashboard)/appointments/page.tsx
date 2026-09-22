@@ -11,6 +11,7 @@ import { getActiveServices } from "@/lib/public/services";
 import { getAdminFinancePromotions, getAppointmentFinanceSummaries, getAppointmentReceipts } from "@/lib/finance/queries";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 import { getRecurringBookings } from "@/lib/recurring-bookings/service";
+import { getAppointmentSaleLinks } from "@/lib/sales/server";
 
 type SearchParams = {
   view?: string;
@@ -82,12 +83,14 @@ export default async function AdminAppointmentsPage({
     getAdminCustomerOptions(),
     getActiveServices(),
   ]);
-  const [financeSummaries, promotions, receipts, runtimeSettings, recurringBookings] = await Promise.all([
-    getAppointmentFinanceSummaries(appointments.map((appointment) => appointment.id)),
+  const appointmentIds = appointments.map((appointment) => appointment.id);
+  const [financeSummaries, promotions, receipts, runtimeSettings, recurringBookings, sales] = await Promise.all([
+    getAppointmentFinanceSummaries(appointmentIds),
     getAdminFinancePromotions(),
-    getAppointmentReceipts(appointments.map((appointment) => appointment.id)),
+    getAppointmentReceipts(appointmentIds),
     getRuntimeSettings(),
     getRecurringBookings(),
+    getAppointmentSaleLinks(appointmentIds),
   ]);
 
   return (
@@ -104,8 +107,8 @@ export default async function AdminAppointmentsPage({
       promotions={promotions}
       receipts={receipts}
       enabledPaymentMethods={runtimeSettings.finance.enabledPaymentMethods}
-      receiptEmailEnabled={runtimeSettings.notifications.receiptEmailEnabled}
       recurringBookings={recurringBookings}
+      sales={sales}
     />
   );
 }

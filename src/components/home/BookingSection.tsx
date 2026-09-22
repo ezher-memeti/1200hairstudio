@@ -1,12 +1,6 @@
 import BookingSectionClient from "@/components/home/BookingSectionClient";
 import { getCurrentUserRole } from "@/lib/auth/customer";
-import { getBusinessHours } from "@/lib/public/business-hours";
-import {
-  generateUpcomingDateOptions,
-  getCurrentZurichDateTime,
-  getServiceBookingDuration,
-} from "@/lib/public/booking-availability";
-import { getAvailableSlotTimes } from "@/lib/public/available-slots";
+import { getServiceBookingDuration } from "@/lib/public/booking-availability";
 import { formatServiceDuration, formatServicePrice, getActiveServices } from "@/lib/public/services";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveServicePrice } from "@/lib/promotions/server";
@@ -32,12 +26,9 @@ type ActiveRegisteredAppointment = {
 };
 
 export default async function BookingSection({ content }: { content: HomepageContent }) {
-  const currentZurich = getCurrentZurichDateTime();
-
-  const [{ role, user }, services, businessHours, bookingSettings] = await Promise.all([
+  const [{ role, user }, services, bookingSettings] = await Promise.all([
     getCurrentUserRole(),
     getActiveServices(),
-    getBusinessHours(),
     getBookingSettings(),
   ]);
   let customerProfile: { fullName: string; email: string; phone: string } | null = null;
@@ -69,10 +60,7 @@ export default async function BookingSection({ content }: { content: HomepageCon
     }
   }
   const effectivePrices = new Map((await Promise.all(services.map(async (service) => [service.id, await getEffectiveServicePrice({ serviceId: service.id, customerId, authenticatedCustomer: role === "customer", supabase })] as const))).filter((entry) => entry[1]));
-  const loadError =
-    services.length === 0 && businessHours.length === 0
-      ? "Booking availability is unavailable right now."
-      : null;
+  const loadError = null;
   const bookingServices = services.map((service) => ({
     id: service.id,
     title: service.name,
@@ -89,39 +77,6 @@ export default async function BookingSection({ content }: { content: HomepageCon
     promotionName: effectivePrices.get(service.id)?.promotionName ?? null,
     image_url: service.image_url,
   }));
-  const bookingDates = generateUpcomingDateOptions(currentZurich.dateKey, {
-    count: 10,
-    horizonDays: bookingSettings.maximumHorizonDays + 1,
-  });
-  const slotEntries = await Promise.all(
-    bookingServices.flatMap((service) =>
-      bookingDates.map(async (date) => ({
-        serviceId: service.id,
-        dateKey: date.id,
-        slots: await getAvailableSlotTimes(service.id, date.id, {
-          bookingSettings,
-          enforceCustomerPolicy: true,
-        }),
-      })),
-    ),
-  );
-  const slotMap = slotEntries.reduce<
-    Record<string, Record<string, { time: string; slot_start: string; slot_end: string }[]>>
-  >((accumulator, entry) => {
-    if (!accumulator[entry.serviceId]) {
-      accumulator[entry.serviceId] = {};
-    }
-
-    accumulator[entry.serviceId][entry.dateKey] = entry.slots;
-    return accumulator;
-  }, {});
-  const firstServiceId = bookingServices[0]?.id ?? null;
-  const visibleBookingDates = bookingDates.map((date) => ({
-    ...date,
-    isAvailable: Boolean(firstServiceId && slotMap[firstServiceId]?.[date.id]?.length),
-  }));
-  const firstAvailableDate =
-    visibleBookingDates.find((date) => date.isAvailable) ?? null;
   const bookingToken = await getGuestBookingToken();
   let persistedConfirmation: PersistedBookingConfirmation | null = null;
   let shouldClearGuestBookingCookie = false;
@@ -178,8 +133,6 @@ export default async function BookingSection({ content }: { content: HomepageCon
       allowGuestBookings={bookingSettings.allowGuestBookings}
       customerProfile={customerProfile}
       services={bookingServices}
-      dates={visibleBookingDates}
-      slotMap={slotMap}
       loadError={loadError}
       content={content}
       persistedConfirmation={persistedConfirmation}

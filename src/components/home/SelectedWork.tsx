@@ -6,9 +6,9 @@ import type { HomepageContent } from "@/lib/homepage-content-defaults";
 export default async function SelectedWork({ content }: { content: HomepageContent }) {
   const selectedWork = await getActiveSelectedWork();
 
-  const works: WorkItem[] = selectedWork.map((item, index) => ({
+  const works: WorkItem[] = selectedWork.map((item) => ({
     id: item.id,
-    title: item.title?.trim() || `Work ${String(index + 1).padStart(2, "0")}`,
+    title: item.title?.trim() || null,
     subtitle: item.description?.trim() || "Selected Work",
     meta: undefined,
     image: item.image_url.trim(),

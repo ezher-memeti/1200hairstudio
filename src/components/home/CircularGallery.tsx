@@ -12,7 +12,7 @@ import {
 
 export type WorkItem = {
   id: string;
-  title: string;
+  title: string | null;
   subtitle?: string;
   meta?: string;
   image: string;
@@ -642,7 +642,7 @@ export default function CircularGallery({
                 <div className="relative aspect-[4/5] w-full">
                   <Image
                     src={item.image}
-                    alt={item.title}
+                    alt={item.title ?? "Selected work image"}
                     fill
                     sizes="(min-width: 1024px) 420px, (min-width: 640px) 380px, 82vw"
                     className="pointer-events-none object-cover [-webkit-user-drag:none]"
@@ -682,9 +682,11 @@ export default function CircularGallery({
             {String(displayedIndex + 1).padStart(2, "0")} / {" "}
             {String(items.length).padStart(2, "0")}
           </p>
-          <h3 className="font-display text-[clamp(1.8rem,4vw,2.5rem)] uppercase leading-none tracking-[-0.04em] text-foreground">
-            {items[displayedIndex].title}
-          </h3>
+          {items[displayedIndex].title ? (
+            <h3 className="font-display text-[clamp(1.8rem,4vw,2.5rem)] uppercase leading-none tracking-[-0.04em] text-foreground">
+              {items[displayedIndex].title}
+            </h3>
+          ) : null}
           {items[displayedIndex].subtitle ? (
             <p className="font-primary text-xs uppercase tracking-[0.28em] text-foreground-muted sm:text-sm">
               {items[displayedIndex].subtitle}
