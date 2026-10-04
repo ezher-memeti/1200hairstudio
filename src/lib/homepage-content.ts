@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import {
   homepageContentDefaults,
   homepageContentDefinitions,
@@ -44,7 +45,7 @@ function mergeRows(rows: HomepageContentRow[]): HomepageContent {
 
 export const getHomepageContent = cache(async (): Promise<HomepageContent> => {
   try {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("homepage_content")
       .select("id,section,content_key,label,value,content_type,sort_order,updated_at")
@@ -87,4 +88,3 @@ export async function getAdminHomepageContent(): Promise<{
 
   return { configured: !error, fields };
 }
-

@@ -19,7 +19,8 @@
     "pdf-lib": "^1.17.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "resend": "^6.24.0"
+    "resend": "^6.24.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",

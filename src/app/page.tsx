@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import BookingSection from "@/components/home/BookingSection";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -9,66 +10,73 @@ import ScrollVideoSection from "@/components/home/ScrollVideoSection";
 import SectionTwo from "@/components/home/SectionTwo";
 import ContactSection from "@/components/home/ContactSection";
 import VisitStudio from "@/components/home/VisitStudio";
-import BookingAnnouncement from "@/components/announcements/BookingAnnouncement";
-import AnnouncementModal from "@/components/announcements/AnnouncementModal";
-import { getActiveAnnouncements, selectAnnouncement } from "@/lib/announcements/queries";
+import { AnnouncementModalLoader, BookingAnnouncementLoader } from "@/components/announcements/AnnouncementLoaders";
 import { getHomepageContent } from "@/lib/homepage-content";
 import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 
 export default async function Home() {
+  const homeDataStartedAt = performance.now();
 
-  console.time("HOME_TOTAL");
-
-  const announcementsPromise = (async () => {
-    console.time("getActiveAnnouncements");
-    const result = await getActiveAnnouncements();
-    console.timeEnd("getActiveAnnouncements");
-    return result;
-  })();
-
-  const contentPromise = (async () => {
-    console.time("getHomepageContent");
-    const result = await getHomepageContent();
-    console.timeEnd("getHomepageContent");
-    return result;
-  })();
-
-  const contactPromise = (async () => {
-    console.time("getPublicContactSectionSettings");
-    const result = await getPublicContactSectionSettings();
-    console.timeEnd("getPublicContactSectionSettings");
-    return result;
-  })();
-
-  const [announcements, content, contactSettings] = await Promise.all([
-    announcementsPromise,
-    contentPromise,
-    contactPromise,
+  const [content, contactSettings] = await Promise.all([
+    timed("getHomepageContent", getHomepageContent),
+    timed(
+      "getPublicContactSectionSettings",
+      getPublicContactSectionSettings
+    ),
   ]);
 
-  console.timeEnd("HOME_TOTAL");
-
-  // existing return...
-  // const [announcements, content, contactSettings] = await Promise.all([getActiveAnnouncements(), getHomepageContent(), getPublicContactSectionSettings()]);
+  console.log(`HOME_DATA: ${(performance.now() - homeDataStartedAt).toFixed(3)}ms`);
 
   return (
     <>
       <Header />
+
       <main>
         <ScrollVideoSection>
           <Hero content={content} />
           <SectionTwo content={content} />
         </ScrollVideoSection>
+
         <ServicesSection content={content} />
-        <BookingAnnouncement announcement={selectAnnouncement(announcements, "booking_notice")} />
+
+        <Suspense fallback={null}>
+          <BookingAnnouncementLoader />
+        </Suspense>
+
         <BookingSection content={content} />
+
         <SelectedWork content={content} />
+
         <MeetTheBarber content={content} />
-        {contactSettings ? <ContactSection settings={contactSettings} /> : null}
-        <VisitStudio content={content} directionsUrl={contactSettings?.mapUrl} />
+
+        {contactSettings && (
+          <ContactSection settings={contactSettings} />
+        )}
+
+        <VisitStudio
+          content={content}
+          directionsUrl={contactSettings?.mapUrl}
+        />
       </main>
+
       <Footer content={content} />
-      <AnnouncementModal announcement={selectAnnouncement(announcements, "modal")} />
+
+      <Suspense fallback={null}>
+        <AnnouncementModalLoader />
+      </Suspense>
     </>
   );
+}
+
+async function timed<T>(
+  name: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const startedAt = performance.now();
+
+  try {
+    return await fn();
+  } finally {
+    console.log(`${name}: ${(performance.now() - startedAt).toFixed(3)}ms`);
+  }
 }

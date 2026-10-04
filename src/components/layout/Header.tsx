@@ -1,7 +1,7 @@
+import { Suspense } from "react";
 import HeaderClient from "@/components/layout/HeaderClient";
 import { getCurrentUserRole } from "@/lib/auth/customer";
-import AnnouncementBar from "@/components/announcements/AnnouncementBar";
-import { getActiveAnnouncements, selectAnnouncement } from "@/lib/announcements/queries";
+import { AnnouncementBarLoader } from "@/components/announcements/AnnouncementLoaders";
 
 type HeaderAuthLink = {
   label: "LOGIN" | "MY PROFILE" | "ADMIN DASHBOARD";
@@ -32,7 +32,7 @@ async function getHeaderAuthLink(): Promise<HeaderAuthLink> {
 }
 
 export default async function Header() {
-  const [authLink, announcements] = await Promise.all([getHeaderAuthLink(), getActiveAnnouncements()]);
+  const authLink = await getHeaderAuthLink();
 
-  return <div className="sticky top-0 z-50"><HeaderClient authLink={authLink} announcementBar={<AnnouncementBar announcement={selectAnnouncement(announcements, "top_bar")} />} /></div>;
+  return <div className="sticky top-0 z-50"><HeaderClient authLink={authLink} announcementBar={<Suspense fallback={null}><AnnouncementBarLoader /></Suspense>} /></div>;
 }

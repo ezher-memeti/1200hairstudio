@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { requireAdminUser } from "@/lib/auth/customer";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_CONTACT_SECTION_SETTINGS, type ContactSectionSettings, type ContactSectionSettingsRow } from "@/lib/contact-section/types";
 
 const columns = "id,is_enabled,eyebrow,title,description,address,map_url,phone_number,phone_display,instagram_enabled,instagram_username,instagram_url,google_reviews_enabled,google_leave_review_url,call_cta_label,instagram_cta_label,leave_review_cta_label";
@@ -35,7 +35,7 @@ export function normalizeContactSectionSettings(row: ContactSectionSettingsRow |
 }
 
 export const getPublicContactSectionSettings = cache(async (): Promise<ContactSectionSettings | null> => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase.from("contact_section_settings").select(columns).order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) {
     console.error("PUBLIC CONTACT SETTINGS QUERY ERROR", error);

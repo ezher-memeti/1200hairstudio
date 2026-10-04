@@ -1,24 +1,31 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import type { Announcement, AnnouncementDisplayType } from "@/lib/announcements/types";
 
 export const getActiveAnnouncements = cache(async (): Promise<Announcement[]> => {
-  const supabase = await createClient();
-  const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("announcements")
-    .select("*")
-    .eq("is_active", true)
-    .or(`starts_at.is.null,starts_at.lte.${now}`)
-    .or(`expires_at.is.null,expires_at.gte.${now}`)
-    .order("priority", { ascending: false })
-    .order("created_at", { ascending: false });
+  const startedAt = performance.now();
 
-  if (error) {
-    console.error("Unable to load public announcements", error);
-    return [];
+  try {
+    const supabase = createPublicClient();
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("announcements")
+      .select("*")
+      .eq("is_active", true)
+      .or(`starts_at.is.null,starts_at.lte.${now}`)
+      .or(`expires_at.is.null,expires_at.gte.${now}`)
+      .order("priority", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Unable to load public announcements", error);
+      return [];
+    }
+    return (data ?? []) as Announcement[];
+  } finally {
+    console.log(`getActiveAnnouncements: ${(performance.now() - startedAt).toFixed(3)}ms`);
   }
-  return (data ?? []) as Announcement[];
 });
 
 export function selectAnnouncement(announcements: Announcement[], displayType: AnnouncementDisplayType) {
