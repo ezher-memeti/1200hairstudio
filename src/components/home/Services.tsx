@@ -16,7 +16,7 @@ type ServicesProps = {
   content: HomepageContent;
 };
 
-const fallbackServiceImage = "/images/services/hair.jpg";
+const fallbackServiceImage = "/images/hair.jpeg";
 
 function formatDuration(service: ServiceRecord) {
   const min = service.duration_min;

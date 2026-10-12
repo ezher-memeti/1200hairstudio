@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { bookAppointment, clearGuestBookingSession } from "@/app/actions/appointments";
 import { getServiceBookingAvailability } from "@/app/actions/booking-availability";
+import { getHomepageBookingUserState } from "@/app/actions/homepage-user-state";
 import {
   groupTimeSlots,
   type BookingDateOption,
@@ -744,17 +745,23 @@ type BookingSectionClientProps = {
 };
 
 export default function BookingSectionClient({
-  authRole,
+  authRole: initialAuthRole,
   allowGuestBookings,
-  customerProfile,
-  services,
+  customerProfile: initialCustomerProfile,
+  services: initialServices,
   loadError,
   content,
-  persistedConfirmation,
-  shouldClearGuestBookingCookie,
-  loyaltyReward,
+  persistedConfirmation: initialPersistedConfirmation,
+  shouldClearGuestBookingCookie: initialShouldClearGuestBookingCookie,
+  loyaltyReward: initialLoyaltyReward,
 }: BookingSectionClientProps) {
   const router = useRouter();
+  const [authRole, setAuthRole] = useState(initialAuthRole);
+  const [customerProfile, setCustomerProfile] = useState(initialCustomerProfile);
+  const [services, setServices] = useState(initialServices);
+  const [persistedConfirmation, setPersistedConfirmation] = useState(initialPersistedConfirmation);
+  const [shouldClearGuestBookingCookie, setShouldClearGuestBookingCookie] = useState(initialShouldClearGuestBookingCookie);
+  const [loyaltyReward, setLoyaltyReward] = useState(initialLoyaltyReward);
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
@@ -782,6 +789,48 @@ export default function BookingSectionClient({
     note: "",
     marketingEmailConsent: false,
   });
+
+  useEffect(() => {
+    let isActive = true;
+
+    void getHomepageBookingUserState()
+      .then((userState) => {
+        if (!isActive) return;
+        setAuthRole(userState.authRole);
+        setCustomerProfile(userState.customerProfile);
+        setPersistedConfirmation(userState.persistedConfirmation);
+        setShouldClearGuestBookingCookie(userState.shouldClearGuestBookingCookie);
+        setLoyaltyReward(userState.loyaltyReward);
+        if (userState.servicePriceOverrides.length > 0) {
+          const pricesByServiceId = new Map(userState.servicePriceOverrides.map((price) => [price.serviceId, price]));
+          setServices((current) => current.map((service) => {
+            const price = pricesByServiceId.get(service.id);
+            if (!price) return service;
+            const { serviceId: _serviceId, ...priceFields } = price;
+            return { ...service, ...priceFields };
+          }));
+        }
+
+        if (userState.authRole === "customer" && userState.customerProfile) {
+          const nameParts = userState.customerProfile.fullName.trim().split(/\s+/);
+          const firstName = nameParts[0] ?? "";
+          const lastName = nameParts.slice(1).join(" ");
+          setState((current) => ({
+            ...current,
+            bookingMode: "account",
+            firstName: current.firstName || firstName,
+            lastName: current.lastName || lastName,
+            phone: current.phone || userState.customerProfile?.phone || "",
+            email: current.email || userState.customerProfile?.email || "",
+          }));
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (shouldClearGuestBookingCookie) {

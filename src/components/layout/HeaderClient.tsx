@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import BrandLogo from "@/components/brand/BrandLogo";
+import { getHomepageHeaderAuthState } from "@/app/actions/homepage-user-state";
 
 const navigationLinks = [
   { label: "Services", href: "/#services" },
@@ -20,10 +21,23 @@ type HeaderClientProps = {
 };
 
 export default function HeaderClient({
-  authLink,
+  authLink: initialAuthLink,
   announcementBar,
 }: HeaderClientProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [authLink, setAuthLink] = useState(initialAuthLink);
+
+  useEffect(() => {
+    let isActive = true;
+    void getHomepageHeaderAuthState()
+      .then((nextAuthLink) => {
+        if (isActive) setAuthLink(nextAuthLink);
+      })
+      .catch(() => undefined);
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   return (
     <header className="border-b border-border bg-background/95 backdrop-blur-sm">
@@ -51,7 +65,7 @@ export default function HeaderClient({
           ))}
           <a
             href={authLink.href}
-            className="text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground lg:text-sm"
+            className="min-w-[8.5rem] text-right text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground lg:text-sm"
           >
             {authLink.label}
           </a>
