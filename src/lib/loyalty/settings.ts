@@ -1,10 +1,9 @@
 import "server-only";
 
 import { requireAdminUser } from "@/lib/auth/customer";
+import { LOYALTY_REWARD_TYPES, type LoyaltyRewardType } from "@/lib/discounts/types";
 
-export const LOYALTY_REWARD_TYPES = ["fixed_discount", "percentage", "free_service"] as const;
-
-export type LoyaltyRewardType = (typeof LOYALTY_REWARD_TYPES)[number];
+export { LOYALTY_REWARD_TYPES, type LoyaltyRewardType };
 
 export type LoyaltySettings = {
   id: string | null;

@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyMarketingUnsubscribeToken } from "@/lib/email/marketing/unsubscribe-token";
 
 export const dynamic = "force-dynamic";
 
-export default async function UnsubscribePage({ params }: { params: { token: string } }) {
-  const customerId = verifyMarketingUnsubscribeToken(params.token);
+export default async function UnsubscribePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const customerId = verifyMarketingUnsubscribeToken(token);
   let success = false;
 
   if (customerId) {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("customers")
       .update({

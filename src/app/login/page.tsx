@@ -7,10 +7,11 @@ import { getCurrentUserRole } from "@/lib/auth/customer";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: {
+  searchParams?: Promise<{
     reset?: string;
-  };
+  }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const { user, role } = await getCurrentUserRole();
 
   if (user) {
@@ -24,7 +25,7 @@ export default async function LoginPage({
         <section className="page-container flex min-h-[calc(100vh-9rem)] items-center py-12 sm:py-16">
           <PublicLoginForm
             initialMessage={
-              searchParams?.reset === "success"
+              resolvedSearchParams?.reset === "success"
                 ? "Your password has been updated. Please sign in."
                 : ""
             }

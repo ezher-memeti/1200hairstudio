@@ -23,6 +23,8 @@ import type { BookingSettings } from "@/lib/admin/settings";
 import { validateCustomerBookingTime } from "@/lib/booking/policy";
 import { getBookingSettings } from "@/lib/booking/settings";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
+import { getAppointmentWriteErrorMessage } from "@/lib/appointments/write-errors";
+import { discountTypeForReward, type LoyaltyRewardType } from "@/lib/discounts/types";
 
 function toFullName(firstName: string, lastName: string) {
   return [firstName.trim(), lastName.trim()]
@@ -102,21 +104,6 @@ export async function validateAppointmentRequest(
     selectedStartAt,
   ).getTime();
 
-  console.log("APPOINTMENT VALIDATION", {
-    serviceId: input.serviceId,
-    dateKey: input.dateKey,
-    startTime: input.startTime,
-    selectedStartAt,
-    selectedStartMs,
-    availableSlots: availableSlots.map((slot) => ({
-      slot_start: slot.slot_start,
-      slot_start_ms: new Date(
-        slot.slot_start,
-      ).getTime(),
-      slot_end: slot.slot_end,
-    })),
-  });
-
   const selectedSlot = availableSlots.find(
     (slot) =>
       new Date(slot.slot_start).getTime() ===
@@ -124,14 +111,6 @@ export async function validateAppointmentRequest(
   );
 
   if (!selectedSlot) {
-    console.log("APPOINTMENT SLOT REJECTED", {
-      selectedStartAt,
-      selectedStartMs,
-      rpcStarts: availableSlots.map(
-        (slot) => slot.slot_start,
-      ),
-    });
-
     return {
       error:
         "This time is no longer available. Please choose another slot.",
@@ -146,7 +125,7 @@ export async function validateAppointmentRequest(
   } as const;
 }
 
-function getAppointmentInsertErrorMessage(
+function logAppointmentInsertError(
   error: {
     code?: string;
     message?: string;
@@ -161,17 +140,6 @@ function getAppointmentInsertErrorMessage(
     hint: error.hint,
   });
 
-  // PostgreSQL exclusion / unique constraint conflict.
-  // Use this only for actual booking conflicts.
-  if (
-    error.code === "23P01" ||
-    error.code === "23505" ||
-    /slot.*(?:unavailable|not available)|already booked|overlap|conflict/i.test(error.message ?? "")
-  ) {
-    return "This time is no longer available. Please choose another slot.";
-  }
-
-  return "Unable to create the appointment right now. Please try again.";
 }
 
 export async function sendConfirmationEmailSafely(details: {
@@ -268,8 +236,6 @@ export async function createAppointment(
       if (!loyaltySettings?.is_enabled || !reward || (reward.expires_at && new Date(reward.expires_at).getTime() <= Date.now())) return { error: "This loyalty reward is no longer available. Please review your booking." };
       const rewardValue = Number(reward.reward_value ?? 0);
       loyaltyDiscount = reward.reward_type === "free_service" ? Number(service.price) : reward.reward_type === "percentage" ? Number(service.price) * Math.min(100, Math.max(0, rewardValue)) / 100 : Math.min(Number(service.price), Math.max(0, rewardValue));
-      const { data: reserved } = await adminSupabase.from("loyalty_rewards").update({ status: "reserved" }).eq("id", reward.id).eq("customer_id", customer.id).eq("status", "available").select("id").maybeSingle();
-      if (!reserved) return { error: "This loyalty reward was already used. Please review your booking." };
       loyaltyReward = reward;
       promotionPrice = null;
     }
@@ -277,7 +243,7 @@ export async function createAppointment(
     const originalPrice = Number(service.price);
     const appliedDiscount = loyaltyReward ? Math.min(originalPrice, loyaltyDiscount) : promotionPrice?.discountAmount ?? 0;
     const finalPrice = loyaltyReward ? Math.max(0, originalPrice - appliedDiscount) : promotionPrice?.finalPrice ?? originalPrice;
-    const { data: createdAppointment, error: insertError } = await supabase
+    const { data: createdAppointment, error: insertError } = await adminSupabase
       .from("appointments")
       .insert({
         customer_id: customer.id,
@@ -295,8 +261,9 @@ export async function createAppointment(
         promotion_id: promotionPrice?.promotionId ?? null,
         discount_source: loyaltyReward ? "loyalty" : promotionPrice ? "promotion" : null,
         discount_label: loyaltyReward ? "Loyalty Reward" : promotionPrice?.promotionName ?? null,
-        discount_type: loyaltyReward?.reward_type ?? promotionPrice?.discountType ?? null,
+        discount_type: loyaltyReward ? discountTypeForReward(loyaltyReward.reward_type as LoyaltyRewardType) : promotionPrice?.discountType ?? null,
         discount_value: loyaltyReward ? Number(loyaltyReward.reward_value ?? 0) : promotionPrice?.discountValue ?? null,
+        loyalty_reward_id: loyaltyReward?.id ?? null,
         booking_reference: credentials.bookingReference,
         manage_token_hash: credentials.managementTokenHash,
       })
@@ -309,7 +276,6 @@ export async function createAppointment(
       createdAppointment.booking_reference !== credentials.bookingReference ||
       createdAppointment.manage_token_hash !== credentials.managementTokenHash
     ) {
-      if (loyaltyReward) await adminSupabase.from("loyalty_rewards").update({ status: "available" }).eq("id", loyaltyReward.id).eq("status", "reserved");
       if (!insertError) {
         console.error("CUSTOMER APPOINTMENT CREDENTIAL VERIFICATION ERROR", {
           appointmentId: createdAppointment?.id ?? null,
@@ -319,14 +285,9 @@ export async function createAppointment(
       }
       return {
         error: insertError
-          ? getAppointmentInsertErrorMessage(insertError)
+          ? (logAppointmentInsertError(insertError), getAppointmentWriteErrorMessage(insertError))
           : "Your booking could not be verified. Please contact the studio.",
       };
-    }
-
-    if (loyaltyReward) {
-      const { error: redemptionError } = await adminSupabase.from("loyalty_rewards").update({ status: "redeemed", redeemed_at: new Date().toISOString(), redeemed_appointment_id: createdAppointment.id }).eq("id", loyaltyReward.id).eq("customer_id", customer.id).eq("status", "reserved");
-      if (redemptionError) console.error("LOYALTY REWARD REDEMPTION ERROR", { rewardId: loyaltyReward.id, appointmentId: createdAppointment.id, error: redemptionError });
     }
 
     await setGuestBookingCookie(credentials.managementToken);
@@ -339,30 +300,6 @@ export async function createAppointment(
           message: error instanceof Error ? error.message : "Unknown error",
           customerId: customer.id,
         });
-      }
-    }
-
-    if (fullName || phone) {
-      const { error: customerUpdateError } =
-        await supabase
-          .from("customers")
-          .update({
-            full_name:
-              fullName || customer.full_name,
-            phone: phone || customer.phone,
-          })
-          .eq("id", customer.id);
-
-      if (customerUpdateError) {
-        console.error(
-          "CUSTOMER PROFILE UPDATE ERROR",
-          {
-            code: customerUpdateError.code,
-            message: customerUpdateError.message,
-            details: customerUpdateError.details,
-            hint: customerUpdateError.hint,
-          },
-        );
       }
     }
 
@@ -415,7 +352,8 @@ export async function createAppointment(
       };
     }
 
-    const { data: guestCustomerId, error: guestCustomerError } = await supabase.rpc(
+    const adminSupabase = createAdminClient();
+    const { data: guestCustomerId, error: guestCustomerError } = await adminSupabase.rpc(
       "get_or_create_guest_customer",
       {
         p_full_name: fullName,
@@ -431,7 +369,9 @@ export async function createAppointment(
         message: guestCustomerError?.message,
       });
       return {
-        error: "Unable to prepare your booking right now. Please try again.",
+        error: guestCustomerError?.code === "42501"
+          ? "Please sign in to book with an existing customer account."
+          : "Unable to prepare your booking right now. Please try again.",
       };
     }
 
@@ -443,7 +383,6 @@ export async function createAppointment(
     const finalPolicyError = validateCustomerBookingTime(startAt, input.dateKey, bookingSettings);
     if (finalPolicyError) return { error: finalPolicyError };
 
-    const adminSupabase = createAdminClient();
     const { data: createdAppointment, error: guestAppointmentError } = await adminSupabase
       .from("appointments")
       .insert({
@@ -484,12 +423,9 @@ export async function createAppointment(
         });
       }
       return {
-        error:
-          getAppointmentInsertErrorMessage(
-            guestAppointmentError ?? {
-              message: "Guest appointment credentials were not returned as stored.",
-            },
-          ),
+        error: guestAppointmentError
+          ? (logAppointmentInsertError(guestAppointmentError), getAppointmentWriteErrorMessage(guestAppointmentError))
+          : "Your booking could not be verified. Please contact the studio.",
       };
     }
 

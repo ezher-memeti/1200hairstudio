@@ -1,8 +1,9 @@
 import { getClosedRegisterDetail } from "@/lib/register/server";
 import { generateRegisterClosingPdf, registerReportHtml } from "@/lib/register/report";
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const detail = await getClosedRegisterDetail(params.id);
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const detail = await getClosedRegisterDetail(id);
   if (!detail) return new Response("Closed register session not found.", { status: 404 });
   const format = new URL(request.url).searchParams.get("format") ?? "view";
   if (format === "pdf") {

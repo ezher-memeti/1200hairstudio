@@ -15,8 +15,9 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function ManageBookingPage({ params }: { params: { token: string } }) {
-  const managed = await resolveManagedAppointment(params.token);
+export default async function ManageBookingPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const managed = await resolveManagedAppointment(token);
 
   if (!managed) {
     return <><Header /><main className="page-container flex min-h-[65vh] items-center justify-center py-16"><div className="max-w-xl border border-border bg-surface p-8 text-center sm:p-12"><p className="font-primary text-[10px] uppercase tracking-[0.3em] text-accent">Manage Booking</p><h1 className="mt-5 font-display text-4xl uppercase leading-none text-foreground">Link unavailable</h1><p className="mt-5 font-primary text-sm leading-7 text-foreground-secondary">{INVALID_LINK_MESSAGE}</p></div></main><Footer /></>;
@@ -33,7 +34,7 @@ export default async function ManageBookingPage({ params }: { params: { token: s
       <Header />
       <main className="page-container min-h-[70vh] py-10 sm:py-16 lg:py-20">
         <BookingManagementView
-          token={params.token}
+          token={token}
           booking={{
             reference: appointment.booking_reference ?? "Booking",
             service: service?.name ?? "Service",

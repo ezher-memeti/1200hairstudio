@@ -2,20 +2,27 @@
   "name": "1200hairstudio",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:pos": "node scripts/test-pos.mjs"
+    "test:pos": "node scripts/test-pos.mjs",
+    "test:security-booking": "node scripts/test-security-booking.mjs",
+    "test:authorization": "node scripts/test-authorization.mjs",
+    "test:receipt-pdf": "node scripts/test-receipt-pdf.cjs",
+    "validate:gmail-oauth": "node --env-file=.env.local scripts/validate-gmail-oauth.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
-    "googleapis": "^176.0.0",
+    "googleapis": "178.1.1",
     "lucide-react": "^1.32.0",
     "mapbox-gl": "^3.29.0",
-    "next": "14.2.30",
+    "next": "15.5.28",
     "pdf-lib": "^1.17.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -28,7 +35,7 @@
     "@types/react": "18.3.23",
     "@types/react-dom": "18.3.7",
     "eslint": "8.57.1",
-    "eslint-config-next": "14.2.30",
+    "eslint-config-next": "15.5.28",
     "postcss": "8.5.6",
     "tailwindcss": "^4.1.13",
     "typescript": "5.8.3"

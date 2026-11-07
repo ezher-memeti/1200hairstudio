@@ -2,8 +2,9 @@ import Link from "next/link";
 import { getEndOfDay } from "@/lib/finance/end-of-day";
 import { formatMoney } from "@/components/admin/finance/shared";
 
-export default async function EndOfDayPage({ searchParams }: { searchParams: { date?: string } }) {
-  const data = await getEndOfDay(searchParams.date ?? "");
+export default async function EndOfDayPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+  const resolvedSearchParams = await searchParams;
+  const data = await getEndOfDay(resolvedSearchParams.date ?? "");
   const register = data.registers.at(-1);
   const rows = [
     ["Gross sales", data.finance.grossRevenue], ["Discounts", -data.finance.discounts], ["Loyalty redemptions", -data.loyaltyRedemptions],

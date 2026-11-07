@@ -7,6 +7,7 @@ import {
 } from "@/lib/appointments/mutations";
 import type { AppointmentStatus } from "@/lib/appointments/types";
 import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
+import { getNotificationSettings } from "@/lib/admin/runtime-settings";
 import { resolveCustomerByEmail } from "@/lib/customers/mutations";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
@@ -14,6 +15,7 @@ import { clearGuestBookingCookie } from "@/lib/appointments/management";
 import { createBookingCredentials, getBookingManagementUrl } from "@/lib/appointments/management";
 import { processAppointmentStatusForLoyalty } from "@/lib/loyalty/process-completed-appointment";
 import { APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, getProtectedAppointmentIds, isAppointmentForeignKeyError } from "@/lib/appointments/deletion-protection";
+import { APPOINTMENT_TIME_CONFLICT_MESSAGE, getAppointmentWriteErrorMessage, isAppointmentTimeConflictError } from "@/lib/appointments/write-errors";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -159,7 +161,13 @@ export async function updateAdminAppointment(
         .eq("id", input.appointmentId);
 
       if (updateError) {
-        return { error: updateError.message, emailError: null, emailStatus: "skipped" as const };
+        return {
+          error: isAppointmentTimeConflictError(updateError)
+            ? APPOINTMENT_TIME_CONFLICT_MESSAGE
+            : "Unable to update the appointment right now.",
+          emailError: null,
+          emailStatus: "skipped" as const,
+        };
       }
 
       const customerName =
@@ -175,7 +183,7 @@ export async function updateAdminAppointment(
       let emailError: string | null = null;
       let emailStatus: "sent" | "failed" | "skipped" = "skipped";
 
-      if (sendNotification && customerEmail) {
+      if (sendNotification && customerEmail && (await getNotificationSettings()).rescheduleEmail) {
         try {
           await import("@/lib/email/transactional").then(({ sendBookingUpdateEmail }) =>
             sendBookingUpdateEmail({
@@ -315,13 +323,14 @@ export async function removeAdminAppointment(input: {
     let emailError: string | null = null;
     let emailStatus: "sent" | "failed" | "skipped" = "skipped";
 
-    if (sendNotification && customerEmail && service) {
+    if (sendNotification && customerEmail && service && (await getNotificationSettings()).cancellationEmail) {
       try {
         await import("@/lib/email/transactional").then(({ sendBookingCancellationEmail }) =>
           sendBookingCancellationEmail({
             to: customerEmail,
             customerId: appointment.customer_id,
-            appointmentId: appointment.id,
+            // The appointment has been deleted; retain its reference without an invalid FK.
+            bookingReference: appointment.booking_reference ?? undefined,
             customerName,
             serviceName: service.name,
             startAt: appointment.start_at,
@@ -516,13 +525,19 @@ export async function createAdminAppointment(input: {
           finalPrice: createdAppointment?.final_price ?? null,
         });
       }
-      return { error: "Unable to create the appointment right now.", emailError: null, emailStatus: "skipped" as const };
+      return {
+        error: insertError
+          ? getAppointmentWriteErrorMessage(insertError)
+          : "Unable to create the appointment right now.",
+        emailError: null,
+        emailStatus: "skipped" as const,
+      };
     }
 
     let emailError: string | null = null;
     let emailStatus: "sent" | "failed" | "skipped" = "skipped";
 
-    if (sendConfirmation && customerEmail) {
+    if (sendConfirmation && customerEmail && (await getNotificationSettings()).bookingConfirmationEmail) {
       try {
         await sendBookingConfirmationEmail({
           to: customerEmail,

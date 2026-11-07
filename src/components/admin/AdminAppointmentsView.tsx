@@ -1376,7 +1376,7 @@ export default function AdminAppointmentsView({
                     <span className="text-accent"><b className="block text-foreground-muted">Remaining</b>CHF {Math.max(0, selectedFinanceAppointment.amountDue - selectedFinanceAppointment.netPaid).toFixed(2)}</span>
                   </div>
                 </div>
-                {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{selectedFinanceAppointment.discountSource === "custom" ? "Custom discount" : "Promotion"} — {selectedFinanceAppointment.discountLabel ?? "Discount"}</p> : null}
+                {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{selectedFinanceAppointment.discountSource === "manual" ? "Manual discount" : selectedFinanceAppointment.discountSource === "loyalty" ? "Loyalty reward" : "Promotion"} — {selectedFinanceAppointment.discountLabel ?? "Discount"}</p> : null}
                 {selectedDetail.status === "completed" && selectedFinanceAppointment.netPaid < selectedFinanceAppointment.amountDue ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-rose-300">Completed appointment · payment outstanding</p> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {selectedSale ? <>

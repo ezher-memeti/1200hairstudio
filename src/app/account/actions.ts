@@ -20,14 +20,8 @@ function toErrorMessage(error: unknown) {
 }
 
 async function resolveOwnedAppointment(appointmentId: string) {
-  const { supabase, user } = await requireCustomerUser();
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("profile_id", user.id)
-    .maybeSingle();
-
-  if (customerError || !customer) return null;
+  const { supabase } = await requireCustomerUser();
+  const customer = await ensureCustomerRecord();
 
   const { data: appointment, error: appointmentError } = await supabase
     .from("appointments")
@@ -94,16 +88,13 @@ export async function updateCustomerAccount(formData: FormData) {
       return { error: "Full name is required." };
     }
 
-    const { supabase, user } = await requireCustomerUser();
+    const { supabase } = await requireCustomerUser();
     await ensureCustomerRecord(fullName, phone);
 
-    const { error } = await supabase
-      .from("customers")
-      .update({
-        full_name: fullName,
-        phone,
-      })
-      .eq("profile_id", user.id);
+    const { error } = await supabase.rpc("update_my_customer_profile", {
+      p_full_name: fullName,
+      p_phone: phone,
+    });
 
     if (error) {
       return { error: error.message };
@@ -118,23 +109,16 @@ export async function updateCustomerAccount(formData: FormData) {
 
 export async function subscribeToMarketingEmails() {
   try {
-    const { supabase, user } = await requireCustomerUser();
-    const consentedAt = new Date().toISOString();
-    const { data, error } = await supabase
-      .from("customers")
-      .update({
-        marketing_email_consent: true,
-        marketing_email_consented_at: consentedAt,
-        marketing_email_consent_source: "account_preferences",
-        marketing_email_unsubscribed_at: null,
-      })
-      .eq("profile_id", user.id)
-      .select("marketing_email_consent, marketing_email_consented_at, marketing_email_consent_source, marketing_email_unsubscribed_at")
-      .single();
+    const { supabase } = await requireCustomerUser();
+    const { data, error } = await supabase.rpc("set_my_marketing_email_preference", {
+      p_subscribed: true,
+      p_source: "account_preferences",
+    });
+    const preference = Array.isArray(data) ? data[0] : data;
 
-    if (error || !data) return { error: "Unable to update email preferences right now.", preference: null };
+    if (error || !preference) return { error: "Unable to update email preferences right now.", preference: null };
     revalidatePath("/account");
-    return { error: null, preference: data };
+    return { error: null, preference };
   } catch (error) {
     return { error: toErrorMessage(error), preference: null };
   }
@@ -142,21 +126,16 @@ export async function subscribeToMarketingEmails() {
 
 export async function unsubscribeFromMarketingEmails() {
   try {
-    const { supabase, user } = await requireCustomerUser();
-    const unsubscribedAt = new Date().toISOString();
-    const { data, error } = await supabase
-      .from("customers")
-      .update({
-        marketing_email_consent: false,
-        marketing_email_unsubscribed_at: unsubscribedAt,
-      })
-      .eq("profile_id", user.id)
-      .select("marketing_email_consent, marketing_email_consented_at, marketing_email_consent_source, marketing_email_unsubscribed_at")
-      .single();
+    const { supabase } = await requireCustomerUser();
+    const { data, error } = await supabase.rpc("set_my_marketing_email_preference", {
+      p_subscribed: false,
+      p_source: "account_preferences",
+    });
+    const preference = Array.isArray(data) ? data[0] : data;
 
-    if (error || !data) return { error: "Unable to update email preferences right now.", preference: null };
+    if (error || !preference) return { error: "Unable to update email preferences right now.", preference: null };
     revalidatePath("/account");
-    return { error: null, preference: data };
+    return { error: null, preference };
   } catch (error) {
     return { error: toErrorMessage(error), preference: null };
   }

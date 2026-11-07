@@ -487,17 +487,15 @@ function QuickActions() {
     <section className="min-w-0 border-y border-border py-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <p className="shrink-0 text-[10px] uppercase tracking-[.18em] text-foreground-muted lg:w-28">Quick Actions</p>
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid min-w-0 flex-1 auto-rows-fr grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2">
           {items.map(({ label, href, icon: Icon }) => (
             <Link
               key={label}
               href={href}
-              className="flex min-h-11 min-w-0 items-center justify-between gap-2 border border-border px-3 text-[9px] uppercase tracking-[.09em] text-foreground-secondary transition-colors hover:border-accent/50 hover:text-accent sm:text-[10px]"
+              className="grid min-h-12 min-w-0 grid-cols-[14px_minmax(0,1fr)_12px] items-center gap-3 border border-border px-3 py-3 text-[10px] uppercase leading-4 tracking-[.09em] text-foreground-secondary transition-colors hover:border-accent/50 hover:text-accent"
             >
-              <span className="flex min-w-0 items-center gap-2">
-                <Icon size={14} className="shrink-0" />
-                <span className="break-words">{label}</span>
-              </span>
+              <Icon size={14} className="shrink-0" />
+              <span className="min-w-0 whitespace-normal [overflow-wrap:normal]">{label}</span>
               <ArrowRight size={12} className="shrink-0" />
             </Link>
           ))}

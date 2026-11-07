@@ -619,33 +619,33 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
 
       <div className="relative border border-border bg-surface p-3 sm:p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="w-full space-y-2 lg:min-w-[280px] lg:flex-1">
+          <label className="w-full min-w-0 space-y-2 sm:w-auto sm:flex-[1_1_18rem]">
             <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
               Search
             </span>
-            <div className="flex items-center gap-3 border border-border bg-background px-4 py-2.5">
-              <Search size={16} className="text-foreground-muted" />
+            <div className="flex min-h-11 items-center gap-3 border border-border bg-background px-4">
+              <Search size={16} className="shrink-0 text-foreground-muted" />
               <input
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Name, email, or phone"
-                className="w-full bg-transparent font-admin-primary text-sm text-foreground outline-none placeholder:text-foreground-muted"
+                className="min-w-0 w-full bg-transparent font-admin-primary text-sm text-foreground outline-none placeholder:text-foreground-muted"
               />
             </div>
           </label>
 
-          <div className="hidden min-w-0 flex-1 space-y-2 sm:block sm:min-w-[290px] lg:max-w-[360px]">
+          <div className="w-full space-y-2 sm:w-auto sm:flex-[1_0_18rem]">
             <span className="inline-flex items-center gap-2 font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
               <SlidersHorizontal size={12} /> Filter
             </span>
-            <div className="inline-flex w-full border border-border bg-background p-1">
+            <div className="grid h-11 w-full grid-cols-[1fr_auto_1fr] gap-1 border border-border bg-background p-1">
               {(["all", "registered", "guest"] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setFilter(mode)}
-                  className={`min-w-0 flex-1 px-3 py-2.5 font-admin-primary text-[11px] uppercase tracking-[0.14em] transition-colors sm:px-4 sm:text-xs sm:tracking-[0.18em] ${
+                  className={`whitespace-nowrap px-2 font-admin-primary text-[11px] uppercase tracking-[0.14em] transition-colors sm:px-3 sm:text-xs sm:tracking-[0.18em] ${
                     filter === mode
                       ? "bg-accent text-background"
                       : "text-foreground-secondary hover:bg-surface hover:text-foreground"
@@ -657,12 +657,14 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
             </div>
           </div>
 
-          <AdminSelect label="Sort" value={sort} onChange={(value) => setSort(value as SortMode)} className="min-w-[160px] flex-1 sm:flex-none sm:basis-[210px]" options={[{ value: "name", label: "Name" }, { value: "newest", label: "Newest" }, { value: "most_visits", label: "Most visits" }, { value: "last_visit", label: "Last visit" }, { value: "next_appointment", label: "Next appointment" }, { value: "most_no_shows", label: "Most no-shows" }]} />
+          <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto sm:flex-[1_0_29rem]">
+            <AdminSelect label="Sort" value={sort} onChange={(value) => setSort(value as SortMode)} className="w-full sm:w-auto sm:flex-[1_0_12rem]" options={[{ value: "name", label: "Name" }, { value: "newest", label: "Newest" }, { value: "most_visits", label: "Most visits" }, { value: "last_visit", label: "Last visit" }, { value: "next_appointment", label: "Next appointment" }, { value: "most_no_shows", label: "Most no-shows" }]} />
 
-          <button type="button" onClick={() => setIsFilterOpen(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground sm:flex-none"><SlidersHorizontal size={14} /> Filters{activeFilterChips.length ? ` (${activeFilterChips.length})` : ""}</button>
-          <div className="relative flex-1 sm:flex-none">
-            <button type="button" onClick={() => setIsExportOpen((current) => !current)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 border border-accent/40 bg-accent/10 px-4 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent hover:text-background">Export All <ChevronDown size={14} /></button>
-            {isExportOpen ? <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-48 border border-border bg-background-secondary p-2 shadow-xl"><a href="/api/admin/customers/export?format=csv" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export CSV</a><a href="/api/admin/customers/export?format=pdf" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export PDF</a></div> : null}
+            <button type="button" onClick={() => setIsFilterOpen(true)} className="inline-flex min-h-11 flex-[1_0_auto] items-center justify-center gap-2 whitespace-nowrap border border-border px-3 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground sm:flex-none"><SlidersHorizontal size={14} className="shrink-0" /> Filters{activeFilterChips.length ? ` (${activeFilterChips.length})` : ""}</button>
+            <div className="relative flex-[1_0_auto] sm:flex-none">
+              <button type="button" onClick={() => setIsExportOpen((current) => !current)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap border border-accent/40 bg-accent/10 px-3 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent hover:text-background">Export All <ChevronDown size={14} className="shrink-0" /></button>
+              {isExportOpen ? <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-48 border border-border bg-background-secondary p-2 shadow-xl"><a href="/api/admin/customers/export?format=csv" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export CSV</a><a href="/api/admin/customers/export?format=pdf" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export PDF</a></div> : null}
+            </div>
           </div>
         </div>
 

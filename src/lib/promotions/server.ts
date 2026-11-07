@@ -67,8 +67,7 @@ export async function getEffectiveServicePrice(input: { serviceId: string; custo
     console.error("Effective promotion lookup failed", { serviceId: input.serviceId, customerId: input.customerId, error });
     return base;
   }
-  const { data: customer } = input.customerId ? await supabase.from("customers").select("id,is_registered").eq("id", input.customerId).maybeSingle() : { data: null };
-  debugPromotion("resolution started", { customerId: input.customerId, customerIsRegistered: customer?.is_registered ?? null, serviceId: input.serviceId, candidatePromotions: promotions?.length ?? 0, originalPrice });
+  debugPromotion("resolution started", { customerId: input.customerId, authenticatedCustomer: input.authenticatedCustomer === true, serviceId: input.serviceId, candidatePromotions: promotions?.length ?? 0, originalPrice });
   const eligible: Array<{ promotion: PromotionRecord; price: PromotionPrice }> = [];
   for (const promotion of (promotions ?? []) as PromotionRecord[]) {
     const result = input.authenticatedCustomer ? { valid: true as const, promotion } : await validatePromotion({ promotionId: promotion.id, serviceId: input.serviceId, supabase });

@@ -18,12 +18,14 @@ export default function FinanceOverview({initialComparison}:{initialComparison:F
   const [customEnd,setCustomEnd]=useState(initialComparison.current.end);
   const [feedback,setFeedback]=useState("");
   const [pending,startTransition]=useTransition();
-  const initialRender=useRef(true);
+  const lastRequestKey=useRef(initialComparison.range === "custom" ? `custom:${initialComparison.current.start}:${initialComparison.current.end}` : initialComparison.range);
   const requestSequence=useRef(0);
 
   useEffect(()=>{
-    if(initialRender.current){initialRender.current=false;return;}
     if(range==="custom"&&(!customStart||!customEnd||customEnd<customStart)) return;
+    const requestKey=range==="custom" ? `custom:${customStart}:${customEnd}` : range;
+    if(lastRequestKey.current===requestKey) return;
+    lastRequestKey.current=requestKey;
     const requestId=++requestSequence.current;
     startTransition(async()=>{const result=await getFinanceOverviewComparison({range,customStart,customEnd});if(requestId!==requestSequence.current)return;if(!result.data){setFeedback(result.error??"Comparison data could not be loaded.");return;}setComparison(result.data);setFeedback("");});
   },[customEnd,customStart,range]);

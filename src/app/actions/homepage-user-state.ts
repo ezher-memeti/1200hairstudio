@@ -78,11 +78,10 @@ export async function getHomepageBookingUserState(): Promise<HomepageBookingUser
     let loyaltyReward: HomepageBookingUserState["loyaltyReward"] = null;
 
     if (role === "customer" && user) {
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("id,full_name,email,phone")
-        .eq("profile_id", user.id)
-        .maybeSingle();
+      const customerResponse = await supabase.rpc("get_my_customer");
+      const customer = Array.isArray(customerResponse.data)
+        ? customerResponse.data[0]
+        : customerResponse.data;
 
       if (customer) {
         customerId = customer.id;

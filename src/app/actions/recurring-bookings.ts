@@ -20,9 +20,10 @@ export async function getRecurringWorkingDays() {
 }
 
 async function currentCustomerId() {
-  const { supabase, user } = await requireCustomerUser();
-  const { data } = await supabase.from("customers").select("id").eq("profile_id", user.id).maybeSingle();
-  if (!data) throw new Error("Customer account not found.");
+  const { supabase } = await requireCustomerUser();
+  const response = await supabase.rpc("get_my_customer");
+  const data = Array.isArray(response.data) ? response.data[0] : response.data;
+  if (response.error || !data) throw new Error("Customer account not found.");
   return data.id as string;
 }
 

@@ -5,7 +5,7 @@ import type {
   ReactNode,
   SetStateAction,
 } from "react";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { bookAppointment, clearGuestBookingSession } from "@/app/actions/appointments";
@@ -756,6 +756,7 @@ export default function BookingSectionClient({
   loyaltyReward: initialLoyaltyReward,
 }: BookingSectionClientProps) {
   const router = useRouter();
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [authRole, setAuthRole] = useState(initialAuthRole);
   const [customerProfile, setCustomerProfile] = useState(initialCustomerProfile);
   const [services, setServices] = useState(initialServices);
@@ -792,43 +793,67 @@ export default function BookingSectionClient({
 
   useEffect(() => {
     let isActive = true;
+    let hasLoaded = false;
 
-    void getHomepageBookingUserState()
-      .then((userState) => {
-        if (!isActive) return;
-        setAuthRole(userState.authRole);
-        setCustomerProfile(userState.customerProfile);
-        setPersistedConfirmation(userState.persistedConfirmation);
-        setShouldClearGuestBookingCookie(userState.shouldClearGuestBookingCookie);
-        setLoyaltyReward(userState.loyaltyReward);
-        if (userState.servicePriceOverrides.length > 0) {
-          const pricesByServiceId = new Map(userState.servicePriceOverrides.map((price) => [price.serviceId, price]));
-          setServices((current) => current.map((service) => {
-            const price = pricesByServiceId.get(service.id);
-            if (!price) return service;
-            const { serviceId: _serviceId, ...priceFields } = price;
-            return { ...service, ...priceFields };
-          }));
-        }
+    const loadUserState = () => {
+      if (hasLoaded) return;
+      hasLoaded = true;
+      void getHomepageBookingUserState()
+        .then((userState) => {
+          if (!isActive) return;
+          setAuthRole(userState.authRole);
+          setCustomerProfile(userState.customerProfile);
+          setPersistedConfirmation(userState.persistedConfirmation);
+          setShouldClearGuestBookingCookie(userState.shouldClearGuestBookingCookie);
+          setLoyaltyReward(userState.loyaltyReward);
+          if (userState.servicePriceOverrides.length > 0) {
+            const pricesByServiceId = new Map(userState.servicePriceOverrides.map((price) => [price.serviceId, price]));
+            setServices((current) => current.map((service) => {
+              const price = pricesByServiceId.get(service.id);
+              if (!price) return service;
+              const { serviceId: _serviceId, ...priceFields } = price;
+              return { ...service, ...priceFields };
+            }));
+          }
 
-        if (userState.authRole === "customer" && userState.customerProfile) {
-          const nameParts = userState.customerProfile.fullName.trim().split(/\s+/);
-          const firstName = nameParts[0] ?? "";
-          const lastName = nameParts.slice(1).join(" ");
-          setState((current) => ({
-            ...current,
-            bookingMode: "account",
-            firstName: current.firstName || firstName,
-            lastName: current.lastName || lastName,
-            phone: current.phone || userState.customerProfile?.phone || "",
-            email: current.email || userState.customerProfile?.email || "",
-          }));
-        }
-      })
-      .catch(() => undefined);
+          if (userState.authRole === "customer" && userState.customerProfile) {
+            const nameParts = userState.customerProfile.fullName.trim().split(/\s+/);
+            const firstName = nameParts[0] ?? "";
+            const lastName = nameParts.slice(1).join(" ");
+            setState((current) => ({
+              ...current,
+              bookingMode: "account",
+              firstName: current.firstName || firstName,
+              lastName: current.lastName || lastName,
+              phone: current.phone || userState.customerProfile?.phone || "",
+              email: current.email || userState.customerProfile?.email || "",
+            }));
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    const section = sectionRef.current;
+    if (!section || !("IntersectionObserver" in window)) {
+      loadUserState();
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        loadUserState();
+      },
+      { rootMargin: "800px 0px" },
+    );
+    observer.observe(section);
 
     return () => {
       isActive = false;
+      observer.disconnect();
     };
   }, []);
 
@@ -1048,7 +1073,7 @@ export default function BookingSectionClient({
   }, [allowGuestBookings, applyLoyaltyReward, authRole, availabilityError, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, dates, handleConfirmBooking, handleLoadAvailability, handleServiceSelected, hidePersistedConfirmation, initialFirstName, initialLastName, isLoadingAvailability, loyaltyReward, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups]);
 
   return (
-    <section id="booking" className="bg-background">
+    <section ref={sectionRef} id="booking" className="bg-background">
       <div className="page-container py-10 sm:py-12 lg:py-14">
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,620px)] xl:items-center xl:gap-14 2xl:gap-16">
           <div className="relative flex min-w-0 flex-col justify-start lg:min-h-full lg:justify-center">

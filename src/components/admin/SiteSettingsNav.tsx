@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/admin/AdminNavLink";
 
 const siteSettingsItems = [
   { label: "Homepage Content", href: "/admin/site-settings/homepage-content" },

@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
+import { getNotificationSettings } from "@/lib/admin/runtime-settings";
 import { sendReceiptEmail } from "@/lib/email/receipt";
 import { generateReceiptPdf, getAdminReceipt, getOrCreateReceipt } from "@/lib/receipts/server";
 
 export async function resendAdminReceipt(receiptId: string) {
   try {
     const { supabase } = await requireAdminUser();
+    if (!(await getNotificationSettings()).receiptEmailEnabled) return { error: "Receipt emails are disabled." };
     const receipt = await getAdminReceipt(supabase, receiptId);
     if (!receipt) return { error: "Receipt not found." };
     if (!receipt.customer_email) return { error: "This customer does not have an email address." };

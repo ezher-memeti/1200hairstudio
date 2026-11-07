@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/admin/AdminNavLink";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import LogoutButton from "@/components/admin/LogoutButton";
@@ -13,7 +13,7 @@ const navigationItems = [
   { label: "Appointments", href: "/admin/appointments" },
   { label: "Customers", href: "/admin/customers" },
   { label: "Marketing", href: "/admin/marketing" },
-  { label: "Site Settings", href: "/admin/site-settings" },
+  { label: "Site Settings", href: "/admin/site-settings/services" },
   { label: "Finance", href: "/admin/finance" },
   { label: "Settings", href: "/admin/settings" },
 ] as const;
@@ -64,7 +64,7 @@ export default function AdminShell({
                 const isActive =
                   item.href === "/admin"
                     ? pathname === "/admin"
-                    : pathname.startsWith(item.href);
+                    : pathname.startsWith(item.href.startsWith("/admin/site-settings/") ? "/admin/site-settings" : item.href);
 
                 return (
                   <Link
@@ -116,6 +116,7 @@ export default function AdminShell({
                 {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </div>
+          </header>
 
             {isMenuOpen ? (
               <div id="admin-mobile-menu" className="fixed inset-0 z-[120] lg:hidden" role="dialog" aria-modal="true" aria-label="Admin navigation">
@@ -134,13 +135,13 @@ export default function AdminShell({
                       const isActive =
                         item.href === "/admin"
                           ? pathname === "/admin"
-                          : pathname.startsWith(item.href);
+                          : pathname.startsWith(item.href.startsWith("/admin/site-settings/") ? "/admin/site-settings" : item.href);
 
                       return (
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={() => setIsMenuOpen(false)}
+                          onClick={() => { if (pathname === item.href) setIsMenuOpen(false); }}
                           className={`flex min-h-12 items-center border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] transition-colors ${
                             isActive
                               ? "border-border bg-surface text-foreground"
@@ -156,7 +157,7 @@ export default function AdminShell({
                   <div className="space-y-3 border-t border-border px-4 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
                     <Link
                       href="/admin/settings"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={() => { if (pathname === "/admin/settings") setIsMenuOpen(false); }}
                       className="inline-flex min-h-12 w-full items-center justify-center border border-border px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
                     >
                       Profile
@@ -173,7 +174,6 @@ export default function AdminShell({
                 </div>
               </div>
             ) : null}
-          </header>
 
           <main className="page-container min-w-0 max-w-full py-6 sm:py-8 lg:px-8 lg:py-10 xl:px-10 xl:py-12">
             {children}

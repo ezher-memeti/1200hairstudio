@@ -38,30 +38,30 @@ export async function getOrCreateReceipt(
   if (existing.error) throw existing.error;
   if (existing.data) return existing.data as ReceiptRecord;
 
-  const [{ data: appointment, error: appointmentError }, { data: finance, error: financeError }, { data: payments, error: paymentsError }, financeSettings] = await Promise.all([
+  const [{ data: appointment, error: appointmentError }, { data: finance, error: financeError }, { data: payments, error: paymentsError }, { data: sale, error: saleError }, financeSettings] = await Promise.all([
     supabase.from("appointments").select("id,customer_id,customer_name,guest_name,service_id,start_at,discount_label").eq("id", appointmentId).maybeSingle(),
     supabase.from("appointment_finance_summary").select("appointment_id,original_price,discount_amount,amount_due,net_paid").eq("appointment_id", appointmentId).maybeSingle(),
     supabase.from("payments").select("transaction_type,amount,tip_amount,payment_method,status,paid_at").eq("appointment_id", appointmentId).eq("status", "completed").order("paid_at"),
+    supabase.from("sales").select("tip_amount,tax_amount").eq("appointment_id", appointmentId).maybeSingle(),
     getFinanceSettings(),
   ]);
-  if (appointmentError || !appointment || financeError || !finance || paymentsError) throw new Error("Receipt data could not be loaded.");
+  if (appointmentError || !appointment || financeError || !finance || paymentsError || saleError || !sale) throw new Error("Receipt data could not be loaded.");
 
   const total = money(finance.amount_due);
-  const amountPaid = money(finance.net_paid);
-  const balance = Math.max(0, money(total - amountPaid));
+  const amountPaid = money((payments ?? []).reduce((sum, payment) => sum + (payment.transaction_type === "refund" ? -1 : 1) * money(payment.amount), 0));
+  const servicePaid = money(finance.net_paid);
+  const balance = Math.max(0, money(total - servicePaid));
   if (balance > 0) throw new Error("A receipt can only be issued after the appointment balance is settled.");
 
-  const [{ data: customer }, { data: service }, { data: latestReceipt }] = await Promise.all([
+  const [{ data: customer }, { data: service }] = await Promise.all([
     appointment.customer_id ? supabase.from("customers").select("full_name,email").eq("id", appointment.customer_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("services").select("name").eq("id", appointment.service_id).maybeSingle(),
-    supabase.from("receipts").select("receipt_number").order("receipt_number", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (!service?.name) throw new Error("Receipt service snapshot could not be created.");
   const methods = [...new Set((payments ?? []).filter((payment) => payment.transaction_type === "payment").map((payment) => payment.payment_method).filter(Boolean))];
-  const tipAmount = money((payments ?? []).filter((payment) => payment.transaction_type === "payment").reduce((sum, payment) => sum + money(payment.tip_amount), 0));
+  const tipAmount = money(sale.tip_amount);
   const payload = {
     appointment_id: appointment.id,
-    receipt_number: Number(latestReceipt?.receipt_number ?? 1000) + 1,
     customer_name: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Customer",
     service_name: service.name,
     service_quantity: 1,
@@ -71,7 +71,7 @@ export async function getOrCreateReceipt(
     discount_label: appointment.discount_label ?? null,
     total,
     tip_amount: tipAmount,
-    tax_amount: 0,
+    tax_amount: money(sale.tax_amount),
     amount_paid: amountPaid,
     balance,
     payment_method: methods.length ? methods.join(" + ") : null,
@@ -124,6 +124,7 @@ export async function generateReceiptPdf(receipt: ReceiptRecord) {
   const rows: Array<[string, string, boolean?]> = [
     ["Subtotal", `${currency} ${receipt.subtotal.toFixed(2)}`],
     [receipt.discount_label ? `Discount · ${receipt.discount_label}` : "Discount", `-${currency} ${receipt.discount_amount.toFixed(2)}`],
+    ...(receipt.tax_amount ? [["Tax", `${currency} ${receipt.tax_amount.toFixed(2)}`] as [string, string, boolean?]] : []),
     ["Total", `${currency} ${receipt.total.toFixed(2)}`, true],
     ...(receipt.tip_amount ? [["Tip", `${currency} ${receipt.tip_amount.toFixed(2)}`] as [string, string, boolean?]] : []),
     [receipt.payment_method ? `Payment with ${receipt.payment_method.toUpperCase()}` : "No payment required", `${currency} ${receipt.amount_paid.toFixed(2)}`],

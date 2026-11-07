@@ -24,11 +24,20 @@ const testUrl = process.env.SUPABASE_TEST_URL?.replace(/\/$/, "");
 const testAnonKey = process.env.SUPABASE_TEST_PUBLISHABLE_KEY;
 const testServiceKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY;
 if (!testUrl || !testAnonKey || !testServiceKey) throw new Error("Missing SUPABASE_TEST_URL, SUPABASE_TEST_PUBLISHABLE_KEY, or SUPABASE_TEST_SERVICE_ROLE_KEY. Copy .env.test.example to .env.test.local.");
+const linkedRef = existsSync("supabase/.temp/project-ref") ? readFileSync("supabase/.temp/project-ref", "utf8").trim() : "";
+const linkedAuthorization = process.env.SUPABASE_TEST_LINKED_PROJECT_AUTHORIZATION === `ALLOW_PHASE_1_3_TESTING:${linkedRef}`;
 const usingCurrentDatabase = Boolean(applicationUrl && testUrl === applicationUrl);
-if (usingCurrentDatabase && process.env.POS_TEST_ALLOW_CURRENT_DB !== "YES_I_UNDERSTAND") throw new Error("REFUSING TO RUN: SUPABASE_TEST_URL matches the normal application database URL. To explicitly authorize temporary development testing, set POS_TEST_ALLOW_CURRENT_DB=YES_I_UNDERSTAND.");
+if (usingCurrentDatabase && !linkedAuthorization) throw new Error("REFUSING TO RUN: SUPABASE_TEST_URL matches the application database URL without project-specific authorization.");
+if (process.env.SUPABASE_SERVICE_ROLE_KEY && testServiceKey === process.env.SUPABASE_SERVICE_ROLE_KEY && !linkedAuthorization) throw new Error("REFUSING TO RUN: the test service-role key matches the application credential.");
 const testHost = new URL(testUrl).hostname;
 const isLocal = ["localhost", "127.0.0.1", "host.docker.internal"].includes(testHost);
 if (!isLocal && !usingCurrentDatabase && process.env.POS_TEST_ALLOW_REMOTE !== "YES_I_UNDERSTAND_TEST_DATA_ONLY") throw new Error("REFUSING TO RUN against a remote project. Use a disposable test project and set POS_TEST_ALLOW_REMOTE=YES_I_UNDERSTAND_TEST_DATA_ONLY.");
+if (!isLocal) {
+  const expectedRef = process.env.SUPABASE_TEST_PROJECT_REF?.trim();
+  const actualRef = testHost.endsWith(".supabase.co") ? testHost.slice(0, -".supabase.co".length) : "";
+  if (!expectedRef || actualRef !== expectedRef) throw new Error("REFUSING TO RUN: remote test hostname does not match SUPABASE_TEST_PROJECT_REF.");
+  if (actualRef === linkedRef && !linkedAuthorization) throw new Error("REFUSING TO RUN: remote test project matches the repository-linked project without project-specific authorization.");
+}
 
 const prefix = `POS_TEST_${randomUUID()}`;
 const password = `T3st-${randomUUID()}!`;
@@ -36,7 +45,7 @@ const adminEmail = `${prefix.toLowerCase()}-admin@example.invalid`;
 const customerEmail = `${prefix.toLowerCase()}-customer@example.invalid`;
 const admin = createClient(testUrl, testServiceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 const client = createClient(testUrl, testAnonKey, { auth: { autoRefreshToken: false, persistSession: false } });
-const ids = { user: null, customer: null, appointments: [], sales: [], saleItems: [], payments: [], receipts: [], rewards: [], loyaltyVisits: [], movements: [], register: null };
+const ids = { user: null, customer: null, appointments: [], sales: [], saleItems: [], payments: [], receipts: [], rewards: [], promotions: [], loyaltyVisits: [], movements: [], register: null };
 
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 function fail(operation, expected, actual) { throw new Error(`${operation}\n  expected: ${JSON.stringify(expected)}\n  actual:   ${JSON.stringify(actual)}`); }
@@ -65,11 +74,13 @@ async function movement(type, amount) {
 }
 
 async function checkout(appointmentId, values) {
+  const source = values.promotionId ? "promotion" : values.rewardId ? "loyalty" : values.discount ? "manual" : null;
   const response = await client.rpc("complete_pos_checkout", {
     p_appointment_id: appointmentId, p_subtotal: values.subtotal, p_discount_amount: values.discount ?? 0,
-    p_discount_source: values.discount ? "manual" : null, p_discount_type: values.discount ? "fixed" : null,
-    p_discount_value: values.discount ?? null, p_discount_reason: values.discount ? prefix : null,
-    p_loyalty_reward_id: values.rewardId ?? null, p_loyalty_discount: 0, p_tip_amount: values.tip ?? 0,
+    p_discount_source: source, p_discount_type: values.discountType ?? (values.discount ? "fixed" : null),
+    p_discount_value: values.discountValue ?? values.discount ?? null, p_discount_reason: values.discount ? prefix : null,
+    p_promotion_id: values.promotionId ?? null, p_loyalty_reward_id: values.rewardId ?? null,
+    p_loyalty_discount: values.loyaltyDiscount ?? 0, p_tip_amount: values.tip ?? 0,
     p_tax_amount: 0, p_total: values.total, p_payments: values.payments,
   });
   const saleId = result(response.data, response.error, values.label);
@@ -87,6 +98,7 @@ async function checkout(appointmentId, values) {
   addUniqueIds(ids.saleItems, result(itemsResponse.data, itemsResponse.error, `${values.label} persisted sale items`));
   equal(money(sale.subtotal), values.subtotal, `${values.label} subtotal`);
   equal(money(sale.discount_amount), values.discount ?? 0, `${values.label} discount`);
+  equal(money(sale.loyalty_discount), values.loyaltyDiscount ?? 0, `${values.label} loyalty discount`);
   equal(money(sale.tip_amount), values.tip ?? 0, `${values.label} tip`);
   equal(money(sale.total), values.total, `${values.label} total`);
   equal(money(payments.reduce((sum, payment) => sum + money(payment.amount), 0)), money(values.total + (values.tip ?? 0)), `${values.label} payment total`);
@@ -132,11 +144,21 @@ async function cleanup() {
   }
 
   const exactDelete = async (table, id, owns) => {
-    const loaded = await admin.from(table).select("*").eq("id", id).maybeSingle();
+    let loaded;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      loaded = await admin.from(table).select("*").eq("id", id).maybeSingle();
+      if (!loaded.error || attempt === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     if (loaded.error) { problems.push({ table, id, reason: `ownership lookup failed: ${loaded.error.message}` }); return; }
     if (!loaded.data) return;
     if (!owns(loaded.data)) { problems.push({ table, id, reason: "ownership verification failed; record was not deleted" }); return; }
-    const deleted = await admin.from(table).delete().eq("id", id);
+    let deleted;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      deleted = await admin.from(table).delete().eq("id", id);
+      if (!deleted.error || attempt === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     if (deleted.error) problems.push({ table, id, reason: deleted.error.message });
   };
 
@@ -148,10 +170,11 @@ async function cleanup() {
   for (const id of orderedPaymentIds) await exactDelete("payments", id, (row) => ids.sales.includes(row.sale_id) && ids.appointments.includes(row.appointment_id));
   for (const id of ids.saleItems) await exactDelete("sale_items", id, (row) => ids.sales.includes(row.sale_id));
   for (const id of ids.sales) await exactDelete("sales", id, (row) => ids.appointments.includes(row.appointment_id) && row.customer_id === ids.customer);
-  for (const id of ids.rewards) await exactDelete("loyalty_rewards", id, (row) => row.customer_id === ids.customer);
   for (const id of ids.movements) await exactDelete("register_movements", id, (row) => row.register_session_id === ids.register && row.note === prefix && row.created_by === ids.user);
   if (ids.register) await exactDelete("register_sessions", ids.register, (row) => row.opening_note === prefix && row.opened_by === ids.user);
   for (const id of ids.appointments) await exactDelete("appointments", id, (row) => row.customer_id === ids.customer && row.notes === prefix && String(row.booking_reference ?? "").startsWith(prefix));
+  for (const id of ids.rewards) await exactDelete("loyalty_rewards", id, (row) => row.customer_id === ids.customer);
+  for (const id of ids.promotions) await exactDelete("promotions", id, (row) => row.name === prefix);
   if (ids.customer) await exactDelete("customers", ids.customer, (row) => row.full_name === prefix && row.email === customerEmail);
   if (ids.user) {
     const authUser = await admin.auth.admin.getUserById(ids.user);
@@ -177,6 +200,7 @@ async function cleanup() {
   await verifyGone("sales", ids.sales);
   await verifyGone("loyalty_visits", ids.loyaltyVisits);
   await verifyGone("loyalty_rewards", ids.rewards);
+  await verifyGone("promotions", ids.promotions);
   await verifyGone("register_movements", ids.movements);
   await verifyGone("register_sessions", ids.register ? [ids.register] : []);
   await verifyGone("appointments", ids.appointments);
@@ -196,7 +220,7 @@ if (usingCurrentDatabase) {
   console.warn("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   console.warn("WARNING: POS/CASSA TEST IS USING THE CURRENT APPLICATION DATABASE");
   console.warn(`Only records owned by this run will be touched: ${prefix}`);
-  console.warn("Explicit override accepted: POS_TEST_ALLOW_CURRENT_DB=YES_I_UNDERSTAND");
+  console.warn(`Project-specific authorization accepted for ${linkedRef}`);
   console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 }
 
@@ -211,37 +235,59 @@ try {
 
   const customerResponse = await admin.from("customers").insert({ profile_id: null, full_name: prefix, email: customerEmail, phone: "+41000000000", is_registered: false }).select("id").single();
   ids.customer = result(customerResponse.data, customerResponse.error, "Create test customer").id;
-  const servicesResponse = await admin.from("services").select("id,name,price,duration_min").in("name", ["Hair", "Kid", "Hair + Beard"]);
+  const servicesResponse = await admin.from("services").select("id,name,price,duration_min").eq("is_active", true).in("price", [20, 25, 35]);
   const services = result(servicesResponse.data, servicesResponse.error, "Load test services");
-  const byName = new Map(services.map((service) => [service.name, service]));
-  for (const [name, price] of [["Hair", 25], ["Kid", 20], ["Hair + Beard", 35]]) equal(money(byName.get(name)?.price), price, `${name} service seed price`);
+  const byPrice = new Map(services.map((service) => [money(service.price), service]));
+  for (const price of [20, 25, 35]) equal(money(byPrice.get(price)?.price), price, `CHF ${price} active service seed price`);
 
   const base = Date.now() + 30 * 86_400_000;
-  const serviceNames = ["Hair", "Hair", "Kid", "Hair + Beard", "Hair + Beard"];
-  for (let index = 0; index < serviceNames.length; index += 1) {
-    const service = byName.get(serviceNames[index]);
+  const servicePrices = [25, 25, 20, 35, 35, 25, 25, 25, 25, 25, 25];
+  for (let index = 0; index < servicePrices.length; index += 1) {
+    const service = byPrice.get(servicePrices[index]);
     const start = new Date(base + index * 3_600_000);
     const appointmentResponse = await admin.from("appointments").insert({ customer_id: ids.customer, service_id: service.id, booking_source: "admin", customer_name: prefix, customer_email: customerEmail, customer_phone: "+41000000000", start_at: start.toISOString(), end_at: new Date(start.getTime() + Number(service.duration_min) * 60_000).toISOString(), status: "confirmed", notes: prefix, guest_name: null, guest_email: null, guest_phone: null, original_price: money(service.price), discount_amount: 0, final_price: money(service.price), promotion_id: null, discount_source: null, discount_label: null, discount_type: null, discount_value: null, booking_reference: `${prefix}-${index}`, manage_token_hash: randomUUID().replaceAll("-", "") }).select("id").single();
     ids.appointments.push(result(appointmentResponse.data, appointmentResponse.error, `Create appointment ${index + 1}`).id);
   }
 
-  const rewardResponse = await admin.from("loyalty_rewards").insert({ customer_id: ids.customer, reward_type: "fixed_discount", reward_value: 0, status: "available", earned_at: new Date().toISOString() }).select("id").single();
-  ids.rewards.push(result(rewardResponse.data, rewardResponse.error, "Create idempotency loyalty reward").id);
+  const rewardResponse = await admin.from("loyalty_rewards").insert({ customer_id: ids.customer, reward_type: "fixed_discount", reward_value: 5, status: "available", earned_at: new Date().toISOString() }).select("id").single();
+  ids.rewards.push(result(rewardResponse.data, rewardResponse.error, "Create loyalty reward").id);
+  const extraRewardsResponse = await admin.from("loyalty_rewards").insert([
+    { customer_id: ids.customer, reward_type: "percentage", reward_value: 20, status: "available", earned_at: new Date().toISOString() },
+    { customer_id: ids.customer, reward_type: "free_service", reward_value: null, status: "available", earned_at: new Date().toISOString() },
+  ]).select("id,reward_type");
+  const extraRewards = result(extraRewardsResponse.data, extraRewardsResponse.error, "Create percentage and free-service rewards");
+  ids.rewards.push(...extraRewards.map((reward) => reward.id));
+  const rewardByType = new Map(extraRewards.map((reward) => [reward.reward_type, reward.id]));
+  const promotionResponse = await admin.from("promotions").insert({ name: prefix, discount_type: "percentage", discount_value: 10, audience_type: "all_customers", service_id: byPrice.get(25).id, is_active: true }).select("id").single();
+  const promotionId = result(promotionResponse.data, promotionResponse.error, "Create percentage promotion").id;
+  ids.promotions.push(promotionId);
 
   const register = await openRegister(); ids.register = register.id; equal(money(register.opening_cash), 100, "Register opening cash"); pass("Register opened: CHF 100");
-  await checkout(ids.appointments[0], { label: "Cash checkout", subtotal: 25, total: 25, rewardId: ids.rewards[0], payments: [{ method: "cash", amount: 25, tipAmount: 0, cashReceived: 25, changeGiven: 0 }] }); pass("Cash checkout: CHF 25");
+  await checkout(ids.appointments[0], { label: "Cash checkout", subtotal: 25, total: 25, payments: [{ method: "cash", amount: 25, tipAmount: 0, cashReceived: 25, changeGiven: 0 }] }); pass("Cash checkout: CHF 25");
   const tipped = await checkout(ids.appointments[1], { label: "Cash plus tip checkout", subtotal: 25, total: 25, tip: 5, payments: [{ method: "cash", amount: 30, tipAmount: 5, cashReceived: 30, changeGiven: 0 }] }); equal(money(tipped.payments[0].tip_amount), 5, "Persisted payment tip"); pass("Cash + tip checkout: CHF 30");
   const twint = await checkout(ids.appointments[2], { label: "TWINT checkout", subtotal: 20, total: 20, payments: [{ method: "twint", amount: 20, tipAmount: 0 }] }); equal(twint.payments[0].register_session_id, null, "TWINT register exclusion"); pass("TWINT excluded from cash register");
   const card = await checkout(ids.appointments[3], { label: "Discounted card checkout", subtotal: 35, discount: 5, total: 30, payments: [{ method: "card", amount: 30, tipAmount: 0 }] }); equal(card.payments[0].register_session_id, null, "Card register exclusion"); equal(money(card.appointment.discount_amount), 5, "Appointment discount snapshot"); pass("Card excluded from cash register");
   const split = await checkout(ids.appointments[4], { label: "Split checkout", subtotal: 35, total: 35, payments: [{ method: "cash", amount: 20, tipAmount: 0, cashReceived: 20, changeGiven: 0 }, { method: "twint", amount: 15, tipAmount: 0 }] }); equal(split.payments.length, 2, "Split payment record count"); equal(new Set(split.payments.map((payment) => payment.sale_id)).size, 1, "Split payments sale association"); pass("Split payment correct");
+  await checkout(ids.appointments[5], { label: "Loyalty checkout", subtotal: 25, loyaltyDiscount: 5, rewardId: ids.rewards[0], total: 20, payments: [{ method: "card", amount: 20, tipAmount: 0 }] }); pass("Loyalty checkout: CHF 5 reward");
+  await checkout(ids.appointments[6], { label: "Promotion percentage checkout", subtotal: 25, discount: 2.5, discountValue: 10, promotionId, total: 22.5, payments: [{ method: "card", amount: 22.5, tipAmount: 0 }] }); pass("Promotion percentage checkout: 10%");
+  await checkout(ids.appointments[7], { label: "Loyalty percentage checkout", subtotal: 25, loyaltyDiscount: 5, rewardId: rewardByType.get("percentage"), total: 20, payments: [{ method: "card", amount: 20, tipAmount: 0 }] }); pass("Loyalty percentage checkout: 20%");
+  await checkout(ids.appointments[8], { label: "Free-service loyalty checkout", subtotal: 25, loyaltyDiscount: 25, rewardId: rewardByType.get("free_service"), total: 0, payments: [] }); pass("Free-service loyalty checkout");
+  await checkout(ids.appointments[9], { label: "Manual percentage checkout", subtotal: 25, discount: 2.5, discountType: "percentage", discountValue: 10, total: 22.5, payments: [{ method: "card", amount: 22.5, tipAmount: 0 }] }); pass("Manual percentage checkout: 10%");
+
+  const concurrentPayload = { p_appointment_id: ids.appointments[10], p_subtotal: 25, p_discount_amount: 0, p_discount_source: null, p_discount_type: null, p_discount_value: null, p_discount_reason: null, p_promotion_id: null, p_loyalty_reward_id: null, p_loyalty_discount: 0, p_tip_amount: 0, p_tax_amount: 0, p_total: 25, p_payments: [{ method: "card", amount: 25, tipAmount: 0 }] };
+  const concurrentResults = await Promise.all([client.rpc("complete_pos_checkout", concurrentPayload), client.rpc("complete_pos_checkout", concurrentPayload)]);
+  equal(concurrentResults.filter((response) => !response.error).length, 1, "Exactly one concurrent checkout succeeds");
+  equal(concurrentResults.filter((response) => response.error).length, 1, "Exactly one concurrent checkout is rejected");
+  ids.sales.push(String(concurrentResults.find((response) => !response.error).data));
+  pass("Concurrent duplicate checkout rejected atomically");
 
   const duplicateBefore = await admin.from("payments").select("id", { count: "exact", head: true }).in("appointment_id", ids.appointments);
-  const duplicate = await client.rpc("complete_pos_checkout", { p_appointment_id: ids.appointments[0], p_subtotal: 25, p_discount_amount: 0, p_discount_source: null, p_discount_type: null, p_discount_value: null, p_discount_reason: null, p_loyalty_reward_id: null, p_loyalty_discount: 0, p_tip_amount: 0, p_tax_amount: 0, p_total: 25, p_payments: [{ method: "cash", amount: 25, tipAmount: 0, cashReceived: 25, changeGiven: 0 }] });
+  const duplicate = await client.rpc("complete_pos_checkout", { p_appointment_id: ids.appointments[0], p_subtotal: 25, p_discount_amount: 0, p_discount_source: null, p_discount_type: null, p_discount_value: null, p_discount_reason: null, p_promotion_id: null, p_loyalty_reward_id: null, p_loyalty_discount: 0, p_tip_amount: 0, p_tax_amount: 0, p_total: 25, p_payments: [{ method: "cash", amount: 25, tipAmount: 0, cashReceived: 25, changeGiven: 0 }] });
   ok(duplicate.error, "Duplicate checkout must fail");
   const duplicateAfter = await admin.from("payments").select("id", { count: "exact", head: true }).in("appointment_id", ids.appointments);
   equal(duplicateAfter.count, duplicateBefore.count, "Duplicate checkout payment count"); pass("Duplicate checkout rejected");
-  const saleCount = await admin.from("sales").select("id", { count: "exact", head: true }).in("appointment_id", ids.appointments); result(saleCount.data, saleCount.error, "Count test sales"); equal(saleCount.count, 5, "No duplicate sale created");
-  const rewardCheck = await admin.from("loyalty_rewards").select("status,redeemed_appointment_id").eq("id", ids.rewards[0]).single(); equal(result(rewardCheck.data, rewardCheck.error, "Load loyalty reward"), { status: "redeemed", redeemed_appointment_id: ids.appointments[0] }, "Loyalty redeemed exactly once");
+  const saleCount = await admin.from("sales").select("id", { count: "exact", head: true }).in("appointment_id", ids.appointments); result(saleCount.data, saleCount.error, "Count test sales"); equal(saleCount.count, 11, "No duplicate sale created");
+  const rewardCheck = await admin.from("loyalty_rewards").select("status,redeemed_appointment_id").eq("id", ids.rewards[0]).single(); equal(result(rewardCheck.data, rewardCheck.error, "Load loyalty reward"), { status: "redeemed", redeemed_appointment_id: ids.appointments[5] }, "Loyalty redeemed exactly once");
 
   await movement("deposit", 50); pass("Cash In: CHF 50");
   await movement("withdrawal", 20); pass("Cash Out: CHF 20");
@@ -252,7 +298,7 @@ try {
   const overflow = await client.rpc("refund_pos_sale", { p_sale_id: ids.sales[0], p_amount: 16, p_method: "cash", p_note: prefix }); ok(overflow.error, "Refund overflow must fail"); pass("Refund overflow rejected");
 
   const totals = await registerTotals(); equal(totals.cashPayments, 75, "Cash payments including tip and split portion"); equal(totals.cashRefunds, 10, "Cash refunds"); equal(totals.cashIn, 50, "Cash in"); equal(totals.cashOut, 20, "Cash out"); equal(totals.expected, 195, "Expected physical cash");
-  const allSalesResponse = await admin.from("sales").select("subtotal,discount_amount,tip_amount,total").in("id", ids.sales); const allSales = result(allSalesResponse.data, allSalesResponse.error, "Load sales totals"); equal(money(allSales.reduce((sum, sale) => sum + money(sale.total), 0)), 135, "Sales revenue excludes movements and tips"); equal(money(allSales.reduce((sum, sale) => sum + money(sale.tip_amount), 0)), 5, "Tips stored separately"); pass("Expected cash: CHF 195");
+  const allSalesResponse = await admin.from("sales").select("subtotal,discount_amount,loyalty_discount,tip_amount,total").in("id", ids.sales); const allSales = result(allSalesResponse.data, allSalesResponse.error, "Load sales totals"); equal(money(allSales.reduce((sum, sale) => sum + money(sale.total), 0)), 245, "Sales revenue excludes movements and tips"); equal(money(allSales.reduce((sum, sale) => sum + money(sale.tip_amount), 0)), 5, "Tips stored separately"); pass("Expected cash: CHF 195");
 
   const closeResponse = await client.from("register_sessions").update({ expected_cash: 195, actual_cash: 195, difference: 0, closed_at: new Date().toISOString(), closed_by: ids.user, status: "closed", closing_note: prefix }).eq("id", ids.register).eq("status", "open").select("*").maybeSingle();
   const closed = result(closeResponse.data, closeResponse.error, "Close register"); ok(closed, "First register close"); equal(money(closed.expected_cash), 195, "Closed expected cash"); equal(money(closed.actual_cash), 195, "Counted cash"); equal(money(closed.difference), 0, "Register difference"); equal(closed.status, "closed", "Register status"); pass("Counted cash: CHF 195"); pass("Difference: CHF 0"); pass("Register closed");

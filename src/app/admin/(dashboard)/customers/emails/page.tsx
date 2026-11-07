@@ -6,14 +6,15 @@ import { getAdminEmailHistory, type EmailHistoryStatusFilter, type EmailHistoryT
 type SearchParams = Record<string, string | string[] | undefined>;
 const valueOf = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? "" : value ?? "";
 
-export default async function AdminCustomerEmailHistoryPage({ searchParams }: { searchParams: SearchParams }) {
+export default async function AdminCustomerEmailHistoryPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { supabase } = await requireAdminUser();
+  const resolvedSearchParams = await searchParams;
   const filters = {
-    search: valueOf(searchParams.search),
-    customerId: valueOf(searchParams.customer),
-    type: (valueOf(searchParams.type) || "all") as EmailHistoryTypeFilter,
-    status: (valueOf(searchParams.status) || "all") as EmailHistoryStatusFilter,
-    page: Number(valueOf(searchParams.page) || 1),
+    search: valueOf(resolvedSearchParams.search),
+    customerId: valueOf(resolvedSearchParams.customer),
+    type: (valueOf(resolvedSearchParams.type) || "all") as EmailHistoryTypeFilter,
+    status: (valueOf(resolvedSearchParams.status) || "all") as EmailHistoryStatusFilter,
+    page: Number(valueOf(resolvedSearchParams.page) || 1),
   };
   let result;
   let error = "";

@@ -7,6 +7,7 @@ import { calculatePromotionPrice } from "@/lib/promotions/server";
 import { getOrCreateReceipt } from "@/lib/receipts/server";
 import { processAppointmentStatusForLoyalty } from "@/lib/loyalty/process-completed-appointment";
 import type { CheckoutPaymentInput } from "@/lib/sales/types";
+import { discountTypeForReward, type DiscountSource, type DiscountType, type LoyaltyRewardType } from "@/lib/discounts/types";
 
 const cents = (value: unknown) => Math.round(Number(value) * 100);
 const amount = (value: unknown) => cents(value) / 100;
@@ -26,7 +27,7 @@ export async function completeCheckout(input: {
   try {
     const { supabase, user } = await requireAdminUser();
     const settings = await getRuntimeSettings();
-    const { data: appointment, error: appointmentError } = await supabase.from("appointments").select("id,customer_id,service_id,status,discount_amount,discount_source,discount_type,discount_value,discount_label,promotion_id").eq("id", input.appointmentId).maybeSingle();
+    const { data: appointment, error: appointmentError } = await supabase.from("appointments").select("id,customer_id,service_id,status,original_price,discount_amount,discount_source,discount_type,discount_value,discount_label,promotion_id,loyalty_reward_id").eq("id", input.appointmentId).maybeSingle();
     if (appointmentError || !appointment) return { error: "Appointment was not found." };
     const [{ data: service }, { data: existingSale }, { data: existingFinance }] = await Promise.all([
       supabase.from("services").select("id,name,price").eq("id", appointment.service_id).maybeSingle(),
@@ -36,25 +37,28 @@ export async function completeCheckout(input: {
     if (!service) return { error: "The appointment service was not found." };
     if (existingSale) return { error: "This appointment has already been checked out." };
     if (amount(existingFinance?.net_paid) > 0) return { error: "This appointment already has a recorded payment. Refund or reconcile it before using checkout." };
-    const subtotal = amount(service.price);
+    const subtotal = amount(appointment.original_price ?? service.price);
     let discountAmount = 0;
     let loyaltyDiscount = 0;
-    let discountSource: string | null = null;
-    let discountType: string | null = null;
+    let discountSource: DiscountSource | null = null;
+    let discountType: DiscountType | null = null;
     let discountValue: number | null = null;
     let discountReason: string | null = null;
     let loyaltyRewardId: string | null = null;
 
     if (input.discountMode === "existing" && Number(appointment.discount_amount ?? 0) > 0) {
       const existingAmount = amount(appointment.discount_amount);
-      discountSource = appointment.discount_source ?? "manual";
-      discountType = appointment.discount_type ?? "fixed";
+      discountSource = appointment.discount_source === "custom" ? "manual" : (appointment.discount_source as DiscountSource | null) ?? "manual";
+      discountType = appointment.discount_type === "fixed_discount" ? "fixed" : (appointment.discount_type as DiscountType | null) ?? "fixed";
       discountValue = appointment.discount_value == null ? existingAmount : Number(appointment.discount_value);
       discountReason = appointment.discount_label ?? "Existing discount";
       if (discountSource === "loyalty") {
         loyaltyDiscount = existingAmount;
-        const { data: reward } = await supabase.from("loyalty_rewards").select("id").eq("redeemed_appointment_id", appointment.id).maybeSingle();
-        loyaltyRewardId = reward?.id ?? null;
+        loyaltyRewardId = appointment.loyalty_reward_id;
+        if (!loyaltyRewardId) {
+          const { data: reward } = await supabase.from("loyalty_rewards").select("id").eq("redeemed_appointment_id", appointment.id).maybeSingle();
+          loyaltyRewardId = reward?.id ?? null;
+        }
       } else discountAmount = existingAmount;
     } else if (input.discountMode === "promotion") {
       const { data: promotion } = input.promotionId ? await supabase.from("promotions").select("id,name,discount_type,discount_value,service_id,is_active,starts_at,expires_at").eq("id", input.promotionId).maybeSingle() : { data: null };
@@ -75,7 +79,7 @@ export async function completeCheckout(input: {
       if (!reward || (reward.expires_at && new Date(reward.expires_at).getTime() <= Date.now())) return { error: "The loyalty reward is no longer available." };
       const value = Number(reward.reward_value ?? 0);
       loyaltyDiscount = reward.reward_type === "free_service" ? subtotal : reward.reward_type === "percentage" ? Math.min(subtotal, amount(subtotal * Math.min(100, value) / 100)) : Math.min(subtotal, amount(value));
-      discountSource = "loyalty"; discountType = reward.reward_type; discountValue = value; discountReason = "Loyalty Reward"; loyaltyRewardId = reward.id;
+      discountSource = "loyalty"; discountType = discountTypeForReward(reward.reward_type as LoyaltyRewardType); discountValue = value; discountReason = "Loyalty Reward"; loyaltyRewardId = reward.id;
     }
 
     const total = amount(Math.max(0, subtotal - discountAmount - loyaltyDiscount));
@@ -101,7 +105,7 @@ export async function completeCheckout(input: {
       const received = payment.method === "cash" ? amount(payment.cashReceived ?? payment.amount) : null;
       return { method: payment.method, amount: amount(payment.amount), tipAmount: tipCents / 100, cashReceived: received, changeGiven: received == null ? null : amount(received - payment.amount) };
     });
-    const { data: saleId, error } = await supabase.rpc("complete_pos_checkout", { p_appointment_id: appointment.id, p_subtotal: subtotal, p_discount_amount: discountAmount, p_discount_source: discountSource, p_discount_type: discountType, p_discount_value: discountValue, p_discount_reason: discountReason, p_loyalty_reward_id: loyaltyRewardId, p_loyalty_discount: loyaltyDiscount, p_tip_amount: tipAmount, p_tax_amount: 0, p_total: total, p_payments: paymentPayload });
+    const { data: saleId, error } = await supabase.rpc("complete_pos_checkout", { p_appointment_id: appointment.id, p_subtotal: subtotal, p_discount_amount: discountAmount, p_discount_source: discountSource, p_discount_type: discountType, p_discount_value: discountValue, p_discount_reason: discountReason, p_promotion_id: input.discountMode === "promotion" ? input.promotionId ?? null : discountSource === "promotion" ? appointment.promotion_id : null, p_loyalty_reward_id: loyaltyRewardId, p_loyalty_discount: loyaltyDiscount, p_tip_amount: tipAmount, p_tax_amount: 0, p_total: total, p_payments: paymentPayload });
     if (error || !saleId) return { error: error?.message ?? "Checkout could not be completed." };
     await processAppointmentStatusForLoyalty(appointment.id);
     let receipt = null;

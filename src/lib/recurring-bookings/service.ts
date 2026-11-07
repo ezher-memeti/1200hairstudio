@@ -11,6 +11,7 @@ import { getOpenBusinessWeekdays } from "@/lib/public/business-hours-utils";
 import { addDaysToDateKey, getCurrentZurichDateTime, getWeekdayNumber, parseDateKey } from "@/lib/public/booking-availability-utils";
 import { sendRecurringBookingConfirmationEmail, sendRecurringBookingPausedEmail, sendRecurringBookingRemovedEmail, sendRecurringBookingResumedEmail, type RecurringEmailDetails } from "@/lib/email/recurring";
 import { APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, getProtectedAppointmentIds, isAppointmentForeignKeyError } from "@/lib/appointments/deletion-protection";
+import { isAppointmentTimeConflictError } from "@/lib/appointments/write-errors";
 
 function validateInput(input: RecurringBookingInput) {
   if (!input.serviceId || !RECURRING_FREQUENCIES.includes(input.frequency) || input.weekday < 1 || input.weekday > 7 || !/^\d{2}:\d{2}$/.test(input.startTime) || !/^\d{4}-\d{2}-\d{2}$/.test(input.startsOn) || !input.endsOn || !/^\d{4}-\d{2}-\d{2}$/.test(input.endsOn)) throw new Error("Complete all recurring booking fields, including an end date.");
@@ -117,6 +118,18 @@ async function generateOccurrences(series: RecurringBookingRecord, bookingSource
     { fromDate, enforceCustomerPolicy: bookingSource === "customer" },
   );
   let createdCount = 0;
+  async function recordConcurrentConflict(occurrenceDate: string) {
+    const { error } = await admin.from("recurring_booking_conflicts").upsert(
+      {
+        recurring_booking_id: series.id,
+        occurrence_date: occurrenceDate,
+        reason: "Time unavailable due to a concurrent booking",
+        status: "unresolved",
+      },
+      { onConflict: "recurring_booking_id,occurrence_date" },
+    );
+    if (error) throw error;
+  }
   for (const occurrence of preview.occurrences) {
     if (!occurrence.available) {
       const { error } = await admin.from("recurring_booking_conflicts").upsert({ recurring_booking_id: series.id, occurrence_date: occurrence.occurrenceDate, reason: occurrence.reason ?? "Unavailable", status: "unresolved" }, { onConflict: "recurring_booking_id,occurrence_date", ignoreDuplicates: true });
@@ -129,11 +142,19 @@ async function generateOccurrences(series: RecurringBookingRecord, bookingSource
     if (existingOccurrence) {
       if (existingOccurrence.status === "cancelled") {
         const { error: restoreError } = await admin.from("appointments").update({ start_at: occurrence.startAt, end_at: occurrence.endAt, status: "confirmed", cancelled_at: null, updated_at: new Date().toISOString() }).eq("id", existingOccurrence.id).eq("status", "cancelled");
+        if (isAppointmentTimeConflictError(restoreError)) {
+          await recordConcurrentConflict(occurrence.occurrenceDate);
+          continue;
+        }
         if (restoreError) throw restoreError;
       }
       continue;
     }
     const { error } = await admin.from("appointments").insert({ customer_id: customer.id, service_id: service.id, booking_source: bookingSource, customer_name: customer.full_name, customer_email: customer.email || null, customer_phone: customer.phone || null, start_at: occurrence.startAt, end_at: occurrence.endAt, status: "confirmed", original_price: price, discount_amount: 0, final_price: price, promotion_id: null, discount_source: null, discount_label: null, discount_type: null, discount_value: null, booking_reference: credentials.bookingReference, manage_token_hash: credentials.managementTokenHash, recurring_booking_id: series.id, recurring_occurrence_date: occurrence.occurrenceDate });
+    if (isAppointmentTimeConflictError(error)) {
+      await recordConcurrentConflict(occurrence.occurrenceDate);
+      continue;
+    }
     if (error && error.code !== "23505") throw error;
     if (!error) createdCount += 1;
   }

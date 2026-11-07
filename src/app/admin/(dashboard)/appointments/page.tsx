@@ -60,20 +60,21 @@ function addDays(dateKey: string, days: number) {
 export default async function AdminAppointmentsPage({
   searchParams,
 }: {
-  searchParams?: SearchParams;
+  searchParams?: Promise<SearchParams>;
 }) {
   await requireAdminUser();
+  const resolvedSearchParams = await searchParams;
   const todayDateKey = getTodayDateKey();
   const view =
-    searchParams?.view === "day" || searchParams?.view === "list" ? searchParams.view : "week";
+    resolvedSearchParams?.view === "day" || resolvedSearchParams?.view === "list" ? resolvedSearchParams.view : "week";
   const selectedDate =
-    searchParams?.date && isValidDateKey(searchParams.date) ? searchParams.date : todayDateKey;
+    resolvedSearchParams?.date && isValidDateKey(resolvedSearchParams.date) ? resolvedSearchParams.date : todayDateKey;
   const weekStart = getWeekStart(selectedDate);
   const weekEnd = addDays(weekStart, 6);
   const rangeStart = view === "day" ? selectedDate : weekStart;
   const rangeEnd = view === "day" ? selectedDate : weekEnd;
 
-  const [appointments, businessHours, exceptions, customers, services] = await Promise.all([
+  const [appointments, businessHours, exceptions, customers, services, promotions, runtimeSettings, recurringBookings] = await Promise.all([
     getAdminAppointmentsInRange(
       getUtcIsoForZurichDateTime(rangeStart, "00:00"),
       getUtcIsoForZurichDateTime(addDays(rangeEnd, 1), "00:00"),
@@ -82,14 +83,14 @@ export default async function AdminAppointmentsPage({
     getAvailabilityExceptionsInRange(weekStart, weekEnd),
     getAdminCustomerOptions(),
     getActiveServices(),
-  ]);
-  const appointmentIds = appointments.map((appointment) => appointment.id);
-  const [financeSummaries, promotions, receipts, runtimeSettings, recurringBookings, sales] = await Promise.all([
-    getAppointmentFinanceSummaries(appointmentIds),
     getAdminFinancePromotions(),
-    getAppointmentReceipts(appointmentIds),
     getRuntimeSettings(),
     getRecurringBookings(),
+  ]);
+  const appointmentIds = appointments.map((appointment) => appointment.id);
+  const [financeSummaries, receipts, sales] = await Promise.all([
+    getAppointmentFinanceSummaries(appointmentIds),
+    getAppointmentReceipts(appointmentIds),
     getAppointmentSaleLinks(appointmentIds),
   ]);
 

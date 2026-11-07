@@ -138,13 +138,21 @@ export async function sendGmailMessage(message: GmailMessage) {
   const settings = await getRuntimeSettings();
   const senderName = settings.notifications.senderName.trim() || settings.business.businessName.trim() || DEFAULT_SENDER_NAME;
 
-  const response = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: {
-      raw: buildMessage(message, senderName),
-    },
-  });
-  return { providerMessageId: response.data.id ?? null };
+  try {
+    const response = await gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: buildMessage(message, senderName),
+      },
+    });
+    if (!response.data.id) throw new Error("Missing Gmail message ID.");
+    return { providerMessageId: response.data.id };
+  } catch (error) {
+    // Google request errors can contain OAuth credentials and the raw email.
+    // Only propagate a numeric status, never the original error or request.
+    const status = (error as { response?: { status?: unknown } })?.response?.status;
+    throw new Error(`Gmail message submission failed${typeof status === "number" ? ` (HTTP ${status})` : ""}.`);
+  }
 }
 
 export async function sendCustomerEmail(message: CustomerEmailMessage) {
@@ -388,6 +396,7 @@ export async function sendBookingCancellationEmail(details: BookingEmailDetails)
     appointmentId: details.appointmentId,
     customerName: details.customerName,
     emailType: "appointment_cancelled",
+    metadata: details.bookingReference ? { booking_reference: details.bookingReference } : {},
     to: details.to,
     subject: `Booking cancelled: ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),

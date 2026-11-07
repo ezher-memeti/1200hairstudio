@@ -18,19 +18,16 @@ export async function recordMarketingEmailConsent(
   customerId: string,
   source: string,
 ) {
-  const { data, error } = await supabase
-    .from("customers")
-    .update({
-      marketing_email_consent: true,
-      marketing_email_consented_at: new Date().toISOString(),
-      marketing_email_consent_source: source,
-      marketing_email_unsubscribed_at: null,
-    })
-    .eq("id", customerId)
-    .select("*")
-    .single();
+  const { data, error } = await supabase.rpc("set_my_marketing_email_preference", {
+    p_subscribed: true,
+    p_source: source,
+  });
 
-  if (error || !data) {
+  const preference = Array.isArray(data) ? data[0] : data;
+  const { data: customerData, error: customerError } = await supabase.rpc("get_my_customer");
+  const customer = Array.isArray(customerData) ? customerData[0] : customerData;
+
+  if (error || !preference || customerError || !customer || customer.id !== customerId) {
     console.error("MARKETING CONSENT UPDATE ERROR", {
       code: error?.code,
       message: error?.message,
@@ -39,7 +36,7 @@ export async function recordMarketingEmailConsent(
     throw new Error("Unable to save email preferences right now.");
   }
 
-  return data as CustomerRecord;
+  return customer as CustomerRecord;
 }
 
 export function normalizeCustomerEmail(email: string) {

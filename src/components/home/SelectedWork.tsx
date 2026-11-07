@@ -1,4 +1,5 @@
 import SelectedWorkClient from "@/components/home/SelectedWorkClient";
+import SelectedWorkBackground from "@/components/home/SelectedWorkBackground";
 import { getActiveSelectedWork } from "@/lib/public/selected-work";
 import type { WorkItem } from "@/components/home/CircularGallery";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
@@ -17,12 +18,7 @@ export default async function SelectedWork({ content }: { content: HomepageConte
 
   return (
     <section id="work" className="relative overflow-hidden bg-background">
-      <div
-        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat opacity-55"
-        style={{
-          backgroundImage: "url('/images/background-work.PNG')",
-        }}
-      />
+      <SelectedWorkBackground />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(8,8,8,0.78)_0%,rgba(8,8,8,0.68)_42%,rgba(8,8,8,0.82)_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(8,8,8,0.22)_0%,rgba(8,8,8,0.5)_58%,rgba(8,8,8,0.74)_100%)]" />
 
