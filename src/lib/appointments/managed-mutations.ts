@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCustomerManagementCapabilities, validateCustomerBookingTime } from "@/lib/booking/policy";
 import { getBookingSettings } from "@/lib/booking/settings";
 import { getNotificationSettings } from "@/lib/admin/runtime-settings";
+import { APPOINTMENT_TIME_CONFLICT_MESSAGE, isAppointmentTimeConflictError } from "@/lib/appointments/write-errors";
 
 function revalidateAppointmentViews() {
   revalidatePath("/");
@@ -86,6 +87,8 @@ export async function cancelResolvedAppointment(
     try {
       await sendBookingCancellationEmail({
         to: details.customerEmail,
+        customerId: appointment.customer_id,
+        appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: details.serviceName,
         startAt: appointment.start_at,
@@ -148,7 +151,12 @@ export async function rescheduleResolvedAppointment(
       code: error?.code ?? null,
       message: error?.message ?? "Supabase returned no updated appointment row.",
     });
-    return { error: "Unable to change this booking right now. Please choose another time.", emailWarning: null };
+    return {
+      error: isAppointmentTimeConflictError(error)
+        ? APPOINTMENT_TIME_CONFLICT_MESSAGE
+        : "Unable to change this booking right now. Please choose another time.",
+      emailWarning: null,
+    };
   }
 
   let emailWarning: string | null = null;
@@ -158,6 +166,8 @@ export async function rescheduleResolvedAppointment(
     try {
       await sendBookingUpdateEmail({
         to: details.customerEmail,
+        customerId: appointment.customer_id,
+        appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: validation.service.name,
         startAt: updatedAppointment.start_at,

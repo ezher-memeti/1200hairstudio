@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import BrandLogo from "@/components/brand/BrandLogo";
+import { getHomepageHeaderAuthState } from "@/app/actions/homepage-user-state";
 
 const navigationLinks = [
   { label: "Services", href: "/#services" },
@@ -19,54 +22,68 @@ type HeaderClientProps = {
 };
 
 export default function HeaderClient({
-  authLink,
+  authLink: initialAuthLink,
   announcementBar,
 }: HeaderClientProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [authLink, setAuthLink] = useState(initialAuthLink);
+
+  useEffect(() => {
+    let isActive = true;
+    void getHomepageHeaderAuthState()
+      .then((nextAuthLink) => {
+        if (isActive) setAuthLink(nextAuthLink);
+      })
+      .catch(() => undefined);
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   return (
     <header className="border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="page-container flex items-center justify-between py-4">
-        <a
+        <Link
           href="/#top"
-          className="font-display text-base font-semibold uppercase tracking-[0.28em] text-foreground sm:text-lg"
+          className="inline-flex min-h-11 items-center"
+          aria-label="1200 Hairstudio home"
         >
-          1200
-        </a>
+          <BrandLogo className="h-5 w-[6.75rem] sm:h-6 sm:w-32" priority />
+        </Link>
 
         <nav
           className="hidden items-center gap-5 font-primary md:flex lg:gap-8"
           aria-label="Primary"
         >
           {navigationLinks.map((link) => (
-            <a
+            <Link
               key={link.label}
               href={link.href}
               className="text-xs uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:text-foreground lg:text-sm"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
-          <a
+          <Link
             href={authLink.href}
-            className="text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground lg:text-sm"
+            className="min-w-[8.5rem] text-right text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground lg:text-sm"
           >
             {authLink.label}
-          </a>
+          </Link>
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          <a
+          <Link
             href="/#booking"
             className="inline-flex items-center border border-border bg-surface px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground transition-colors hover:bg-surface-elevated lg:text-sm"
           >
             Book Now
-          </a>
+          </Link>
         </div>
 
         <button
           type="button"
-          className="inline-flex items-center justify-center border border-border bg-surface p-2 font-primary text-foreground md:hidden"
+          className="inline-flex size-11 items-center justify-center border border-border bg-surface font-primary text-foreground md:hidden"
           aria-expanded={isMenuOpen}
           aria-controls="mobile-navigation"
           aria-label="Toggle navigation"
@@ -93,29 +110,29 @@ export default function HeaderClient({
             aria-label="Mobile"
           >
             {navigationLinks.map((link) => (
-              <a
+              <Link
                 key={link.label}
                 href={link.href}
                 className="rounded-sm px-2 py-3 text-sm uppercase tracking-[0.2em] text-foreground-secondary hover:bg-surface hover:text-foreground"
                 onClick={() => setIsMenuOpen(false)}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
-            <a
+            <Link
               href={authLink.href}
               className="rounded-sm px-2 py-3 text-sm uppercase tracking-[0.2em] text-foreground-muted hover:bg-surface hover:text-foreground"
               onClick={() => setIsMenuOpen(false)}
             >
               {authLink.label}
-            </a>
-            <a
+            </Link>
+            <Link
               href="/#booking"
               className="mt-2 inline-flex items-center justify-center border border-border bg-accent px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background hover:bg-accent-hover"
               onClick={() => setIsMenuOpen(false)}
             >
               Book Now
-            </a>
+            </Link>
           </nav>
         </div>
       ) : null}

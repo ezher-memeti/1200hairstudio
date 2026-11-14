@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/admin/AdminNavLink";
 
 const siteSettingsItems = [
   { label: "Homepage Content", href: "/admin/site-settings/homepage-content" },
   { label: "Services", href: "/admin/site-settings/services" },
   { label: "Business Hours", href: "/admin/site-settings/business-hours" },
   { label: "Selected Work", href: "/admin/site-settings/selected-work" },
+  { label: "Contact", href: "/admin/site-settings/contact" },
   { label: "Announcements", href: "/admin/site-settings/announcements" },
   { label: "Loyalty", href: "/admin/site-settings/loyalty" },
 ] as const;
@@ -25,13 +26,13 @@ export default function SiteSettingsNav() {
           Site Settings
         </h1>
         <p className="mt-3 max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
-          Manage public website content, services, availability, and gallery.
+          Manage public website content, services, availability, contact details, and gallery.
         </p>
       </div>
 
       <nav
         aria-label="Site settings sections"
-        className="-mx-5 mt-7 overflow-x-auto border-b border-border px-5 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
+        className="-mx-5 mt-7 overflow-x-auto overscroll-x-contain scroll-smooth border-b border-border px-5 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
       >
         <div className="flex min-w-max">
           {siteSettingsItems.map((item) => {

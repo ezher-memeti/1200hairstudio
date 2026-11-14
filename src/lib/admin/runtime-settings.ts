@@ -29,7 +29,18 @@ const loadRuntimeSettings = cache(async (): Promise<AdminSettings> => {
     };
   } catch (error) {
     console.error("RUNTIME SETTINGS LOAD ERROR", error);
-    return DEFAULT_ADMIN_SETTINGS;
+    return {
+      ...DEFAULT_ADMIN_SETTINGS,
+      // A failed settings read must not turn disabled email channels back on.
+      notifications: {
+        ...DEFAULT_ADMIN_SETTINGS.notifications,
+        bookingConfirmationEmail: false,
+        rescheduleEmail: false,
+        cancellationEmail: false,
+        receiptEmailEnabled: false,
+        adminBookingNotification: false,
+      },
+    };
   }
 });
 

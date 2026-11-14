@@ -5,9 +5,10 @@ import { FINANCIAL_REPORT_SECTIONS, type FinancialReportRecord } from "@/lib/fin
 const escapeHtml = (value: unknown) => safeText(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const chf = (value: unknown) => `CHF ${safeMoney(value).toFixed(2)}`;
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { supabase } = await requireAdminUser();
-  const { data, error } = await supabase.from("financial_reports").select("*").eq("id", params.id).maybeSingle();
+  const { data, error } = await supabase.from("financial_reports").select("*").eq("id", id).maybeSingle();
   if (error || !data) return new Response("Financial report not found.", { status: 404 });
   const report = normalizeFinancialReportRecord(data as FinancialReportRecord);
   const format = new URL(request.url).searchParams.get("format") ?? "view";

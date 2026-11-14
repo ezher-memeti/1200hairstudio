@@ -59,3 +59,19 @@ export type AdminCustomerLoyaltySummary = {
     reward_value: number | null;
   } | null;
 };
+
+export type CustomerEmailLog = {
+  id: string;
+  customer_id: string | null;
+  appointment_id: string | null;
+  recipient_email: string;
+  email_type: string;
+  subject: string;
+  status: "processing" | "sent" | "failed" | "skipped";
+  provider_message_id: string | null;
+  sent_at: string | null;
+  failed_at: string | null;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};

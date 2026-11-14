@@ -14,12 +14,13 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { updateAdminCustomer, updateAdminCustomerNotes } from "@/app/actions/customers";
+import { getAdminCustomerEmailLogs, updateAdminCustomer, updateAdminCustomerNotes } from "@/app/actions/customers";
 import { getZurichDateKeyFromIso } from "@/lib/appointments/date-utils";
 import type {
   AdminCustomerAppointment,
   AdminCustomerDirectoryEntry,
   AdminCustomerLoyaltySummary,
+  CustomerEmailLog,
 } from "@/lib/customers/types";
 import {
   formatCustomerStatus,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/customers/status";
 import { getMarketingConsentStatus } from "@/lib/customers/marketing-consent";
 import AdminSelect from "@/components/admin/AdminSelect";
+import CustomersNavigation from "@/components/admin/CustomersNavigation";
 import RecurringBookingManager from "@/components/recurring-bookings/RecurringBookingManager";
 import type { RecurringBookingRecord } from "@/lib/recurring-bookings/types";
 
@@ -39,7 +41,7 @@ type Props = {
   todayIso: string;
 };
 
-type CustomerWorkspaceTab = "overview" | "appointments" | "regular" | "activity" | "notes";
+type CustomerWorkspaceTab = "overview" | "appointments" | "regular" | "emails" | "activity" | "notes";
 
 type FilterMode = "all" | "registered" | "guest";
 type SortMode = "name" | "newest" | "most_visits" | "last_visit" | "next_appointment" | "most_no_shows";
@@ -248,6 +250,16 @@ function getCreateAppointmentLink(customer: AdminCustomerDirectoryEntry) {
   return `/admin/appointments?new=1&customerId=${encodeURIComponent(customer.id)}`;
 }
 
+function formatEmailType(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function getEmailStatusClasses(status: CustomerEmailLog["status"]) {
+  if (status === "sent") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  if (status === "failed") return "border-rose-500/30 bg-rose-500/10 text-rose-200";
+  return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+}
+
 export default function AdminCustomersView({ customers, activeServices, recurringBookings, loyaltySummaries, todayIso }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -276,6 +288,12 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [workspaceTab, setWorkspaceTab] = useState<CustomerWorkspaceTab>("overview");
+  const [emailLogs, setEmailLogs] = useState<CustomerEmailLog[]>([]);
+  const [emailLogTotal, setEmailLogTotal] = useState(0);
+  const [emailLogError, setEmailLogError] = useState("");
+  const [isEmailLogsLoading, setIsEmailLogsLoading] = useState(false);
+  const [emailLogsLoadedFor, setEmailLogsLoadedFor] = useState<string | null>(null);
+  const [expandedEmailLogId, setExpandedEmailLogId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isNotesPending, startNotesTransition] = useTransition();
 
@@ -319,6 +337,43 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [selectedCustomer]);
+
+  useEffect(() => {
+    if (workspaceTab !== "emails" || !selectedCustomer || emailLogsLoadedFor === selectedCustomer.id || isEmailLogsLoading) return;
+    let cancelled = false;
+    setIsEmailLogsLoading(true);
+    setEmailLogError("");
+    void (async () => {
+      try {
+        const result = await getAdminCustomerEmailLogs({ customerId: selectedCustomer.id });
+        if (cancelled) return;
+        setEmailLogs(result.logs ?? []);
+        setEmailLogTotal(result.total);
+        setEmailLogError(result.error ?? "");
+        setEmailLogsLoadedFor(selectedCustomer.id);
+      } catch (error) {
+        if (!cancelled) setEmailLogError(error instanceof Error ? error.message : "Unable to load email history.");
+      } finally {
+        if (!cancelled) setIsEmailLogsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [workspaceTab, selectedCustomer, emailLogsLoadedFor, isEmailLogsLoading]);
+
+  async function loadMoreEmailLogs() {
+    if (!selectedCustomer || isEmailLogsLoading) return;
+    setIsEmailLogsLoading(true);
+    try {
+      const result = await getAdminCustomerEmailLogs({ customerId: selectedCustomer.id, offset: emailLogs.length });
+      setEmailLogs((current) => [...current, ...(result.logs ?? [])]);
+      setEmailLogTotal(result.total);
+      setEmailLogError(result.error ?? "");
+    } catch (error) {
+      setEmailLogError(error instanceof Error ? error.message : "Unable to load more email history.");
+    } finally {
+      setIsEmailLogsLoading(false);
+    }
+  }
 
   const filteredCustomers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -430,6 +485,11 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
     setIsActionsOpen(false);
     setShowAllHistory(false);
     setWorkspaceTab("overview");
+    setEmailLogs([]);
+    setEmailLogTotal(0);
+    setEmailLogError("");
+    setEmailLogsLoadedFor(null);
+    setExpandedEmailLogId(null);
     setEditForm({
       fullName: customer.full_name,
       email: customer.email,
@@ -444,6 +504,11 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
     setIsEditingNotes(false);
     setNotesFeedback("");
     setIsActionsOpen(false);
+    setEmailLogs([]);
+    setEmailLogTotal(0);
+    setEmailLogError("");
+    setEmailLogsLoadedFor(null);
+    setExpandedEmailLogId(null);
   }
 
   function saveCustomer() {
@@ -530,6 +595,8 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
         </div>
       </div>
 
+      <CustomersNavigation />
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
         {[
           ["Total Customers", summary.totalCustomers],
@@ -552,33 +619,33 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
 
       <div className="relative border border-border bg-surface p-3 sm:p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="w-full space-y-2 lg:min-w-[280px] lg:flex-1">
+          <label className="w-full min-w-0 space-y-2 sm:w-auto sm:flex-[1_1_18rem]">
             <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
               Search
             </span>
-            <div className="flex items-center gap-3 border border-border bg-background px-4 py-2.5">
-              <Search size={16} className="text-foreground-muted" />
+            <div className="flex min-h-11 items-center gap-3 border border-border bg-background px-4">
+              <Search size={16} className="shrink-0 text-foreground-muted" />
               <input
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Name, email, or phone"
-                className="w-full bg-transparent font-admin-primary text-sm text-foreground outline-none placeholder:text-foreground-muted"
+                className="min-w-0 w-full bg-transparent font-admin-primary text-sm text-foreground outline-none placeholder:text-foreground-muted"
               />
             </div>
           </label>
 
-          <div className="hidden min-w-0 flex-1 space-y-2 sm:block sm:min-w-[290px] lg:max-w-[360px]">
+          <div className="w-full space-y-2 sm:w-auto sm:flex-[1_0_18rem]">
             <span className="inline-flex items-center gap-2 font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
               <SlidersHorizontal size={12} /> Filter
             </span>
-            <div className="inline-flex w-full border border-border bg-background p-1">
+            <div className="grid h-11 w-full grid-cols-[1fr_auto_1fr] gap-1 border border-border bg-background p-1">
               {(["all", "registered", "guest"] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setFilter(mode)}
-                  className={`min-w-0 flex-1 px-3 py-2.5 font-admin-primary text-[11px] uppercase tracking-[0.14em] transition-colors sm:px-4 sm:text-xs sm:tracking-[0.18em] ${
+                  className={`whitespace-nowrap px-2 font-admin-primary text-[11px] uppercase tracking-[0.14em] transition-colors sm:px-3 sm:text-xs sm:tracking-[0.18em] ${
                     filter === mode
                       ? "bg-accent text-background"
                       : "text-foreground-secondary hover:bg-surface hover:text-foreground"
@@ -590,12 +657,14 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
             </div>
           </div>
 
-          <AdminSelect label="Sort" value={sort} onChange={(value) => setSort(value as SortMode)} className="min-w-[160px] flex-1 sm:flex-none sm:basis-[210px]" options={[{ value: "name", label: "Name" }, { value: "newest", label: "Newest" }, { value: "most_visits", label: "Most visits" }, { value: "last_visit", label: "Last visit" }, { value: "next_appointment", label: "Next appointment" }, { value: "most_no_shows", label: "Most no-shows" }]} />
+          <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto sm:flex-[1_0_29rem]">
+            <AdminSelect label="Sort" value={sort} onChange={(value) => setSort(value as SortMode)} className="w-full sm:w-auto sm:flex-[1_0_12rem]" options={[{ value: "name", label: "Name" }, { value: "newest", label: "Newest" }, { value: "most_visits", label: "Most visits" }, { value: "last_visit", label: "Last visit" }, { value: "next_appointment", label: "Next appointment" }, { value: "most_no_shows", label: "Most no-shows" }]} />
 
-          <button type="button" onClick={() => setIsFilterOpen(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground sm:flex-none"><SlidersHorizontal size={14} /> Filters{activeFilterChips.length ? ` (${activeFilterChips.length})` : ""}</button>
-          <div className="relative flex-1 sm:flex-none">
-            <button type="button" onClick={() => setIsExportOpen((current) => !current)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 border border-accent/40 bg-accent/10 px-4 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent hover:text-background">Export All <ChevronDown size={14} /></button>
-            {isExportOpen ? <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-48 border border-border bg-background-secondary p-2 shadow-xl"><a href="/api/admin/customers/export?format=csv" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export CSV</a><a href="/api/admin/customers/export?format=pdf" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export PDF</a></div> : null}
+            <button type="button" onClick={() => setIsFilterOpen(true)} className="inline-flex min-h-11 flex-[1_0_auto] items-center justify-center gap-2 whitespace-nowrap border border-border px-3 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground sm:flex-none"><SlidersHorizontal size={14} className="shrink-0" /> Filters{activeFilterChips.length ? ` (${activeFilterChips.length})` : ""}</button>
+            <div className="relative flex-[1_0_auto] sm:flex-none">
+              <button type="button" onClick={() => setIsExportOpen((current) => !current)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap border border-accent/40 bg-accent/10 px-3 font-admin-primary text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent hover:text-background">Export All <ChevronDown size={14} className="shrink-0" /></button>
+              {isExportOpen ? <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-48 border border-border bg-background-secondary p-2 shadow-xl"><a href="/api/admin/customers/export?format=csv" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export CSV</a><a href="/api/admin/customers/export?format=pdf" onClick={() => setIsExportOpen(false)} className="flex min-h-11 items-center px-3 font-admin-primary text-xs uppercase tracking-[0.15em] text-foreground-secondary hover:bg-surface hover:text-foreground">Export PDF</a></div> : null}
+            </div>
           </div>
         </div>
 
@@ -737,7 +806,7 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
 
             <nav className="shrink-0 overflow-x-auto border-b border-border bg-surface px-4 sm:px-6 lg:px-8" aria-label="Customer workspace">
               <div className="flex min-w-max gap-7">
-                {([['overview','Overview'],['appointments','Appointments'],['regular','Regular Booking'],['activity','Activity'],['notes','Notes']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setWorkspaceTab(value)} className={`min-h-12 border-b-2 font-admin-primary text-[10px] uppercase tracking-[0.18em] transition-colors ${workspaceTab === value ? "border-accent text-accent" : "border-transparent text-foreground-muted hover:text-foreground"}`}>{label}</button>)}
+                {([['overview','Overview'],['appointments','Appointments'],['regular','Regular Booking'],['emails','Emails'],['activity','Activity'],['notes','Notes']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setWorkspaceTab(value)} className={`min-h-12 border-b-2 font-admin-primary text-[10px] uppercase tracking-[0.18em] transition-colors ${workspaceTab === value ? "border-accent text-accent" : "border-transparent text-foreground-muted hover:text-foreground"}`}>{label}</button>)}
               </div>
             </nav>
 
@@ -757,6 +826,8 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
               {workspaceTab === "appointments" ? <div className="space-y-7"><section><div className="flex items-center justify-between border-b border-border pb-3"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Upcoming Appointments</p><span className="text-xs text-accent">{selectedStatistics?.upcomingCount ?? 0}</span></div><div className="divide-y divide-border">{selectedStatistics?.upcomingAppointments.map((appointment) => <Link key={appointment.id} href={getAppointmentLink(appointment)} className="group grid min-h-16 gap-2 py-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center"><p className="text-sm">{appointment.date_label} · {appointment.time_label}</p><p className="text-sm text-foreground-secondary">{appointment.service_name}</p><span className={`w-fit border px-2 py-1 text-[9px] uppercase ${getStatusClasses(appointment.status)}`}>{formatStatusLabel(appointment.status)}</span><ChevronRight size={15} className="hidden text-foreground-muted sm:block"/></Link>)}{!selectedStatistics?.upcomingCount ? <p className="py-8 text-sm text-foreground-muted">No upcoming appointments.</p> : null}</div></section><section><div className="flex items-center justify-between border-b border-border pb-3"><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Appointment History</p><span className="text-xs text-foreground-muted">{selectedStatistics?.history.length ?? 0}</span></div><div className="divide-y divide-border">{(showAllHistory ? selectedStatistics?.history : selectedStatistics?.history.slice(0,8))?.map((appointment) => <Link key={appointment.id} href={getAppointmentLink(appointment)} className="group grid min-h-16 gap-2 py-4 sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center"><p className="text-sm">{appointment.date_label} · {appointment.time_label}</p><p className="text-sm text-foreground-secondary">{appointment.service_name}</p><span className={`w-fit border px-2 py-1 text-[9px] uppercase ${getStatusClasses(appointment.status)}`}>{formatStatusLabel(appointment.status)}</span><span className="text-xs text-foreground-muted">{getDurationLabel(appointment)}</span><ChevronRight size={15} className="hidden text-foreground-muted sm:block"/></Link>)}{!selectedStatistics?.history.length ? <p className="py-8 text-sm text-foreground-muted">No appointment history yet.</p> : null}</div>{(selectedStatistics?.history.length ?? 0) > 8 ? <button onClick={() => setShowAllHistory((value) => !value)} className="mt-4 min-h-11 border border-border px-4 text-[10px] uppercase tracking-[.16em]">{showAllHistory ? "Show Recent" : "View Full History"}</button> : null}</section></div> : null}
 
               {workspaceTab === "regular" ? <RecurringBookingManager mode="admin" services={activeServices} customers={selectedCustomer.id.startsWith("legacy-guest:") ? [] : [{id:selectedCustomer.id,full_name:selectedCustomer.full_name,email:selectedCustomer.email}]} series={selectedRecurringBookings}/> : null}
+
+              {workspaceTab === "emails" ? <section className="mx-auto max-w-5xl"><div className="flex items-end justify-between gap-4 border-b border-border pb-4"><div><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Customer Communications</p><p className="mt-2 text-sm text-foreground-secondary">Application email delivery history, newest first.</p></div><span className="shrink-0 text-xs text-accent">{emailLogTotal}</span></div>{emailLogError ? <div className="mt-5 border border-rose-500/30 bg-rose-500/10 p-5"><p className="font-admin-display text-xl uppercase text-rose-100">Unable To Load Email History</p><p className="mt-2 text-sm text-rose-200">{emailLogError}</p></div> : null}{isEmailLogsLoading && emailLogsLoadedFor !== selectedCustomer.id ? <div className="space-y-3 py-6" aria-label="Loading email history">{[0,1,2].map((item) => <div key={item} className="h-16 animate-pulse border border-border bg-background/40" />)}</div> : null}<div className="divide-y divide-border">{emailLogs.map((log) => { const expanded = expandedEmailLogId === log.id; return <article key={log.id}><button type="button" onClick={() => setExpandedEmailLogId(expanded ? null : log.id)} className="grid min-h-20 w-full min-w-0 gap-2 py-4 text-left transition-colors hover:bg-background/30 sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:items-center sm:px-3"><div><p className="text-[10px] uppercase tracking-[.14em] text-foreground-muted">{formatActivityDate(log.created_at)}</p><p className="mt-1 break-all text-xs text-foreground-muted sm:hidden">{log.recipient_email}</p></div><div className="min-w-0"><p className="text-[10px] uppercase tracking-[.16em] text-accent">{formatEmailType(log.email_type)}</p><p className="mt-1 break-words text-sm text-foreground">{log.subject}</p><p className="mt-1 hidden break-all text-xs text-foreground-muted sm:block">{log.recipient_email}</p></div><span className={`w-fit border px-2.5 py-1.5 text-[9px] uppercase tracking-[.14em] ${getEmailStatusClasses(log.status)}`}>{log.status}</span></button>{expanded ? <div className="mb-4 grid gap-4 border border-border bg-background/35 p-4 text-xs text-foreground-secondary sm:grid-cols-2"><div><p className="uppercase tracking-[.14em] text-foreground-muted">Delivery</p><p className="mt-2">Sent: {log.sent_at ? formatActivityDate(log.sent_at) : "—"}</p><p className="mt-1">Failed: {log.failed_at ? formatActivityDate(log.failed_at) : "—"}</p>{log.error_message ? <p className="mt-3 break-words text-rose-200">{log.error_message}</p> : null}</div><div><p className="uppercase tracking-[.14em] text-foreground-muted">Context</p>{log.appointment_id ? <Link href={`/admin/appointments?appointmentId=${encodeURIComponent(log.appointment_id)}`} className="mt-2 inline-flex min-h-11 items-center text-accent">View related appointment →</Link> : <p className="mt-2">No related appointment.</p>}{log.metadata && Object.keys(log.metadata).length ? <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words border-t border-border pt-3 font-admin-primary text-[11px]">{JSON.stringify(log.metadata, null, 2)}</pre> : null}</div></div> : null}</article>; })}</div>{!isEmailLogsLoading && emailLogsLoadedFor === selectedCustomer.id && !emailLogs.length && !emailLogError ? <div className="py-12 text-center"><p className="font-admin-display text-2xl uppercase text-foreground">No Email History</p><p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-foreground-muted">No emails have been sent to this customer yet.</p><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-foreground-muted">Booking confirmations, reminders, receipts and other customer emails will appear here automatically.</p></div> : null}{emailLogs.length < emailLogTotal ? <button type="button" disabled={isEmailLogsLoading} onClick={loadMoreEmailLogs} className="mt-5 min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground-secondary hover:text-accent disabled:opacity-50">{isEmailLogsLoading ? "Loading..." : "Load More"}</button> : null}{emailLogTotal > 0 ? <Link href={`/admin/customers/emails?customer=${encodeURIComponent(selectedCustomer.id)}`} className="mt-5 inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.16em] text-accent">View All Emails →</Link> : null}</section> : null}
 
               {workspaceTab === "activity" ? <section className="mx-auto max-w-3xl"><div className="flex items-center gap-2 border-b border-border pb-4"><Clock3 size={15} className="text-accent"/><p className="text-[10px] uppercase tracking-[.2em] text-foreground-muted">Activity Timeline</p></div><div className="mt-5">{selectedActivity.map((event,index) => <div key={event.id} className="relative flex gap-4 pb-6"><div className="relative flex w-3 shrink-0 justify-center"><span className="mt-1.5 size-2.5 border border-accent bg-accent/50"/>{index < selectedActivity.length-1 ? <span className="absolute bottom-0 top-4 w-px bg-border"/> : null}</div><div className="min-w-0"><p className="text-[10px] text-foreground-muted">{formatActivityDate(event.timestamp)}</p><p className="mt-1 text-sm">{event.title}</p><p className="mt-1 text-xs text-foreground-secondary">{event.detail}</p></div></div>)}</div></section> : null}
 

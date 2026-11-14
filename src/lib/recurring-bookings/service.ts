@@ -10,6 +10,8 @@ import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 import { getOpenBusinessWeekdays } from "@/lib/public/business-hours-utils";
 import { addDaysToDateKey, getCurrentZurichDateTime, getWeekdayNumber, parseDateKey } from "@/lib/public/booking-availability-utils";
 import { sendRecurringBookingConfirmationEmail, sendRecurringBookingPausedEmail, sendRecurringBookingRemovedEmail, sendRecurringBookingResumedEmail, type RecurringEmailDetails } from "@/lib/email/recurring";
+import { APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, getProtectedAppointmentIds, isAppointmentForeignKeyError } from "@/lib/appointments/deletion-protection";
+import { isAppointmentTimeConflictError } from "@/lib/appointments/write-errors";
 
 function validateInput(input: RecurringBookingInput) {
   if (!input.serviceId || !RECURRING_FREQUENCIES.includes(input.frequency) || input.weekday < 1 || input.weekday > 7 || !/^\d{2}:\d{2}$/.test(input.startTime) || !/^\d{4}-\d{2}-\d{2}$/.test(input.startsOn) || !input.endsOn || !/^\d{4}-\d{2}-\d{2}$/.test(input.endsOn)) throw new Error("Complete all recurring booking fields, including an end date.");
@@ -28,7 +30,7 @@ async function getRecurringEmailDetails(series: RecurringBookingRecord): Promise
     admin.from("appointments").select("start_at").eq("recurring_booking_id", series.id).eq("status", "confirmed").gt("start_at", new Date().toISOString()).order("start_at", { ascending: true }),
   ]);
   if (!customer?.email || !service || !series.ends_on) return null;
-  return { to: customer.email, customerName: customer.full_name, serviceName: service.name, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on, reservedCount: appointments?.length ?? 0, upcomingAppointments: (appointments ?? []).map((appointment) => ({ startAt: appointment.start_at })) };
+  return { to: customer.email, customerId: series.customer_id, recurringBookingId: series.id, customerName: customer.full_name, serviceName: service.name, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on, reservedCount: appointments?.length ?? 0, upcomingAppointments: (appointments ?? []).map((appointment) => ({ startAt: appointment.start_at })) };
 }
 
 async function sendRecurringNotification(event: "paused" | "resumed" | "removed", details: RecurringEmailDetails | null) {
@@ -116,6 +118,18 @@ async function generateOccurrences(series: RecurringBookingRecord, bookingSource
     { fromDate, enforceCustomerPolicy: bookingSource === "customer" },
   );
   let createdCount = 0;
+  async function recordConcurrentConflict(occurrenceDate: string) {
+    const { error } = await admin.from("recurring_booking_conflicts").upsert(
+      {
+        recurring_booking_id: series.id,
+        occurrence_date: occurrenceDate,
+        reason: "Time unavailable due to a concurrent booking",
+        status: "unresolved",
+      },
+      { onConflict: "recurring_booking_id,occurrence_date" },
+    );
+    if (error) throw error;
+  }
   for (const occurrence of preview.occurrences) {
     if (!occurrence.available) {
       const { error } = await admin.from("recurring_booking_conflicts").upsert({ recurring_booking_id: series.id, occurrence_date: occurrence.occurrenceDate, reason: occurrence.reason ?? "Unavailable", status: "unresolved" }, { onConflict: "recurring_booking_id,occurrence_date", ignoreDuplicates: true });
@@ -128,11 +142,19 @@ async function generateOccurrences(series: RecurringBookingRecord, bookingSource
     if (existingOccurrence) {
       if (existingOccurrence.status === "cancelled") {
         const { error: restoreError } = await admin.from("appointments").update({ start_at: occurrence.startAt, end_at: occurrence.endAt, status: "confirmed", cancelled_at: null, updated_at: new Date().toISOString() }).eq("id", existingOccurrence.id).eq("status", "cancelled");
+        if (isAppointmentTimeConflictError(restoreError)) {
+          await recordConcurrentConflict(occurrence.occurrenceDate);
+          continue;
+        }
         if (restoreError) throw restoreError;
       }
       continue;
     }
     const { error } = await admin.from("appointments").insert({ customer_id: customer.id, service_id: service.id, booking_source: bookingSource, customer_name: customer.full_name, customer_email: customer.email || null, customer_phone: customer.phone || null, start_at: occurrence.startAt, end_at: occurrence.endAt, status: "confirmed", original_price: price, discount_amount: 0, final_price: price, promotion_id: null, discount_source: null, discount_label: null, discount_type: null, discount_value: null, booking_reference: credentials.bookingReference, manage_token_hash: credentials.managementTokenHash, recurring_booking_id: series.id, recurring_occurrence_date: occurrence.occurrenceDate });
+    if (isAppointmentTimeConflictError(error)) {
+      await recordConcurrentConflict(occurrence.occurrenceDate);
+      continue;
+    }
     if (error && error.code !== "23505") throw error;
     if (!error) createdCount += 1;
   }
@@ -186,27 +208,8 @@ export async function setRecurringBookingState(seriesId: string, action: "pause"
 }
 
 async function getProtectedRecurringAppointmentIds(appointmentIds: string[]) {
-  const protectedIds = new Set<string>();
-  if (!appointmentIds.length) return protectedIds;
   const admin = createAdminClient();
-  const [paymentResult, receiptResult, loyaltyVisitResult, loyaltyRewardResult] = await Promise.all([
-    admin.from("payments").select("appointment_id").in("appointment_id", appointmentIds),
-    admin.from("receipts").select("appointment_id").in("appointment_id", appointmentIds),
-    admin.from("loyalty_visits").select("appointment_id").in("appointment_id", appointmentIds),
-    admin.from("loyalty_rewards").select("redeemed_appointment_id").in("redeemed_appointment_id", appointmentIds),
-  ]);
-  if (paymentResult.error || receiptResult.error || loyaltyVisitResult.error || loyaltyRewardResult.error) {
-    throw new Error("Unable to verify financial and loyalty history for these appointments.");
-  }
-  const payments = paymentResult.data;
-  const receipts = receiptResult.data;
-  const loyaltyVisits = loyaltyVisitResult.data;
-  const loyaltyRewards = loyaltyRewardResult.data;
-  for (const row of payments ?? []) if (row.appointment_id) protectedIds.add(row.appointment_id);
-  for (const row of receipts ?? []) if (row.appointment_id) protectedIds.add(row.appointment_id);
-  for (const row of loyaltyVisits ?? []) if (row.appointment_id) protectedIds.add(row.appointment_id);
-  for (const row of loyaltyRewards ?? []) if (row.redeemed_appointment_id) protectedIds.add(row.redeemed_appointment_id);
-  return protectedIds;
+  return getProtectedAppointmentIds(admin, appointmentIds);
 }
 
 async function getRecurringRemovalCandidates(seriesId: string) {
@@ -246,14 +249,22 @@ export async function removeRecurringAppointmentOccurrence(appointmentId: string
     throw new Error("Past or completed appointments cannot be removed.");
   }
   const protectedIds = await getProtectedRecurringAppointmentIds([appointment.id]);
-  if (protectedIds.has(appointment.id)) throw new Error("This appointment has financial or loyalty history and cannot be removed.");
+  if (protectedIds.has(appointment.id)) throw new Error(APPOINTMENT_FINANCIAL_HISTORY_MESSAGE);
   const { data: deleted, error: deleteError } = await admin
     .from("appointments")
     .delete()
     .eq("id", appointment.id)
     .select("id")
     .maybeSingle();
-  if (deleteError || !deleted) throw new Error("Unable to remove this appointment.");
+  if (deleteError) {
+    if (isAppointmentForeignKeyError(deleteError)) {
+      console.error("RECURRING APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", deleteError);
+      throw new Error(APPOINTMENT_FINANCIAL_HISTORY_MESSAGE);
+    }
+    console.error("RECURRING APPOINTMENT DELETE ERROR:", deleteError);
+    throw new Error("Unable to remove this appointment.");
+  }
+  if (!deleted) throw new Error("Unable to remove this appointment.");
   return { appointmentId: deleted.id, recurringBookingId: appointment.recurring_booking_id };
 }
 

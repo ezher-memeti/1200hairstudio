@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
   try { body = await request.json() as RequestBody; } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
   if (typeof body.appointmentId !== "string" || typeof body.appointmentStartAt !== "string") return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const admin = createAdminClient();
+  const { data: settings, error: settingsError } = await admin.from("notification_settings").select("appointment_reminders_enabled,appointment_reminder_email_enabled").limit(1).maybeSingle();
+  if (settingsError) return NextResponse.json({ error: "Reminder settings unavailable" }, { status: 503 });
+  if (!settings?.appointment_reminders_enabled || !settings.appointment_reminder_email_enabled) return NextResponse.json({ error: "Reminder email delivery is disabled" }, { status: 409 });
   const { data: appointment, error } = await admin.from("appointments").select("id,customer_id,service_id,start_at,end_at,status,customer_name,customer_email,guest_name,guest_email").eq("id", body.appointmentId).maybeSingle();
   if (error || !appointment) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   if (appointment.status !== "confirmed" || appointment.start_at !== body.appointmentStartAt) return NextResponse.json({ error: "Appointment is no longer eligible" }, { status: 409 });
@@ -24,7 +27,7 @@ export async function POST(request: NextRequest) {
   const email = (customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "").trim().toLowerCase();
   if (!email) return NextResponse.json({ error: "Customer email is unavailable" }, { status: 422 });
   try {
-    await sendAppointmentReminderEmail({ to: email, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
+    await sendAppointmentReminderEmail({ to: email, customerId: appointment.customer_id, appointmentId: appointment.id, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
     return NextResponse.json({ ok: true });
   } catch (sendError) {
     console.error("INTERNAL APPOINTMENT REMINDER EMAIL ERROR", { appointmentId: appointment.id, error: sendError });

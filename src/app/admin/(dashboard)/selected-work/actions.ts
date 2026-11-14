@@ -170,7 +170,6 @@ export async function upsertSelectedWork(formData: FormData) {
     const supabase = await requireAdminClient();
     const id = (formData.get("id") ?? "").toString().trim() || undefined;
     const title = (formData.get("title") ?? "").toString().trim() || null;
-    const description = (formData.get("description") ?? "").toString().trim() || null;
     const isActive = (formData.get("isActive") ?? "false") === "true";
     const currentImageUrl = (formData.get("currentImageUrl") ?? "")
       .toString()
@@ -214,7 +213,6 @@ export async function upsertSelectedWork(formData: FormData) {
         .from("selected_work")
         .update({
           title,
-          description,
           image_url: imageUrl,
           is_active: isActive,
         })
@@ -245,7 +243,6 @@ export async function upsertSelectedWork(formData: FormData) {
 
       const { error } = await supabase.from("selected_work").insert({
         title,
-        description,
         image_url: imageUrl,
         is_active: isActive,
         sort_order: nextSortOrder,

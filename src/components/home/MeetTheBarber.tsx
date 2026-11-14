@@ -33,12 +33,12 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
                 {content.barber_name}
               </h2>
 
-              <div className="space-y-2">
-                <p className="font-display text-3xl font-semibold uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
-                  {content.barber_experience_value}
-                </p>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary sm:text-base">
                   {content.barber_experience_label}
+                </p>
+                <p className="font-display text-3xl font-semibold uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
+                  {content.barber_experience_value}
                 </p>
               </div>
 

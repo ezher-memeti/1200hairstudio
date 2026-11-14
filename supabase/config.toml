@@ -242,10 +242,15 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Local email content only. Hosted templates require separate Dashboard approval.
+# Signup confirmation settings, redirect allowlists, and SMTP settings are unchanged.
+[auth.email.template.confirmation]
+subject = "Confirm your email | 1200 Hairstudio"
+content_path = "./supabase/templates/auth/confirm-signup.html"
+
+[auth.email.template.recovery]
+subject = "Reset your password | 1200 Hairstudio"
+content_path = "./supabase/templates/auth/reset-password.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

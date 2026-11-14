@@ -1,24 +1,45 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useScrollVideoProgress } from "@/components/home/ScrollVideoSection";
 import type { NextAvailabilityPreview } from "@/lib/public/booking-availability-utils";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
+import { getNextAvailabilityPreview } from "@/app/actions/booking-availability";
 
 function getRangeValue(progress: number, start: number, end: number) {
   return Math.min(Math.max((progress - start) / (end - start), 0), 1);
 }
 
 export default function SectionTwoClient({
-  preview,
-  hasError,
   content,
 }: {
-  preview: NextAvailabilityPreview | null;
-  hasError: boolean;
   content: HomepageContent;
 }) {
   const progress = useScrollVideoProgress();
+  const [preview, setPreview] = useState<NextAvailabilityPreview | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void getNextAvailabilityPreview()
+      .then((result) => {
+        if (!isActive) return;
+        setPreview(result.preview);
+        setHasError(result.hasError);
+      })
+      .catch(() => {
+        if (isActive) setHasError(true);
+      })
+      .finally(() => {
+        if (isActive) setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const labelStyle = useMemo(() => {
     const value = getRangeValue(progress, 0.44, 0.6);
@@ -44,9 +65,11 @@ export default function SectionTwoClient({
     };
   }, [progress]);
 
-  const dayLabel = preview?.label ?? "NO AVAILABILITY";
-  const dateLabel = preview?.fullDateLabel ?? "NO FUTURE DATES AVAILABLE";
-  const status = hasError
+  const dayLabel = isLoading ? "CHECKING AVAILABILITY" : preview?.label ?? "NO AVAILABILITY";
+  const dateLabel = isLoading ? "NEXT AVAILABLE DATE" : preview?.fullDateLabel ?? "NO FUTURE DATES AVAILABLE";
+  const status = isLoading
+    ? "LOADING AVAILABLE TIMES"
+    : hasError
     ? "AVAILABILITY UNAVAILABLE"
     : preview?.status ?? "NO AVAILABILITY";
   const slots = preview?.slots ?? [];
@@ -101,7 +124,9 @@ export default function SectionTwoClient({
               </div>
             ) : (
               <p className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-muted">
-                No availability in the current schedule window.
+                {isLoading
+                  ? "Checking the current schedule window."
+                  : "No availability in the current schedule window."}
               </p>
             )}
 

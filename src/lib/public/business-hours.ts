@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
 export {
   buildBookingDates,
@@ -11,7 +11,7 @@ export {
 } from "@/lib/public/business-hours-utils";
 
 export async function getBusinessHours() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("business_hours")
     .select("*")

@@ -11,11 +11,11 @@ const fallbackHours = [
   { day_of_week: 7, is_closed: true, open_time: null, close_time: null },
 ];
 
-export default async function VisitStudio({ content }: { content: HomepageContent }) {
+export default async function VisitStudio({ content, directionsUrl }: { content: HomepageContent; directionsUrl?: string | null }) {
   const businessHours = await getBusinessHours();
   const hoursToRender = businessHours.length > 0 ? businessHours : fallbackHours;
   const address = `${content.visit_address_line_1}, ${content.visit_address_line_2}, Switzerland`;
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const mapsUrl = directionsUrl?.trim() || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`;
 
   return (

@@ -31,7 +31,6 @@ type SiteSettingsServicesManagerProps = {
 type FormState = {
   id?: string;
   name: string;
-  description: string;
   price: string;
   durationMin: string;
   durationMax: string;
@@ -42,7 +41,6 @@ type FormState = {
 
 const blankForm: FormState = {
   name: "",
-  description: "",
   price: "",
   durationMin: "",
   durationMax: "",
@@ -55,7 +53,6 @@ function toFormState(service: ServiceRecord): FormState {
   return {
     id: service.id,
     name: service.name,
-    description: service.description ?? "",
     price: String(service.price),
     durationMin: String(service.duration_min),
     durationMax: service.duration_max
@@ -196,7 +193,6 @@ export default function SiteSettingsServicesManager({
         payload.set("id", formState.id);
       }
       payload.set("name", formState.name);
-      payload.set("description", formState.description);
       payload.set("price", formState.price);
       payload.set("durationMin", formState.durationMin);
       payload.set("durationMax", formState.durationMax);
@@ -406,28 +402,6 @@ export default function SiteSettingsServicesManager({
                 />
               </label>
             ))}
-
-            <label className="space-y-3 sm:col-span-2">
-              <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Description
-              </span>
-              <textarea
-                rows={4}
-                value={formState.description}
-                onChange={(event) =>
-                  setFormState((current) =>
-                    current
-                      ? {
-                          ...current,
-                          description: event.target.value,
-                        }
-                      : current,
-                  )
-                }
-                className="w-full resize-none border border-border bg-transparent px-4 py-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                placeholder="Description (Optional)"
-              />
-            </label>
 
             <label className="flex items-center gap-3 sm:col-span-2">
               <input
@@ -683,10 +657,6 @@ export default function SiteSettingsServicesManager({
                     CHF {service.price.toFixed(0)}
                   </span>
                 </div>
-
-                <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                  {service.description || "No description set."}
-                </p>
 
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                   <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">

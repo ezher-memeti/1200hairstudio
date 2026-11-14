@@ -95,15 +95,18 @@ export async function calculateFinancialReport(
   settings?: { business: BusinessSettings; finance: FinanceSettings },
 ): Promise<FinancialReportSnapshot> {
   const bounds = reportUtcBounds(input.startDate, input.endDate);
-  const [{ data: appointments, error: appointmentError }, { data: payments, error: paymentError }] = await Promise.all([
+  const [{ data: appointments, error: appointmentError }, { data: payments, error: paymentError }, { data: sales, error: salesError }] = await Promise.all([
     supabase.from("appointment_finance_summary").select("appointment_id,start_at,appointment_status,original_price,discount_amount,amount_due,net_paid").gte("start_at", bounds.start).lt("start_at", bounds.endExclusive).neq("appointment_status", "cancelled"),
-    supabase.from("payments").select("appointment_id,transaction_type,amount,payment_method,status,paid_at").eq("status", "completed").gte("paid_at", bounds.start).lt("paid_at", bounds.endExclusive),
+    supabase.from("payments").select("appointment_id,transaction_type,amount,tip_amount,payment_method,status,paid_at").eq("status", "completed").gte("paid_at", bounds.start).lt("paid_at", bounds.endExclusive),
+    supabase.from("sales").select("appointment_id,tax_amount"),
   ]);
   if (appointmentError) throw new Error(`Financial appointments could not be loaded: ${appointmentError.message}`);
   if (paymentError) throw new Error(`Financial payments could not be loaded: ${paymentError.message}`);
+  if (salesError) throw new Error(`Financial sales could not be loaded: ${salesError.message}`);
 
   const totals = { ...ZERO_VALUES };
   const rows = new Map<string, FinancialReportRow>();
+  const taxesByAppointment = new Map((sales ?? []).map((sale) => [sale.appointment_id, money(sale.tax_amount)]));
   for (const appointment of appointments ?? []) {
     const key = input.groupBy === "month" ? monthKey(appointment.start_at) : dateKey(appointment.start_at);
     const row = rowFor(rows, key, input.groupBy);
@@ -113,6 +116,8 @@ export async function calculateFinancialReport(
     const isPaid = money(appointment.net_paid) >= sale;
     totals.grossRevenue += gross; row.grossRevenue += gross;
     totals.discounts += discount; row.discounts += discount;
+    const tax = taxesByAppointment.get(appointment.appointment_id) ?? 0;
+    totals.taxes += tax; row.taxes += tax;
     if (isPaid) { totals.paidSales += sale; row.paidSales += sale; }
     else { totals.unpaidSales += sale; row.unpaidSales += sale; }
   }
@@ -124,8 +129,16 @@ export async function calculateFinancialReport(
     const key = input.groupBy === "month" ? monthKey(payment.paid_at) : dateKey(payment.paid_at);
     const row = rowFor(rows, key, input.groupBy);
     const amount = money(payment.amount);
-    if (payment.transaction_type === "refund") { totals.refunds += amount; row.refunds += amount; continue; }
+    if (payment.transaction_type === "refund") {
+      const refundedTip = money(payment.tip_amount);
+      const principalRefund = money(amount - refundedTip);
+      totals.refunds += principalRefund; row.refunds += principalRefund;
+      totals.tips -= refundedTip; row.tips -= refundedTip;
+      continue;
+    }
     const method = payment.payment_method === "bank_transfer" ? "bankTransfer" : (["twint", "cash", "card", "other"].includes(payment.payment_method) ? payment.payment_method : "other") as "twint" | "cash" | "card" | "bankTransfer" | "other";
+    const tip = money(payment.tip_amount);
+    totals.tips += tip; row.tips += tip;
     totals[method] += amount; row[method] += amount;
     const appointmentStart = appointmentStarts.get(payment.appointment_id);
     if (appointmentStart && appointmentStart >= bounds.start && appointmentStart < bounds.endExclusive) { totals.paymentsForSalesInPeriod += amount; row.paymentsForSalesInPeriod += amount; }

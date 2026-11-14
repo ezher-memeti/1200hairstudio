@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { CustomerRecord } from "@/lib/customers/types";
 import {
   normalizeCustomerEmail,
-  recordMarketingEmailConsent,
-  resolveCustomerByEmail,
 } from "@/lib/customers/mutations";
 import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors";
 import { shouldRecordSignupMarketingConsent } from "@/lib/customers/marketing-consent";
@@ -76,7 +75,8 @@ export async function requireCustomerUser() {
   };
 }
 
-export async function requireAdminUser() {
+// React scopes this memoization to one server render; never share auth across requests.
+export const requireAdminUser = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -105,7 +105,7 @@ export async function requireAdminUser() {
     supabase,
     user,
   };
-}
+});
 
 export async function ensureCustomerRecord(
   fullName?: string | null,
@@ -113,58 +113,6 @@ export async function ensureCustomerRecord(
 ) {
   const { supabase, user } = await requireCustomerUser();
   const requestedSignupMarketingConsent = user.user_metadata.marketing_email_consent === true;
-
-  async function applySignupMarketingConsent(customer: CustomerRecord) {
-    if (!shouldRecordSignupMarketingConsent(customer, requestedSignupMarketingConsent)) {
-      return customer;
-    }
-
-    return recordMarketingEmailConsent(supabase, customer.id, "signup_form");
-  }
-  const { data: existingCustomer, error: customerLookupError } =
-    await supabase
-      .from("customers")
-      .select("*")
-      .eq("profile_id", user.id)
-      .maybeSingle();
-
-  if (customerLookupError) {
-    throw new Error("Unable to load customer account.");
-  }
-
-  if (existingCustomer) {
-    const customer = existingCustomer as CustomerRecord;
-    const updates: Partial<Pick<CustomerRecord, "full_name" | "phone" | "is_registered">> = {};
-    const normalizedFullName = fullName?.trim();
-    const normalizedPhone = phone?.trim();
-
-    if (!customer.is_registered) {
-      updates.is_registered = true;
-    }
-    if (normalizedFullName) {
-      updates.full_name = normalizedFullName;
-    }
-    if (normalizedPhone) {
-      updates.phone = normalizedPhone;
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return applySignupMarketingConsent(customer);
-    }
-
-    const { data: updatedCustomer, error: updateError } = await supabase
-      .from("customers")
-      .update(updates)
-      .eq("id", customer.id)
-      .select("*")
-      .single();
-
-    if (updateError || !updatedCustomer) {
-      throw new Error("Unable to update customer account.");
-    }
-
-    return applySignupMarketingConsent(updatedCustomer as CustomerRecord);
-  }
 
   const fallbackFullName =
     fullName?.trim() ||
@@ -179,18 +127,28 @@ export async function ensureCustomerRecord(
       : "") ||
     "";
 
-  const email = normalizeCustomerEmail(user.email ?? "");
-  if (!email) {
+  if (!normalizeCustomerEmail(user.email ?? "")) {
     throw new Error("Unable to create customer account.");
   }
 
-  const customer = await resolveCustomerByEmail(supabase, {
-    profileId: user.id,
-    fullName: fallbackFullName,
-    email,
-    phone: fallbackPhone,
-    isRegistered: true,
+  const { data, error } = await supabase.rpc("ensure_my_customer", {
+    p_full_name: fallbackFullName,
+    p_phone: fallbackPhone || null,
   });
+  const customer = Array.isArray(data) ? data[0] : data;
+  if (error || !customer) throw new Error("Unable to prepare customer account.");
 
-  return applySignupMarketingConsent(customer);
+  if (shouldRecordSignupMarketingConsent(customer as CustomerRecord, requestedSignupMarketingConsent)) {
+    const consent = await supabase.rpc("set_my_marketing_email_preference", {
+      p_subscribed: true,
+      p_source: "signup_form",
+    });
+    if (consent.error) throw new Error("Unable to save email preferences right now.");
+    const refreshed = await supabase.rpc("get_my_customer");
+    const refreshedCustomer = Array.isArray(refreshed.data) ? refreshed.data[0] : refreshed.data;
+    if (refreshed.error || !refreshedCustomer) throw new Error("Unable to load customer account.");
+    return refreshedCustomer as CustomerRecord;
+  }
+
+  return customer as CustomerRecord;
 }

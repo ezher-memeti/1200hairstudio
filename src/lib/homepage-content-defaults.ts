@@ -16,14 +16,13 @@ export const homepageContentDefinitions = [
   { section: "Meet the Barber", contentKey: "barber_eyebrow", label: "Barber label", defaultValue: "03 / The Barber", contentType: "text", sortOrder: 10, recommendedMax: 30 },
   { section: "Meet the Barber", contentKey: "barber_title", label: "Section title", defaultValue: "Meet the Barber", contentType: "text", sortOrder: 20, recommendedMax: 34 },
   { section: "Meet the Barber", contentKey: "barber_name", label: "Barber name", defaultValue: "Arban Shaqiri", contentType: "text", sortOrder: 30, recommendedMax: 40 },
-  { section: "Meet the Barber", contentKey: "barber_experience_value", label: "Experience value", defaultValue: "4", contentType: "text", sortOrder: 40, recommendedMax: 8 },
-  { section: "Meet the Barber", contentKey: "barber_experience_label", label: "Experience label", defaultValue: "Years Experience", contentType: "text", sortOrder: 50, recommendedMax: 28 },
+  { section: "Meet the Barber", contentKey: "barber_experience_label", label: "Since label", defaultValue: "", contentType: "text", sortOrder: 40, recommendedMax: 28 },
+  { section: "Meet the Barber", contentKey: "barber_experience_value", label: "Since year", defaultValue: "", contentType: "text", sortOrder: 50, recommendedMax: 8 },
   { section: "Meet the Barber", contentKey: "barber_specialties", label: "Specialties", defaultValue: "Fade · Classic · Beard", contentType: "text", sortOrder: 60, recommendedMax: 45 },
   { section: "Meet the Barber", contentKey: "barber_cta", label: "Barber CTA", defaultValue: "Book a Session →", contentType: "text", sortOrder: 70, recommendedMax: 28 },
 
   { section: "Selected Work", contentKey: "work_eyebrow", label: "Selected work label", defaultValue: "04 / Selected Work", contentType: "text", sortOrder: 10, recommendedMax: 30 },
   { section: "Selected Work", contentKey: "work_title", label: "Selected work title", defaultValue: "Selected\nWork.", contentType: "textarea", sortOrder: 20, recommendedMax: 30 },
-  { section: "Selected Work", contentKey: "work_description", label: "Selected work description", defaultValue: "A selection of cuts from the chair.", contentType: "textarea", sortOrder: 30, recommendedMax: 90 },
 
   { section: "Booking", contentKey: "booking_eyebrow", label: "Booking label", defaultValue: "05 / Book Your Session", contentType: "text", sortOrder: 10, recommendedMax: 34 },
   { section: "Booking", contentKey: "booking_title", label: "Booking title", defaultValue: "Your Time.\nYour Chair.", contentType: "textarea", sortOrder: 20, recommendedMax: 36 },
@@ -57,4 +56,3 @@ const homepageContentKeys = new Set<string>(Object.keys(homepageContentDefaults)
 export function isHomepageContentKey(value: string): value is HomepageContentKey {
   return homepageContentKeys.has(value);
 }
-

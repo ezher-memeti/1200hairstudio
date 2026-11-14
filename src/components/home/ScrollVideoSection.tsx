@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
@@ -7,8 +8,11 @@ type ScrollVideoSectionProps = { children: ReactNode };
 type PositionPoint = { width: number; focusX: number; translateX: number };
 
 const FRAME_COUNT = 228;
-const INITIAL_FRAME_BATCH = 16;
-const NEARBY_FRAME_RADIUS = 12;
+const MAX_CONCURRENT_LOADS = 4;
+const INITIAL_PREFETCH_AHEAD = 6;
+const PREFETCH_AHEAD = 18;
+const PREFETCH_BEHIND = 8;
+const MAX_DECODED_FRAMES = 72;
 const MAX_DPR = 2;
 const ScrollVideoProgressContext = createContext(0);
 const POSITION_POINTS: PositionPoint[] = [
@@ -63,12 +67,15 @@ export function useScrollVideoProgress() {
 
 export default function ScrollVideoSection({ children }: ScrollVideoSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const posterRef = useRef<HTMLImageElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const imagesRef = useRef<Array<HTMLImageElement | null>>(Array(FRAME_COUNT).fill(null));
-  const loadingRef = useRef(new Map<number, Promise<void>>());
+  const loadingRef = useRef(new Set<number>());
+  const queuedRef = useRef<number[]>([]);
+  const queuedIndexesRef = useRef(new Set<number>());
+  const activeLoadsRef = useRef(0);
+  const hasScrollInputRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
-  const idleHandleRef = useRef<number | null>(null);
-  const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentFrameRef = useRef(-1);
   const requestedFrameRef = useRef(0);
   const reactProgressRef = useRef(0);
@@ -82,7 +89,8 @@ export default function ScrollVideoSection({ children }: ScrollVideoSectionProps
     const section = sectionRef.current;
     if (!canvas || !section) return;
     const loadedImages = imagesRef.current;
-    const pendingLoads = loadingRef.current;
+    const loadingIndexes = loadingRef.current;
+    const queuedIndexes = queuedIndexesRef.current;
     mountedRef.current = true;
     reducedMotionRef.current = false;
 
@@ -99,34 +107,73 @@ export default function ScrollVideoSection({ children }: ScrollVideoSectionProps
       currentFrameRef.current = index;
     };
 
-    const loadFrame = (index: number) => {
-      if (index < 0 || index >= FRAME_COUNT || imagesRef.current[index]) return Promise.resolve();
-      const pending = loadingRef.current.get(index);
-      if (pending) return pending;
-      const promise = new Promise<void>((resolve) => {
-        const image = new Image();
+    const pruneDecodedFrames = (targetIndex: number) => {
+      const loaded = imagesRef.current
+        .map((image, index) => ({ image, index }))
+        .filter(({ image }) => image?.complete && image.naturalWidth);
+      if (loaded.length <= MAX_DECODED_FRAMES) return;
+      const keep = new Set(
+        loaded
+          .sort((left, right) => Math.abs(left.index - targetIndex) - Math.abs(right.index - targetIndex))
+          .slice(0, MAX_DECODED_FRAMES)
+          .map(({ index }) => index),
+      );
+      keep.add(0);
+      for (const { image, index } of loaded) {
+        if (keep.has(index) || !image || image === posterRef.current) continue;
+        image.onload = null;
+        image.onerror = null;
+        image.src = "";
+        imagesRef.current[index] = null;
+      }
+    };
+
+    const startQueuedLoads = () => {
+      while (mountedRef.current && activeRef.current && activeLoadsRef.current < MAX_CONCURRENT_LOADS) {
+        const index = queuedRef.current.shift();
+        if (index === undefined) return;
+        queuedIndexesRef.current.delete(index);
+        if (imagesRef.current[index] || loadingRef.current.has(index)) continue;
+        loadingRef.current.add(index);
+        activeLoadsRef.current += 1;
+        const image = new window.Image();
         image.decoding = "async";
         image.onload = () => {
           if (mountedRef.current) {
             imagesRef.current[index] = image;
             if (index === requestedFrameRef.current || currentFrameRef.current < 0) drawFrame(requestedFrameRef.current, true);
+            pruneDecodedFrames(requestedFrameRef.current);
           }
           loadingRef.current.delete(index);
-          resolve();
+          activeLoadsRef.current -= 1;
+          startQueuedLoads();
         };
-        image.onerror = () => { loadingRef.current.delete(index); resolve(); };
+        image.onerror = () => {
+          loadingRef.current.delete(index);
+          activeLoadsRef.current -= 1;
+          startQueuedLoads();
+        };
         image.src = getFrameSrc(index);
-      });
-      loadingRef.current.set(index, promise);
-      return promise;
+      }
     };
 
-    const prioritizeFrames = (targetIndex: number) => {
-      void loadFrame(targetIndex);
-      for (let distance = 1; distance <= NEARBY_FRAME_RADIUS; distance += 1) {
-        void loadFrame(targetIndex + distance);
-        void loadFrame(targetIndex - distance);
+    const prioritizeFrames = (targetIndex: number, previousIndex: number) => {
+      queuedRef.current = [];
+      queuedIndexesRef.current.clear();
+      const direction = targetIndex >= previousIndex ? 1 : -1;
+      const candidates = [targetIndex];
+      const prefetchAhead = hasScrollInputRef.current ? PREFETCH_AHEAD : INITIAL_PREFETCH_AHEAD;
+      const prefetchBehind = hasScrollInputRef.current ? PREFETCH_BEHIND : 0;
+      for (let distance = 1; distance <= prefetchAhead; distance += 1) {
+        candidates.push(targetIndex + distance * direction);
+        if (distance <= prefetchBehind) candidates.push(targetIndex - distance * direction);
       }
+      for (const index of candidates) {
+        if (index === 0 || index < 0 || index >= FRAME_COUNT || imagesRef.current[index] || loadingRef.current.has(index) || queuedIndexesRef.current.has(index)) continue;
+        queuedRef.current.push(index);
+        queuedIndexesRef.current.add(index);
+      }
+      startQueuedLoads();
     };
 
     const resizeCanvas = () => {
@@ -144,14 +191,14 @@ export default function ScrollVideoSection({ children }: ScrollVideoSectionProps
 
     const updateFromScroll = () => {
       animationFrameRef.current = null;
-      if (!activeRef.current) return;
       const rect = section.getBoundingClientRect();
       const scrollableDistance = section.offsetHeight - window.innerHeight;
       if (scrollableDistance <= 0) return;
       const nextProgress = Math.min(Math.max(-rect.top / scrollableDistance, 0), 1);
       const frameIndex = reducedMotionRef.current ? 0 : Math.min(FRAME_COUNT - 1, Math.round(nextProgress * (FRAME_COUNT - 1)));
+      const previousIndex = requestedFrameRef.current;
       requestedFrameRef.current = frameIndex;
-      prioritizeFrames(frameIndex);
+      prioritizeFrames(frameIndex, previousIndex);
       drawFrame(frameIndex);
       const reactProgress = Math.round(nextProgress * 200) / 200;
       if (reactProgress !== reactProgressRef.current) {
@@ -161,39 +208,37 @@ export default function ScrollVideoSection({ children }: ScrollVideoSectionProps
     };
 
     const scheduleUpdate = () => {
-      if (!activeRef.current || animationFrameRef.current !== null) return;
+      if (animationFrameRef.current !== null) return;
       animationFrameRef.current = requestAnimationFrame(updateFromScroll);
     };
 
-    function scheduleIdleLoading() {
-      if (!mountedRef.current) return;
-      const idleWindow = window as Window & { requestIdleCallback?: (callback: (deadline: { timeRemaining: () => number; didTimeout: boolean }) => void, options?: { timeout: number }) => number };
-      if (idleWindow.requestIdleCallback) idleHandleRef.current = idleWindow.requestIdleCallback(loadRemainingFrames, { timeout: 1500 });
-      else fallbackTimeoutRef.current = setTimeout(() => loadRemainingFrames(), 250);
-    }
-
-    function loadRemainingFrames(deadline?: { timeRemaining: () => number; didTimeout: boolean }) {
-      if (!mountedRef.current) return;
-      let queued = 0;
-      for (let index = 0; index < FRAME_COUNT; index += 1) {
-        if (imagesRef.current[index] || loadingRef.current.has(index)) continue;
-        void loadFrame(index);
-        queued += 1;
-        if (queued >= 4 || (deadline && !deadline.didTimeout && deadline.timeRemaining() < 4)) break;
-      }
-      if (imagesRef.current.some((image, index) => !image && !loadingRef.current.has(index))) scheduleIdleLoading();
-    }
+    const handleScroll = () => {
+      hasScrollInputRef.current = true;
+      scheduleUpdate();
+    };
 
     const observer = new IntersectionObserver(([entry]) => {
       activeRef.current = entry.isIntersecting;
-      if (entry.isIntersecting) { resizeCanvas(); scheduleUpdate(); }
+      if (entry.isIntersecting) {
+        resizeCanvas();
+        prioritizeFrames(requestedFrameRef.current, requestedFrameRef.current);
+      }
+      scheduleUpdate();
     }, { rootMargin: "100% 0px" });
 
     observer.observe(section);
-    void loadFrame(0).then(() => { resizeCanvas(); scheduleUpdate(); });
-    for (let index = 1; index < INITIAL_FRAME_BATCH; index += 1) void loadFrame(index);
-    scheduleIdleLoading();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    const poster = posterRef.current;
+    const syncPosterFrame = () => {
+      if (!poster?.complete || !poster.naturalWidth) return;
+      imagesRef.current[0] = poster;
+      resizeCanvas();
+      scheduleUpdate();
+    };
+    syncPosterFrame();
+    poster?.addEventListener("load", syncPosterFrame);
+    prioritizeFrames(0, 0);
+    updateFromScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", resizeCanvas, { passive: true });
     window.addEventListener("orientationchange", resizeCanvas, { passive: true });
 
@@ -201,22 +246,36 @@ export default function ScrollVideoSection({ children }: ScrollVideoSectionProps
       mountedRef.current = false;
       observer.disconnect();
       if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-      const idleWindow = window as Window & { cancelIdleCallback?: (handle: number) => void };
-      if (idleHandleRef.current !== null && idleWindow.cancelIdleCallback) idleWindow.cancelIdleCallback(idleHandleRef.current);
-      if (fallbackTimeoutRef.current !== null) clearTimeout(fallbackTimeoutRef.current);
-      window.removeEventListener("scroll", scheduleUpdate);
+      poster?.removeEventListener("load", syncPosterFrame);
+      window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", resizeCanvas);
       window.removeEventListener("orientationchange", resizeCanvas);
       loadedImages.forEach((image) => { if (image) { image.onload = null; image.onerror = null; } });
-      pendingLoads.clear();
+      loadingIndexes.clear();
+      queuedRef.current = [];
+      queuedIndexes.clear();
     };
   }, []);
 
   return (
     <section ref={sectionRef} className="relative bg-background">
       <div className="sticky top-0 h-screen overflow-hidden">
-        <canvas ref={canvasRef} className="pointer-events-none h-full w-full" aria-hidden="true" />
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(13,13,13,1)_0%,rgba(13,13,13,0.96)_16%,rgba(13,13,13,0.82)_34%,rgba(13,13,13,0.56)_52%,rgba(13,13,13,0.26)_72%,rgba(13,13,13,0.08)_88%,rgba(13,13,13,0)_100%)] sm:bg-[linear-gradient(to_right,rgba(13,13,13,0.98)_0%,rgba(13,13,13,0.9)_18%,rgba(13,13,13,0.72)_36%,rgba(13,13,13,0.44)_56%,rgba(13,13,13,0.18)_78%,rgba(13,13,13,0.04)_100%)] lg:bg-[linear-gradient(to_right,rgba(13,13,13,0.98)_0%,rgba(13,13,13,0.9)_20%,rgba(13,13,13,0.7)_40%,rgba(13,13,13,0.4)_60%,rgba(13,13,13,0.14)_82%,rgba(13,13,13,0.02)_100%)]" />
+        <div className="relative h-full w-full">
+          <Image
+            ref={posterRef}
+            src={getFrameSrc(0)}
+            alt=""
+            fill
+            priority
+            decoding="sync"
+            unoptimized
+            sizes="100vw"
+            className="pointer-events-none z-0 object-cover object-center max-[389px]:translate-x-[14vw] max-[389px]:object-[78%_center] md:translate-x-[1vw] lg:translate-x-[16vw] lg:object-[64%_center] xl:translate-x-[19vw] xl:object-[62%_center] 2xl:translate-x-[20vw] 2xl:object-[60%_center]"
+            aria-hidden="true"
+          />
+          <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10 h-full w-full" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-0 z-20 bg-[linear-gradient(to_right,rgba(13,13,13,1)_0%,rgba(13,13,13,0.96)_16%,rgba(13,13,13,0.82)_34%,rgba(13,13,13,0.56)_52%,rgba(13,13,13,0.26)_72%,rgba(13,13,13,0.08)_88%,rgba(13,13,13,0)_100%)] sm:bg-[linear-gradient(to_right,rgba(13,13,13,0.98)_0%,rgba(13,13,13,0.9)_18%,rgba(13,13,13,0.72)_36%,rgba(13,13,13,0.44)_56%,rgba(13,13,13,0.18)_78%,rgba(13,13,13,0.04)_100%)] lg:bg-[linear-gradient(to_right,rgba(13,13,13,0.98)_0%,rgba(13,13,13,0.9)_20%,rgba(13,13,13,0.7)_40%,rgba(13,13,13,0.4)_60%,rgba(13,13,13,0.14)_82%,rgba(13,13,13,0.02)_100%)]" />
+        </div>
       </div>
       <ScrollVideoProgressContext.Provider value={progress}>
         <div className="relative z-10 mt-[-100vh]">{children}</div>

@@ -1,3 +1,5 @@
+import type { DiscountSource, DiscountType } from "@/lib/discounts/types";
+
 export type AppointmentStatus =
   | "confirmed"
   | "completed"
@@ -26,11 +28,12 @@ export type AppointmentRecord = {
   discount_amount?: number | null;
   final_price?: number | null;
   promotion_id?: string | null;
+  loyalty_reward_id?: string | null;
   recurring_booking_id?: string | null;
   recurring_occurrence_date?: string | null;
-  discount_source?: "promotion" | "custom" | "loyalty" | null;
+  discount_source?: DiscountSource | null;
   discount_label?: string | null;
-  discount_type?: "percentage" | "fixed" | "fixed_discount" | "free_service" | null;
+  discount_type?: DiscountType | null;
   discount_value?: number | null;
   created_at: string;
   updated_at: string;

@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import type { SelectedWorkRecord } from "@/lib/selected-work/types";
 
 export async function getActiveSelectedWork() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("selected_work")
-    .select("*")
+    .select("id,title,image_url,is_active,sort_order,created_at,updated_at")
     .eq("is_active", true)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
