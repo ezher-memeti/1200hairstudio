@@ -13,6 +13,8 @@
     "test:pos": "node scripts/test-pos.mjs",
     "test:security-booking": "node scripts/test-security-booking.mjs",
     "test:authorization": "node scripts/test-authorization.mjs",
+    "test:whatsapp": "node scripts/test-whatsapp.cjs",
+    "test:whatsapp-webhook": "node scripts/test-whatsapp-webhook.cjs",
     "test:receipt-pdf": "node scripts/test-receipt-pdf.cjs",
     "validate:gmail-oauth": "node --env-file=.env.local scripts/validate-gmail-oauth.mjs"
   },
