@@ -17,7 +17,7 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
         <div className="relative w-full max-w-[24rem] self-center overflow-hidden bg-surface md:row-span-2 md:max-w-[22rem] md:justify-self-start lg:max-w-[25rem] xl:max-w-[28rem]">
           <div className="relative aspect-square w-full">
             <Image
-              src="/images/barber.jpeg"
+              src="/images/barber.webp"
               alt="Portrait of the barber"
               fill
               className="object-cover"
