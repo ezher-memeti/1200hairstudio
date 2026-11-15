@@ -71,6 +71,42 @@ function get(params) { return new Request('https://preview.example/api/webhooks/
 let passed = 0;
 async function test(name, fn) { Object.assign(process.env, env); await fn(); passed++; console.log(`PASS ${name}`); }
 (async () => { try {
+  await test("Bare callback reproduces exact forbidden JSON without an auth requirement", async () => {
+    const r = await setup().GET(get({})); assert.equal(r.status, 403);
+    assert.deepEqual(await r.json(), { success: false, code: "forbidden" });
+  });
+  await test("Only exact webhook path bypasses session middleware for GET and POST", async () => {
+    const { NextRequest } = require("next/server"); let authCalls = 0;
+    const protectedResponse = new Response("existing protected behavior", { status: 403 });
+    const { middleware } = load("middleware.ts", {
+      "@/lib/supabase/middleware": { updateSession: async () => { authCalls++; return protectedResponse; } },
+    });
+    for (const method of ["GET", "POST"]) {
+      const req = new NextRequest("https://preview.example/api/webhooks/whatsapp?probe=1", { method });
+      const r = await middleware(req); assert.equal(r.status, 200);
+      assert.equal(r.headers.get("x-middleware-next"), "1"); assert.equal(r.headers.get("location"), null);
+      assert.equal(r.headers.get("set-cookie"), null);
+    }
+    assert.equal(authCalls, 0);
+    for (const pathname of ["/admin", "/admin/login", "/account", "/", "/api/admin/whatsapp/test", "/api/webhooks/other", "/api/webhooks/whatsapp-other", "/api/webhooks/whatsapp/child"]) {
+      assert.equal(await middleware(new NextRequest("https://preview.example" + pathname)), protectedResponse);
+    }
+    assert.equal(authCalls, 8);
+  });
+  await test("Valid webhook works with no session and cross-site Origin while unsigned POST remains rejected", async () => {
+    const { middleware } = load("middleware.ts", {
+      "@/lib/supabase/middleware": { updateSession: async () => { throw new Error("Session service must not be reached"); } },
+    });
+    const { NextRequest } = require("next/server");
+    const url = get({ "hub.mode": "subscribe", "hub.verify_token": env.WHATSAPP_WEBHOOK_VERIFY_TOKEN, "hub.challenge": "123" }).url;
+    const request = new NextRequest(url, { headers: { Origin: "https://www.facebook.com" } });
+    assert.equal((await middleware(request)).headers.get("x-middleware-next"), "1");
+    assert.equal(await (await setup().GET(request)).text(), "123");
+    const signed = post({object:"unsupported"}); signed.headers.set("Origin", "https://www.facebook.com");
+    assert.equal((await setup().POST(signed)).status, 200);
+    assert.equal((await setup().POST(post(payload(), {signature:null}))).status,401);
+    assert.equal((await setup().GET(get({"hub.mode":"subscribe","hub.verify_token":"wrong","hub.challenge":"123"}))).status,403);
+  });
   await test("GET verifies token/mode and returns exact plain-text challenge", async () => {
     const r = await setup().GET(get({ "hub.mode": "subscribe", "hub.verify_token": env.WHATSAPP_WEBHOOK_VERIFY_TOKEN, "hub.challenge": "0012345" }));
     assert.equal(r.status, 200); assert.equal(await r.text(), "0012345"); assert(r.headers.get("content-type").startsWith("text/plain"));

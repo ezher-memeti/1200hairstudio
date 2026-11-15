@@ -78,6 +78,50 @@ References:
 - [Meta webhook verification and signatures](https://developers.facebook.com/docs/graph-api/webhooks/getting-started/)
 - [WhatsApp overview](https://developers.facebook.com/documentation/business-messaging/whatsapp/overview/)
 
+## Diagnosing Preview verification failures
+
+Opening the bare callback in a browser returns HTTP 403 with
+`{"success":false,"code":"forbidden"}` **by design**. That exact response is produced by
+`GET` in `src/app/api/webhooks/whatsapp/route.ts`, through `reply("forbidden", 403)`, when
+verification parameters are absent, duplicate, invalid, or the verify token does not match.
+It is not evidence of an admin login, CSRF rejection, or Vercel protection response.
+
+Meta's actual GET includes exactly one of each:
+
+- `hub.mode=subscribe`
+- `hub.verify_token` matching `WHATSAPP_WEBHOOK_VERIFY_TOKEN` byte-for-byte
+- `hub.challenge` containing the numeric challenge that must be echoed as plain text
+
+The global Next.js middleware now bypasses Supabase session refresh **only** for the exact
+`/api/webhooks/whatsapp` pathname. This applies to both GET and POST. It does not bypass
+webhook token/HMAC validation. There are no admin auth, cookie, or Origin requirements in
+these handlers. Admin test sends and every other route retain their existing middleware and
+authorization behavior. No proxy file, redirect/rewrite rule, or Vercel config file was found
+in the repository that intercepts this callback. Hosted Preview protection/configuration was
+not inspected or changed; it is managed outside this repository.
+
+When Meta cannot verify:
+
+1. Confirm the callback is the exact HTTPS Preview URL for a deployment containing this route.
+   Use the bare callback URL in Meta's Callback URL field, not a manually constructed query URL.
+2. Check that the **Verify Token** entered in Meta equals the server's Preview-scoped
+   `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, including case and accidental whitespace. Do not use
+   `WHATSAPP_APP_SECRET` or `WHATSAPP_ACCESS_TOKEN` as the verification token.
+3. Ensure that Preview environment variables apply to the chosen branch/deployment and that
+   the deployment was built after configuration changes. A missing verify token returns 503,
+   not the `forbidden` response. No environment values were changed by this fix.
+4. Test anonymously, not just in a browser already signed into Vercel. Deployment protection
+   may allow your browser while blocking Meta. Permit the narrowly scoped callback as described
+   above; leave other route protection intact. Redirects, login HTML or platform access-denied
+   responses are distinct from the handler's JSON 403.
+5. A correct Meta-style request must return HTTP 200, `Content-Type: text/plain`, and exactly
+   the challenge. An unsigned POST must still return 401. Never log full verification URLs,
+   request tokens, signatures or app secrets when diagnosing requests.
+
+A token-bearing request was not sent to any live Preview during this local investigation.
+The bare-URL response explains that browser observation; it does not independently establish
+which parameter/configuration is wrong in Meta's actual request.
+
 ## Validation, status transitions and retries
 
 POST reads at most 256 KiB of **raw bytes**, verifies `X-Hub-Signature-256: sha256=<64 hex>` with
