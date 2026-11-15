@@ -94,7 +94,7 @@ body {
   }
 
   to {
-    transform: translate3d(-50%, 0, 0);
+    transform: translate3d(calc(-1 * var(--announcement-distance, 50%)), 0, 0);
   }
 }
 

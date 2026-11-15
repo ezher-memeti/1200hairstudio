@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import GoogleReviewsSection, { GoogleReviewsPlaceholder } from "@/components/home/GoogleReviewsSection";
 import BookingSection from "@/components/home/BookingSection";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -8,7 +9,7 @@ import SelectedWork from "@/components/home/SelectedWork";
 import ServicesSection from "@/components/home/ServicesSection";
 import ScrollVideoSection from "@/components/home/ScrollVideoSection";
 import SectionTwo from "@/components/home/SectionTwo";
-import ContactSection from "@/components/home/ContactSection";
+import ContactSectionLoader from "@/components/home/ContactSectionLoader";
 import VisitStudio from "@/components/home/VisitStudio";
 import { AnnouncementModalLoader, BookingAnnouncementLoader } from "@/components/announcements/AnnouncementLoaders";
 import { getHomepageContent } from "@/lib/homepage-content";
@@ -37,6 +38,10 @@ export default async function Home() {
           <SectionTwo content={content} />
         </ScrollVideoSection>
 
+        <Suspense fallback={<GoogleReviewsPlaceholder />}>
+          <GoogleReviewsSection />
+        </Suspense>
+
         <ServicesSection content={content} />
 
         <Suspense fallback={null}>
@@ -50,7 +55,9 @@ export default async function Home() {
         <MeetTheBarber content={content} />
 
         {contactSettings && (
-          <ContactSection settings={contactSettings} />
+          <Suspense fallback={null}>
+            <ContactSectionLoader settings={contactSettings} />
+          </Suspense>
         )}
 
         <VisitStudio
