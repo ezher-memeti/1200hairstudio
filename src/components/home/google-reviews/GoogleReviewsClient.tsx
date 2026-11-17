@@ -126,7 +126,7 @@ export default function GoogleReviewsClient({ data }: { data: GoogleReviews }) {
     resumeTimer.current = setTimeout(() => { if (browsingMode.current === "touch") endBrowsing(); }, 700);
   }
   if (!data.reviews.length) return null;
-  return <section id="reviews" aria-label="Google reviews" className={`${styles.section} bg-background font-primary`}
+  return <section id="reviews" aria-label="Google reviews" className={`${styles.section} font-primary`}
     data-browsing={browsing ?? undefined} data-touching={touching}>
     <div className={`page-container ${styles.container}`}>
     <div className={styles.viewport} ref={viewport} role="region" tabIndex={0}

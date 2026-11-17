@@ -35,12 +35,13 @@ export default async function Home() {
       <main>
         <ScrollVideoSection>
           <Hero content={content} />
+          <Suspense fallback={<GoogleReviewsPlaceholder />}>
+            <GoogleReviewsSection />
+          </Suspense>
           <SectionTwo content={content} />
         </ScrollVideoSection>
 
-        <Suspense fallback={<GoogleReviewsPlaceholder />}>
-          <GoogleReviewsSection />
-        </Suspense>
+
 
         <ServicesSection content={content} />
 

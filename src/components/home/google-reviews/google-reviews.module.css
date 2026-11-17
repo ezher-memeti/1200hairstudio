@@ -1,4 +1,6 @@
 .section { padding:22px 0; }
+.revealContent { opacity:calc(var(--reviews-reveal-opacity,1) * var(--reviews-section-two-opacity,1)); transform:translate3d(0,calc(var(--reviews-reveal-y,0px) + var(--reviews-section-two-y,0px)),0); transition:transform 500ms ease-out,opacity 500ms ease-out; }
+.revealContent:focus-within { opacity:1; transform:none; }
 .container { max-width:1120px; min-width:0; }
 .viewport {
   --review-gap:16px;
