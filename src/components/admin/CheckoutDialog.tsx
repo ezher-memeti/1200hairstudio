@@ -1,7 +1,11 @@
 "use client";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { completeCheckout } from "@/app/actions/checkout";
 import AdminSelect from "@/components/admin/AdminSelect";
 import type { PaymentMethodSetting } from "@/lib/admin/settings";
@@ -13,6 +17,10 @@ const field = "mt-2 min-h-11 w-full border border-border bg-background px-3 text
 const paymentLabel = (value: string) => value.replaceAll("_", " ").toUpperCase();
 
 export default function CheckoutDialog({ appointment, promotions, enabledPaymentMethods, onClose }: { appointment: FinanceAppointment; promotions: FinancePromotion[]; enabledPaymentMethods: PaymentMethodSetting[]; onClose: () => void }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const router = useRouter();
   const [discountMode, setDiscountMode] = useState<DiscountMode>(appointment.discountAmount > 0 ? "existing" : "none");
   const [promotionId, setPromotionId] = useState(appointment.promotionId ?? "");
@@ -62,27 +70,27 @@ export default function CheckoutDialog({ appointment, promotions, enabledPayment
     <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-background/80 p-3 backdrop-blur-sm sm:items-center">
       <section className="my-auto w-full max-w-3xl overflow-visible border border-border bg-surface">
         <header className="sticky top-0 z-10 flex justify-between gap-4 border-b border-border bg-surface p-4 sm:p-5">
-          <div className="min-w-0"><p className="text-xs uppercase tracking-[.18em] text-accent">Checkout</p><h2 className="mt-2 break-words font-admin-display text-2xl uppercase text-foreground sm:text-3xl">{appointment.serviceName}</h2><p className="mt-1 break-words text-sm text-foreground-muted">{appointment.customerName} · {appointment.bookingReference}</p></div>
+          <div className="min-w-0"><p className="text-xs uppercase tracking-[.18em] text-accent">{ui("m3ac8e9e58c5a")}</p><h2 className="mt-2 break-words font-admin-display text-2xl uppercase text-foreground sm:text-3xl">{appointment.serviceName}</h2><p className="mt-1 break-words text-sm text-foreground-muted">{appointment.customerName} · {appointment.bookingReference}</p></div>
           <button type="button" onClick={onClose} className="size-11 shrink-0 border border-border">×</button>
         </header>
         <div className="space-y-6 p-5 sm:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminSelect label="Discount" value={discountMode} onChange={(value) => setDiscountMode(value as DiscountMode)} options={discountOptions} />
-            {discountMode === "promotion" ? <AdminSelect label="Promotion" value={promotionId} onChange={setPromotionId} placeholder="Choose promotion" options={promotions.map((item) => ({ value: item.id, label: item.name }))} /> : null}
-            {discountMode.startsWith("manual") ? <><label className="text-xs text-foreground-muted">Discount value<input value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} className={field}/></label><label className="text-xs text-foreground-muted sm:col-span-2">Reason<input value={discountReason} onChange={(event) => setDiscountReason(event.target.value)} className={field}/></label></> : null}
-            <AdminSelect label="Tip" value={tipMode} onChange={(value) => setTipMode(value as typeof tipMode)} options={[{ value: "none", label: "No tip" }, { value: "percentage", label: "Percentage" }, { value: "fixed", label: "Custom CHF" }]} />
-            {tipMode !== "none" ? <label className="text-xs text-foreground-muted">Tip value<input value={tipValue} onChange={(event) => setTipValue(event.target.value)} className={field}/></label> : null}
+            <AdminSelect label={ui("mb524936d7aa1")} value={discountMode} onChange={(value) => setDiscountMode(value as DiscountMode)} options={discountOptions} />
+            {discountMode === "promotion" ? <AdminSelect label={ui("m550ae25c2eee")} value={promotionId} onChange={setPromotionId} placeholder={ui("m40fd0a17c78f")} options={promotions.map((item) => ({ value: item.id, label: item.name, localize: false }))} /> : null}
+            {discountMode.startsWith("manual") ? <><label className="text-xs text-foreground-muted">{ui("mcfbd2d59622d")}<input value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} className={field}/></label><label className="text-xs text-foreground-muted sm:col-span-2">{ui("mf219cc0614ae")}<input value={discountReason} onChange={(event) => setDiscountReason(event.target.value)} className={field}/></label></> : null}
+            <AdminSelect label={ui("md19ceca50146")} value={tipMode} onChange={(value) => setTipMode(value as typeof tipMode)} options={[{ value: "none", label: "No tip" }, { value: "percentage", label: "Percentage" }, { value: "fixed", label: "Custom CHF" }]} />
+            {tipMode !== "none" ? <label className="text-xs text-foreground-muted">{ui("m7f1581cdfb80")}<input value={tipValue} onChange={(event) => setTipValue(event.target.value)} className={field}/></label> : null}
           </div>
-          <div className="border border-border bg-background/30 p-4 text-sm">{[["Subtotal", subtotal], ["Discount", -discount], ["Tax", 0], ["Final total", total], ["Tip", tip], ["Amount to collect", due]].map(([label, value]) => <div key={String(label)} className="flex justify-between py-1.5"><span className="text-foreground-muted">{label}</span><span>CHF {Number(value).toFixed(2)}</span></div>)}</div>
+          <div className="border border-border bg-background/30 p-4 text-sm">{[["Subtotal", subtotal], ["Discount", -discount], ["Tax", 0], ["Final total", total], ["Tip", tip], ["Amount to collect", due]].map(([label, value]) => <div key={String(label)} className="flex justify-between py-1.5"><span className="text-foreground-muted">{uiText(label)}</span><span>CHF {Number(value).toFixed(2)}</span></div>)}</div>
           <section>
-            <div className="flex items-center justify-between"><h3 className="text-xs uppercase tracking-[.18em] text-foreground-muted">Payment Split</h3><button type="button" onClick={() => setPayments((current) => [...current, { method: enabledPaymentMethods[0] ?? "cash", amount: "", cashReceived: "" }])} className="min-h-10 text-xs uppercase text-accent">+ Add Method</button></div>
-            <div className="mt-3 space-y-3">{payments.map((payment, index) => <div key={index} className="grid gap-3 border border-border p-3 sm:grid-cols-3"><AdminSelect label="Payment method" value={payment.method} onChange={(value) => update(index, { method: value as PaymentMethodSetting })} options={paymentOptions}/><label className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">Payment amount<input aria-label="Payment amount" value={payment.amount} onChange={(event) => update(index, { amount: event.target.value })} placeholder="Amount" className={field}/></label>{payment.method === "cash" ? <label className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">Cash received<input aria-label="Cash received" value={payment.cashReceived} onChange={(event) => update(index, { cashReceived: event.target.value })} placeholder="Cash received" className={field}/></label> : <button type="button" onClick={() => setPayments((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="min-h-11 self-end border border-border text-xs uppercase text-foreground-muted">Remove</button>}</div>)}</div>
-            <button type="button" onClick={balanceLast} className="mt-3 min-h-10 text-xs uppercase tracking-[.14em] text-accent">Balance final split</button>
+            <div className="flex items-center justify-between"><h3 className="text-xs uppercase tracking-[.18em] text-foreground-muted">{ui("m207a22aadd3a")}</h3><button type="button" onClick={() => setPayments((current) => [...current, { method: enabledPaymentMethods[0] ?? "cash", amount: "", cashReceived: "" }])} className="min-h-10 text-xs uppercase text-accent">{ui("m0a5b80018435")}</button></div>
+            <div className="mt-3 space-y-3">{payments.map((payment, index) => <div key={index} className="grid gap-3 border border-border p-3 sm:grid-cols-3"><AdminSelect label={ui("m0e55fb3b04e2")} value={payment.method} onChange={(value) => update(index, { method: value as PaymentMethodSetting })} options={paymentOptions}/><label className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">{ui("mbd3948c0331b")}<input aria-label={ui("mbd3948c0331b")} value={payment.amount} onChange={(event) => update(index, { amount: event.target.value })} placeholder={ui("m43dc8532f7e5")} className={field}/></label>{payment.method === "cash" ? <label className="text-[10px] uppercase tracking-[.16em] text-foreground-muted">{ui("m45faa9a65136")}<input aria-label={ui("m45faa9a65136")} value={payment.cashReceived} onChange={(event) => update(index, { cashReceived: event.target.value })} placeholder={ui("m45faa9a65136")} className={field}/></label> : <button type="button" onClick={() => setPayments((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="min-h-11 self-end border border-border text-xs uppercase text-foreground-muted">{ui("me963907dac5c")}</button>}</div>)}</div>
+            <button type="button" onClick={balanceLast} className="mt-3 min-h-10 text-xs uppercase tracking-[.14em] text-accent">{ui("me546a098124e")}</button>
           </section>
-          <div className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm"><div><span className="text-foreground-muted">Due</span><p>CHF {due.toFixed(2)}</p></div><div><span className="text-foreground-muted">Paid</span><p>CHF {paid.toFixed(2)}</p></div><div><span className="text-foreground-muted">Change</span><p className="text-accent">CHF {change.toFixed(2)}</p></div></div>
-          {feedback ? <p className="text-sm text-rose-300">{feedback}</p> : null}
+          <div className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm"><div><span className="text-foreground-muted">{ui("m145caf292855")}</span><p>CHF {due.toFixed(2)}</p></div><div><span className="text-foreground-muted">{ui("mdc9d4584a554")}</span><p>CHF {paid.toFixed(2)}</p></div><div><span className="text-foreground-muted">{ui("m64fbd995d3b6")}</span><p className="text-accent">CHF {change.toFixed(2)}</p></div></div>
+          {feedback ? <p className="text-sm text-rose-300">{uiText(feedback)}</p> : null}
         </div>
-        <footer className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-border bg-surface p-4 min-[430px]:flex-row min-[430px]:justify-end"><button type="button" onClick={onClose} className="min-h-11 border border-border px-5 text-xs uppercase">Cancel</button><button type="button" disabled={pending || Math.round(paid * 100) !== Math.round(due * 100)} onClick={submit} className="min-h-11 bg-accent px-5 text-xs uppercase text-background disabled:opacity-40">{pending ? "Completing…" : "Complete Sale"}</button></footer>
+        <footer className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-border bg-surface p-4 min-[430px]:flex-row min-[430px]:justify-end"><button type="button" onClick={onClose} className="min-h-11 border border-border px-5 text-xs uppercase">{ui("m77dfd2135f4d")}</button><button type="button" disabled={pending || Math.round(paid * 100) !== Math.round(due * 100)} onClick={submit} className="min-h-11 bg-accent px-5 text-xs uppercase text-background disabled:opacity-40">{uiText(pending ? "Completing…" : "Complete Sale")}</button></footer>
       </section>
     </div>
   );

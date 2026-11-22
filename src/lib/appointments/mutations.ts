@@ -1,3 +1,6 @@
+import { publicBookingModeError } from "@/lib/site-mode-booking";
+import { getLocale } from "next-intl/server";
+import { resolveLocale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -55,7 +58,7 @@ export async function validateAppointmentRequest(
 ) {
   const { data: service, error: serviceError } = await supabase
     .from("services")
-    .select("id, name, price, duration_min, duration_max, is_active")
+    .select("id, name, name_de, price, duration_min, duration_max, is_active")
     .eq("id", input.serviceId)
     .maybeSingle();
 
@@ -148,6 +151,7 @@ export async function sendConfirmationEmailSafely(details: {
   appointmentId?: string | null;
   customerName: string;
   serviceName: string;
+  serviceNameDe?: string | null;
   startAt: string;
   endAt: string;
   price: number;
@@ -167,6 +171,8 @@ export async function sendConfirmationEmailSafely(details: {
 export async function createAppointment(
   input: AppointmentRequestInput,
 ) {
+  const modeError = await publicBookingModeError();
+  if (modeError) return { error: modeError };
   const supabase = await createClient();
 
   const { user, role } = await getCurrentUserRole();
@@ -211,7 +217,7 @@ export async function createAppointment(
   let promotionPrice: EffectiveServicePrice | null = null;
   let adminNotificationDetails: Parameters<typeof sendAdminBookingNotificationEmail>[0] | null = null;
   const credentials = createBookingCredentials();
-  const manageUrl = getBookingManagementUrl(credentials.managementToken);
+  const manageUrl = getBookingManagementUrl(credentials.managementToken, resolveLocale(await getLocale()));
 
   if (role === "customer" && user) {
     const customer = await ensureCustomerRecord(
@@ -246,6 +252,7 @@ export async function createAppointment(
     const { data: createdAppointment, error: insertError } = await adminSupabase
       .from("appointments")
       .insert({
+        booking_locale: resolveLocale(await getLocale()),
         customer_id: customer.id,
         service_id: service.id,
         start_at: startAt,
@@ -312,6 +319,7 @@ export async function createAppointment(
         appointmentId: createdAppointment.id,
         customerName: fullName || customer.full_name || "Customer",
         serviceName: service.name,
+        serviceNameDe: service.name_de,
         startAt,
         endAt,
         price: finalPrice,
@@ -324,6 +332,7 @@ export async function createAppointment(
       to: recipientEmail,
       customerName: fullName || customer.full_name || "Customer",
       serviceName: service.name,
+      serviceNameDe: service.name_de,
       startAt,
       endAt,
       price: finalPrice,
@@ -386,6 +395,7 @@ export async function createAppointment(
     const { data: createdAppointment, error: guestAppointmentError } = await adminSupabase
       .from("appointments")
       .insert({
+        booking_locale: resolveLocale(await getLocale()),
         customer_id: guestCustomerId,
         service_id: service.id,
         booking_source: "customer",
@@ -437,6 +447,7 @@ export async function createAppointment(
       appointmentId: createdAppointment.id,
       customerName: fullName,
       serviceName: service.name,
+      serviceNameDe: service.name_de,
       startAt,
       endAt,
       price: promotionPrice?.finalPrice ?? service.price,

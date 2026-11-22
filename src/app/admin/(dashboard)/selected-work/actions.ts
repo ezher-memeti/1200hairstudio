@@ -1,5 +1,7 @@
 "use server";
 
+import { contentPayload } from "@/i18n/content-editing";
+import { isLocale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -170,6 +172,11 @@ export async function upsertSelectedWork(formData: FormData) {
     const supabase = await requireAdminClient();
     const id = (formData.get("id") ?? "").toString().trim() || undefined;
     const title = (formData.get("title") ?? "").toString().trim() || null;
+    const contentLocale = formData.get("contentLocale") ?? "en";
+    if (!isLocale(contentLocale)) return { error: "Invalid content language." };
+    const german = { title: (formData.get("title_de") ?? "").toString() };
+    const textPayload = contentPayload({ title }, ["title"], contentLocale, german, !id);
+    let savedId = id;
     const isActive = (formData.get("isActive") ?? "false") === "true";
     const currentImageUrl = (formData.get("currentImageUrl") ?? "")
       .toString()
@@ -209,25 +216,26 @@ export async function upsertSelectedWork(formData: FormData) {
         uploadedImagePath && previousImageUrl && previousImageUrl !== imageUrl,
       );
 
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("selected_work")
         .update({
-          title,
+          ...textPayload,
           image_url: imageUrl,
           is_active: isActive,
         })
-        .eq("id", id);
+        .eq("id", id).select("id").single();
 
-      if (error) {
+      if (error || !updated) {
         if (uploadedImagePath) {
           await supabase.storage
             .from(SELECTED_WORK_IMAGE_BUCKET)
             .remove([uploadedImagePath]);
         }
 
-        throw new Error(error.message);
+        throw new Error(error?.message ?? "Selected work item was not found.");
       }
 
+      savedId = updated.id as string;
       if (didReplaceImage) {
         await removeStoredImage(supabase, previousImageUrl);
       }
@@ -241,12 +249,13 @@ export async function upsertSelectedWork(formData: FormData) {
 
       const nextSortOrder = (highestOrderItem?.sort_order ?? 0) + 1;
 
-      const { error } = await supabase.from("selected_work").insert({
-        title,
+      const { data: created, error } = await supabase.from("selected_work").insert({
+        ...textPayload,
         image_url: imageUrl,
         is_active: isActive,
         sort_order: nextSortOrder,
-      });
+      }).select("id").single();
+      savedId = created?.id;
 
       if (error) {
         if (uploadedImagePath) {
@@ -263,7 +272,7 @@ export async function upsertSelectedWork(formData: FormData) {
     revalidatePath("/admin/selected-work");
     revalidatePath("/admin/site-settings/selected-work");
 
-    return { success: true };
+    return { success: true, id: savedId };
   } catch (error) {
     return toActionError(error);
   }

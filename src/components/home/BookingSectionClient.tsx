@@ -1,4 +1,11 @@
 "use client";
+import { useLocale as useInterfaceLocale } from "next-intl";
+import { textFor as interfaceText } from "@/i18n/text";
+
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import type {
   Dispatch,
@@ -6,8 +13,8 @@ import type {
   SetStateAction,
 } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { bookAppointment, clearGuestBookingSession } from "@/app/actions/appointments";
 import { getServiceBookingAvailability } from "@/app/actions/booking-availability";
 import { getHomepageBookingUserState } from "@/app/actions/homepage-user-state";
@@ -92,6 +99,9 @@ function StepButton({
 }
 
 function BookingProgress({ step }: { step: number }) {
+  const interfaceLocale = useInterfaceLocale();
+  const displayText = useCallback((value: string) => interfaceText(interfaceLocale, value), [interfaceLocale]);
+
   return (
     <div className="grid grid-cols-4 gap-2 border-b border-border pb-6 sm:gap-3">
       {stepLabels.map(([index, label], itemIndex) => {
@@ -120,7 +130,7 @@ function BookingProgress({ step }: { step: number }) {
                     : "text-foreground-muted"
               }`}
             >
-              {label}
+              {displayText(label)}
             </p>
             <div className="h-px w-full bg-border">
               <div
@@ -169,9 +179,11 @@ function formatPrice(value: number) {
 }
 
 function ServicePrice({ service, compact = false }: { service: Service; compact?: boolean }) {
+  const ui = useTranslations("ui");
+
   if (!service.promotionId) return <span className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">{service.price}</span>;
   const badge = service.discountType === "percentage" ? `${service.discountValue}% OFF` : `CHF ${service.discountValue} OFF`;
-  return <span className={`flex ${compact ? "items-center justify-end text-right" : "items-end"} flex-wrap gap-2`}><span className="font-primary text-xs uppercase tracking-[0.16em] text-foreground-muted line-through">{formatPrice(service.originalPrice)}</span><span className="border border-accent/50 bg-accent/10 px-2 py-1 font-primary text-[9px] font-semibold uppercase tracking-[0.16em] text-accent">{badge}</span><span className="font-display text-2xl uppercase text-foreground">{formatPrice(service.finalPrice)}</span>{compact ? null : <span className="basis-full font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your promotional price</span>}</span>;
+  return <span className={`flex ${compact ? "items-center justify-end text-right" : "items-end"} flex-wrap gap-2`}><span className="font-primary text-xs uppercase tracking-[0.16em] text-foreground-muted line-through">{formatPrice(service.originalPrice)}</span><span className="border border-accent/50 bg-accent/10 px-2 py-1 font-primary text-[9px] font-semibold uppercase tracking-[0.16em] text-accent">{badge}</span><span className="font-display text-2xl uppercase text-foreground">{formatPrice(service.finalPrice)}</span>{compact ? null : <span className="basis-full font-primary text-[10px] uppercase tracking-[0.18em] text-accent">{ui("mc10eaac08fa5")}</span>}</span>;
 }
 
 function ServiceStep({
@@ -183,12 +195,13 @@ function ServiceStep({
   services: Service[];
   onServiceSelect: (serviceId: string) => void;
 }) {
+  const ui = useTranslations("ui");
+
   return (
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="space-y-3">
         <h3 className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-4xl">
-          Choose Your Service
-        </h3>
+          {ui("m0a05f86329f2")}</h3>
       </div>
 
       <div className="border-t border-border">
@@ -264,8 +277,7 @@ function ServiceStep({
           onClick={onNext}
           disabled={!state.serviceId}
         >
-          Continue →
-        </StepButton>
+          {ui("m6c447f2c76fa")}</StepButton>
       </div>
     </div>
   );
@@ -282,14 +294,17 @@ function DateTimeStep({
   dates: BookingDate[];
   timeGroups: TimeGroup[];
 }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const hasAvailableDates = dates.some((date) => date.isAvailable);
 
   return (
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="space-y-3">
         <h3 className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-4xl">
-          Choose Your Time
-        </h3>
+          {ui("m60fe0f3fdb94")}</h3>
       </div>
 
       <div className="space-y-8">
@@ -330,7 +345,7 @@ function DateTimeStep({
                       {date.month}
                     </span>
                     <span className="mt-2 block font-primary text-[9px] uppercase tracking-[0.18em]">
-                      {date.isAvailable ? "Available" : "Closed"}
+                      {uiText(date.isAvailable ? "Available" : "Closed")}
                     </span>
                   </button>
                 );
@@ -341,26 +356,23 @@ function DateTimeStep({
 
         <div className="space-y-6">
           <p className="font-primary text-xs uppercase tracking-[0.3em] text-foreground-secondary">
-            Available Times
-          </p>
+            {ui("m9cdbf376d050")}</p>
 
           {!hasAvailableDates ? (
             <div className="border border-border bg-background px-4 py-5">
               <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                No booking dates are currently available.
-              </p>
+                {ui("m53ff104e6418")}</p>
             </div>
           ) : timeGroups.length === 0 ? (
             <div className="border border-border bg-background px-4 py-5">
               <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                No time slots are available for the selected date and service.
-              </p>
+                {ui("m9fecfa6a9307")}</p>
             </div>
           ) : (
             timeGroups.map((group) => (
               <div key={group.label} className="space-y-3">
                 <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                  {group.label}
+                  {uiText(group.label)}
                 </p>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
                   {group.slots.map((slot) => {
@@ -395,14 +407,12 @@ function DateTimeStep({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <StepButton onClick={onBack} variant="secondary">
-          ← Back
-        </StepButton>
+          {ui("mc32ae9f4a77d")}</StepButton>
         <StepButton
           onClick={onNext}
           disabled={!state.dateId || !state.time}
         >
-          Continue →
-        </StepButton>
+          {ui("m6c447f2c76fa")}</StepButton>
       </div>
     </div>
   );
@@ -424,6 +434,10 @@ function DetailsStep({
   authRole: "admin" | "customer" | null;
   allowGuestBookings: boolean;
 }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const [showNote, setShowNote] = useState(
     Boolean(state.note),
   );
@@ -440,22 +454,19 @@ function DetailsStep({
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="space-y-3">
         <h3 className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-4xl">
-          Almost Yours.
-        </h3>
+          {ui("m03bedc180236")}</h3>
       </div>
 
       {guestModeRequired ? (
         <div className="space-y-4 border border-border bg-background px-4 py-5 sm:px-5">
           <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Continue your booking
-          </p>
+            {ui("m4a34964956d6")}</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/login"
               className="inline-flex min-h-12 items-center justify-center border border-border px-4 py-3 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:border-foreground-secondary hover:text-foreground sm:text-sm"
             >
-              Login / Continue with Account
-            </Link>
+              {ui("m1a1f3caae804")}</Link>
             {allowGuestBookings ? <button
               type="button"
               onClick={() =>
@@ -470,10 +481,9 @@ function DetailsStep({
                   : "border-border text-foreground-secondary hover:border-foreground-secondary hover:text-foreground"
               }`}
             >
-              Continue as Guest
-            </button> : null}
+              {ui("m3deaa38d8306")}</button> : null}
           </div>
-          {!allowGuestBookings ? <p className="font-primary text-sm leading-6 text-foreground-secondary">Guest bookings are currently unavailable. Please sign in or create an account to continue.</p> : null}
+          {!allowGuestBookings ? <p className="font-primary text-sm leading-6 text-foreground-secondary">{ui("m9c7fea3d42fa")}</p> : null}
         </div>
       ) : null}
 
@@ -486,7 +496,7 @@ function DetailsStep({
         ].map(([key, label, type]) => (
           <label key={key} className="space-y-3">
             <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-              {label}
+              {uiText(label)}
             </span>
             <input
               type={type}
@@ -511,13 +521,11 @@ function DetailsStep({
             onClick={() => setShowNote(true)}
             className="font-primary text-xs uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground"
           >
-            + Add a Note
-          </button>
+            {ui("me4fec0231067")}</button>
         ) : (
           <label className="block space-y-3">
             <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-              Note
-            </span>
+              {ui("m2c924e308820")}</span>
             <textarea
               value={state.note}
               onChange={(event) =>
@@ -535,14 +543,12 @@ function DetailsStep({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <StepButton onClick={onBack} variant="secondary">
-          ← Back
-        </StepButton>
+          {ui("mc32ae9f4a77d")}</StepButton>
         <StepButton
           onClick={onNext}
           disabled={!canEditDetails || !isValid}
         >
-          Review →
-        </StepButton>
+          {ui("m2d28dc8a0ba1")}</StepButton>
       </div>
     </div>
   );
@@ -563,6 +569,10 @@ function ReviewStep({
   StepProps,
   "selectedService" | "selectedDate" | "state" | "setState" | "onBack" | "onNext"
 > & { barberName: string; loyaltyReward: BookingSectionClientProps["loyaltyReward"]; applyLoyaltyReward: boolean; setApplyLoyaltyReward: (value: boolean) => void }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   if (!selectedService || !selectedDate || !state.time) {
     return null;
   }
@@ -573,8 +583,7 @@ function ReviewStep({
     <div className="space-y-8 animate-[booking-panel-in_320ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="space-y-3">
         <h3 className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-4xl">
-          Your Session.
-        </h3>
+          {ui("m804cd6008264")}</h3>
       </div>
 
       <div className="space-y-3 border-t border-border pt-6">
@@ -586,20 +595,18 @@ function ReviewStep({
             className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
           />
           <span className="font-primary text-xs leading-5 text-foreground-muted sm:text-sm">
-            I would like to receive news and special offers from 1200 Hairstudio by email.
-          </span>
+            {ui("me7dd1ffc4357")}</span>
         </label>
         <p className="pl-7 font-primary text-[11px] leading-5 text-foreground-muted">
-          Optional and separate from your booking. Read our{" "}
+          {ui("mb70077afecce")}{" "}
           <Link href="/privacy" className="underline underline-offset-4 transition-colors hover:text-foreground">
-            Privacy Policy
-          </Link>
+            {ui("m9db108ba6b7f")}</Link>
           .
         </p>
       </div>
 
       <div className="space-y-6">
-        {loyaltyReward ? <div className="border-l-2 border-accent bg-background px-4 py-4"><p className="font-primary text-[10px] uppercase tracking-[0.18em] text-accent">Your Loyalty Reward</p><p className="mt-2 font-display text-2xl uppercase text-foreground">{loyaltyReward.rewardType === "free_service" ? "Free Service" : loyaltyReward.rewardType === "percentage" ? `${loyaltyReward.rewardValue}% Off` : `CHF ${Number(loyaltyReward.rewardValue ?? 0).toFixed(2)} Off`}</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><button type="button" onClick={() => setApplyLoyaltyReward(true)} className={`min-h-11 border px-4 text-[10px] uppercase tracking-[0.15em] ${applyLoyaltyReward ? "border-accent bg-accent text-background" : "border-border text-accent"}`}>Apply Reward</button><button type="button" onClick={() => setApplyLoyaltyReward(false)} className={`min-h-11 border px-4 text-[10px] uppercase tracking-[0.15em] ${!applyLoyaltyReward ? "border-foreground-muted text-foreground" : "border-border text-foreground-muted"}`}>Save for Later</button></div></div> : null}
+        {loyaltyReward ? <div className="border-l-2 border-accent bg-background px-4 py-4"><p className="font-primary text-[10px] uppercase tracking-[0.18em] text-accent">{ui("mffe4a398c773")}</p><p className="mt-2 font-display text-2xl uppercase text-foreground">{uiText(loyaltyReward.rewardType === "free_service" ? "Free Service" : loyaltyReward.rewardType === "percentage" ? `${loyaltyReward.rewardValue}% Off` : `CHF ${Number(loyaltyReward.rewardValue ?? 0).toFixed(2)} Off`)}</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><button type="button" onClick={() => setApplyLoyaltyReward(true)} className={`min-h-11 border px-4 text-[10px] uppercase tracking-[0.15em] ${applyLoyaltyReward ? "border-accent bg-accent text-background" : "border-border text-accent"}`}>{ui("mae71a8be122e")}</button><button type="button" onClick={() => setApplyLoyaltyReward(false)} className={`min-h-11 border px-4 text-[10px] uppercase tracking-[0.15em] ${!applyLoyaltyReward ? "border-foreground-muted text-foreground" : "border-border text-foreground-muted"}`}>{ui("m100371f76d3e")}</button></div></div> : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="space-y-2">
             <h4 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
@@ -625,8 +632,7 @@ function ReviewStep({
 
         <div className="border-t border-border pt-6">
           <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-            Barber
-          </p>
+            {ui("me46803d3c49b")}</p>
           <p className="mt-2 font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
             {barberName}
           </p>
@@ -635,8 +641,7 @@ function ReviewStep({
         <div className="border-t border-border pt-6">
           <div className="flex items-center justify-between gap-4">
             <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
-              Total
-            </p>
+              {ui("mb25928c69902")}</p>
             <p className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
               {formatPrice(loyaltyTotal)}
             </p>
@@ -646,11 +651,9 @@ function ReviewStep({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <StepButton onClick={onBack} variant="secondary">
-          ← Back
-        </StepButton>
+          {ui("mc32ae9f4a77d")}</StepButton>
         <StepButton onClick={onNext}>
-          Confirm Booking →
-        </StepButton>
+          {ui("m807fed5b377e")}</StepButton>
       </div>
     </div>
   );
@@ -685,6 +688,10 @@ function BookingConfirmation({
   manageUrl: string | null;
   status: string;
 }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   return (
     <div className="space-y-8 text-center animate-[booking-confirm-in_420ms_cubic-bezier(0.22,1,0.36,1)]">
       <div className="mx-auto inline-flex h-14 w-14 items-center justify-center border border-accent font-display text-3xl text-foreground">
@@ -693,10 +700,8 @@ function BookingConfirmation({
 
       <div className="space-y-4">
         <h3 className="font-display text-4xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-5xl">
-          Your Chair
-          <br />
-          Is Reserved.
-        </h3>
+          {ui("m65baf7ee51d9")}<br />
+          {ui("md0fa21ddbb4e")}</h3>
         <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary">
           {serviceTitle} · {formatPrice(price)}
         </p>
@@ -710,19 +715,18 @@ function BookingConfirmation({
           {time}
         </p>
         <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-          Booking #{bookingReference ?? "Confirmed"}
+          {ui("mdc91eaa7f1a4")}{bookingReference ?? uiText("Confirmed")}
         </p>
         <p className="font-primary text-[10px] uppercase tracking-[0.22em] text-foreground-muted">
-          {status}
+          {uiText(status)}
         </p>
       </div>
 
-      {manageUrl ? <a href={manageUrl} className="inline-flex min-h-12 items-center justify-center border border-accent px-6 font-primary text-xs uppercase tracking-[0.2em] text-accent transition-colors hover:bg-accent hover:text-background">Manage Booking →</a> : null}
+      {manageUrl ? <a href={manageUrl} className="inline-flex min-h-12 items-center justify-center border border-accent px-6 font-primary text-xs uppercase tracking-[0.2em] text-accent transition-colors hover:bg-accent hover:text-background">{ui("m48de89dadf56")}</a> : null}
 
       <div className="flex justify-center pt-2">
         <StepButton onClick={onReset}>
-          Book Another Session
-        </StepButton>
+          {ui("m386a3b802f1c")}</StepButton>
       </div>
     </div>
   );
@@ -755,6 +759,11 @@ export default function BookingSectionClient({
   shouldClearGuestBookingCookie: initialShouldClearGuestBookingCookie,
   loyaltyReward: initialLoyaltyReward,
 }: BookingSectionClientProps) {
+  const interfaceLocale = useInterfaceLocale();
+  const displayText = useCallback((value: string) => interfaceText(interfaceLocale, value), [interfaceLocale]);
+
+  const ui = useTranslations("ui");
+
   const router = useRouter();
   const sectionRef = useRef<HTMLElement | null>(null);
   const [authRole, setAuthRole] = useState(initialAuthRole);
@@ -855,7 +864,7 @@ export default function BookingSectionClient({
       isActive = false;
       observer.disconnect();
     };
-  }, []);
+  }, [ui, ]);
 
   useEffect(() => {
     if (shouldClearGuestBookingCookie) {
@@ -1032,8 +1041,7 @@ export default function BookingSectionClient({
         return (
           <div className="border border-border bg-background px-4 py-5">
             <p className="font-primary text-sm leading-6 text-foreground-secondary">
-              Loading available times…
-            </p>
+              {ui("m7b3a45e92fb7")}</p>
           </div>
         );
       }
@@ -1043,10 +1051,10 @@ export default function BookingSectionClient({
           <div className="space-y-4">
             <div className="border border-border bg-background px-4 py-5">
               <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                {availabilityError}
+                {displayText(availabilityError)}
               </p>
             </div>
-            <StepButton onClick={() => setStep(0)} variant="secondary">← Back</StepButton>
+            <StepButton onClick={() => setStep(0)} variant="secondary">{ui("mc32ae9f4a77d")}</StepButton>
           </div>
         );
       }
@@ -1070,7 +1078,7 @@ export default function BookingSectionClient({
         onNext={handleConfirmBooking}
       />
     );
-  }, [allowGuestBookings, applyLoyaltyReward, authRole, availabilityError, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, dates, handleConfirmBooking, handleLoadAvailability, handleServiceSelected, hidePersistedConfirmation, initialFirstName, initialLastName, isLoadingAvailability, loyaltyReward, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups]);
+  }, [ui, displayText, allowGuestBookings, applyLoyaltyReward, authRole, availabilityError, bookingReference, confirmed, content.barber_name, customerProfile?.email, customerProfile?.phone, dates, handleConfirmBooking, handleLoadAvailability, handleServiceSelected, hidePersistedConfirmation, initialFirstName, initialLastName, isLoadingAvailability, loyaltyReward, manageUrl, persistedConfirmation, selectedDate, selectedService, services, state, step, timeGroups]);
 
   return (
     <section ref={sectionRef} id="booking" className="bg-background">
@@ -1095,7 +1103,7 @@ export default function BookingSectionClient({
               {loadError ? (
                 <div className="border border-border bg-background px-4 py-5">
                   <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                    {loadError}
+                    {displayText(loadError)}
                   </p>
                 </div>
               ) : null}
@@ -1103,8 +1111,7 @@ export default function BookingSectionClient({
               {!loadError && services.length === 0 ? (
                 <div className="border border-border bg-background px-4 py-5">
                   <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                    No services are available to book right now.
-                  </p>
+                    {ui("m0d2afb5d28ef")}</p>
                 </div>
               ) : null}
 
@@ -1126,7 +1133,7 @@ export default function BookingSectionClient({
                 {!confirmed && submitFeedback ? (
                   <div className="pb-6">
                     <p className="font-primary text-sm leading-6 text-foreground-secondary">
-                      {submitFeedback}
+                      {displayText(submitFeedback)}
                     </p>
                     {authRole !== "customer" ? (
                       <div className="pt-4">
@@ -1134,8 +1141,7 @@ export default function BookingSectionClient({
                           href="/login"
                           className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-3 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:border-foreground-secondary hover:text-foreground"
                         >
-                          Login to Book
-                        </Link>
+                          {ui("mcd1421060416")}</Link>
                       </div>
                     ) : null}
                   </div>

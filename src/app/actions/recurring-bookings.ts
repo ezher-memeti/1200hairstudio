@@ -1,4 +1,5 @@
 "use server";
+import { publicBookingModeError } from "@/lib/site-mode-booking";
 
 import { revalidatePath } from "next/cache";
 import { requireAdminUser, requireCustomerUser } from "@/lib/auth/customer";
@@ -64,6 +65,8 @@ export async function previewCustomerRecurringBooking(input: RecurringBookingInp
 }
 
 export async function createCustomerRecurringBooking(input: RecurringBookingInput) {
+  const modeError = await publicBookingModeError();
+  if (modeError) return { error: modeError, result: null };
   try { const customerId = await currentCustomerId(); const result = await createRecurringBookingSeries({ ...input, customerId }, "customer"); refresh(); return { error: null, result }; } catch (error) { return { error: message(error), result: null }; }
 }
 

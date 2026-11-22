@@ -1,4 +1,5 @@
-import { redirect } from "next/navigation";
+import { AdminContentLocaleProvider } from "@/components/admin/content/AdminContentLocale";
+import { redirect } from "@/i18n/server";
 import { DM_Sans, Manrope } from "next/font/google";
 import AdminShell from "@/components/admin/AdminShell";
 import { requireAdminUser } from "@/lib/auth/customer";
@@ -24,7 +25,7 @@ export default async function AdminDashboardLayout({
     <div
       className={`${adminDisplayFont.variable} ${adminPrimaryFont.variable} admin-theme font-admin-primary`}
     >
-      <AdminShell>{children}</AdminShell>
+      <AdminContentLocaleProvider><AdminShell>{children}</AdminShell></AdminContentLocaleProvider>
     </div>
   );
 }

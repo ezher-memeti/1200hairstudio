@@ -1,6 +1,10 @@
 "use client";
+import { useUiText } from "@/i18n/use-ui-text";
 
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+
+
+import { usePathname } from "@/i18n/navigation";
 import Link from "@/components/admin/AdminNavLink";
 
 const siteSettingsItems = [
@@ -14,24 +18,25 @@ const siteSettingsItems = [
 ] as const;
 
 export default function SiteSettingsNav() {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const pathname = usePathname();
 
   return (
     <header>
       <div>
         <p className="font-admin-primary text-[10px] uppercase tracking-[0.22em] text-foreground-muted">
-          Site Management
-        </p>
+          {ui("ma77370cde551")}</p>
         <h1 className="mt-2 font-admin-display text-3xl font-semibold text-foreground sm:text-4xl">
-          Site Settings
-        </h1>
+          {ui("mb37012a88577")}</h1>
         <p className="mt-3 max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
-          Manage public website content, services, availability, contact details, and gallery.
-        </p>
+          {ui("m804546c6b393")}</p>
       </div>
 
       <nav
-        aria-label="Site settings sections"
+        aria-label={ui("mf994404dde6d")}
         className="-mx-5 mt-7 overflow-x-auto overscroll-x-contain scroll-smooth border-b border-border px-5 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
       >
         <div className="flex min-w-max">
@@ -49,7 +54,7 @@ export default function SiteSettingsNav() {
                     : "border-transparent text-foreground-muted hover:text-foreground"
                 }`}
               >
-                {item.label}
+                {uiText(item.label)}
               </Link>
             );
           })}

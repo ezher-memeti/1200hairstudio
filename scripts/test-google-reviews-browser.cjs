@@ -2,7 +2,7 @@
 // Install Playwright outside the app and set PLAYWRIGHT_MODULE_PATH if needed.
 const assert = require("node:assert/strict");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || "playwright");
-const baseURL = process.env.REVIEWS_TEST_URL || "http://localhost:3000";
+const baseURL = process.env.REVIEWS_TEST_URL || "http://localhost:3000/en";
 const launch = process.env.CHROME_EXECUTABLE_PATH
   ? { executablePath: process.env.CHROME_EXECUTABLE_PATH, headless: true }
   : { headless: true };

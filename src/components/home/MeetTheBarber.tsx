@@ -1,7 +1,11 @@
+
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 export default function MeetTheBarber({ content }: { content: HomepageContent }) {
+  const ui = useTranslations("ui");
+
   return (
     <section id="barber" className="bg-background-secondary">
       <div className="page-container page-grid-split-reverse items-center py-8 sm:py-10 lg:py-12">
@@ -18,7 +22,7 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
           <div className="relative aspect-square w-full">
             <Image
               src="/images/barber.webp"
-              alt="Portrait of the barber"
+              alt={ui("mdf6c85df66d3")}
               fill
               className="object-cover"
               sizes="(min-width: 768px) 50vw, 100vw"

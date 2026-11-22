@@ -1,5 +1,6 @@
 "use server";
 
+import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 import { persistContactSectionSettings } from "@/lib/contact-section/settings";
 import type { ContactSectionSettings } from "@/lib/contact-section/types";
@@ -22,11 +23,14 @@ function optionalUrl(value: string, label: string) {
   }
 }
 
-export async function saveContactSectionSettings(input: ContactSectionSettings): Promise<Result> {
+export async function saveContactSectionSettings(input: ContactSectionSettings, locale: Locale = "en"): Promise<Result> {
   try {
+    if (!isLocale(locale)) throw new Error("Invalid content language.");
+    const german = Object.fromEntries(Object.entries(input.german ?? {}).filter(([key]) => ["eyebrow", "title", "description", "callCtaLabel", "instagramCtaLabel", "leaveReviewCtaLabel"].includes(key)).map(([key, value]) => [key, clean(value, key === "description" ? 800 : key === "title" ? 180 : 80)]));
     const phoneNumber = clean(input.phoneNumber, 40);
     if (phoneNumber && (!/[0-9]/.test(phoneNumber) || !/^[+\d\s().-]+$/.test(phoneNumber))) throw new Error("Enter a valid phone number.");
     const settings = {
+      german,
       isEnabled: input.isEnabled === true,
       eyebrow: clean(input.eyebrow, 80),
       title: clean(input.title, 180),
@@ -45,10 +49,10 @@ export async function saveContactSectionSettings(input: ContactSectionSettings):
       leaveReviewCtaLabel: clean(input.leaveReviewCtaLabel, 80),
     };
     if (settings.instagramEnabled && !settings.instagramUrl) throw new Error("Instagram URL is required when Instagram is enabled.");
-    if (settings.instagramEnabled && !settings.instagramCtaLabel) throw new Error("Instagram CTA label is required when Instagram is enabled.");
+    if (settings.instagramEnabled && !(locale === "de" ? german.instagramCtaLabel : settings.instagramCtaLabel)) throw new Error("Instagram CTA label is required when Instagram is enabled.");
     if (settings.googleReviewsEnabled && !settings.googleLeaveReviewUrl) throw new Error("Leave-review URL is required when Leave a Review is enabled.");
-    if (settings.googleReviewsEnabled && !settings.leaveReviewCtaLabel) throw new Error("Leave Review CTA label is required when Leave a Review is enabled.");
-    await persistContactSectionSettings(settings);
+    if (settings.googleReviewsEnabled && !(locale === "de" ? german.leaveReviewCtaLabel : settings.leaveReviewCtaLabel)) throw new Error("Leave Review CTA label is required when Leave a Review is enabled.");
+    await persistContactSectionSettings(settings, locale);
     revalidatePath("/");
     revalidatePath("/admin/site-settings/contact");
     return { success: true, message: "Contact section settings saved." };

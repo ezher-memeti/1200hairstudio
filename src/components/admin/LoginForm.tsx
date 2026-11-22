@@ -1,6 +1,13 @@
 "use client";
+import { Link as LocaleLink } from "@/i18n/navigation";
 
-import { useRouter } from "next/navigation";
+import { localizedPath } from "@/i18n/config";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
+
+import { restoreAccountLocale } from "@/i18n/preferences";
 import { useState } from "react";
 import {
   AUTH_GENERIC_INVALID_CREDENTIALS,
@@ -12,7 +19,10 @@ import { createClient } from "@/lib/supabase/client";
 import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function LoginForm() {
-  const router = useRouter();
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -58,8 +68,8 @@ export default function LoginForm() {
       .eq("id", user?.id ?? "")
       .maybeSingle();
 
-    router.push(profile?.role === "admin" ? "/admin" : "/account");
-    router.refresh();
+    const locale = await restoreAccountLocale();
+    window.location.assign(localizedPath(profile?.role === "admin" ? "/admin" : "/account", locale));
   }
 
   return (
@@ -69,21 +79,18 @@ export default function LoginForm() {
     >
       <div className="space-y-2">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Admin Login
-        </p>
+          {ui("m71adefcd1937")}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <BrandLogo className="h-7 w-36 sm:h-8 sm:w-44" priority />
           <h1 className="font-display text-2xl font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-3xl">
-            Admin
-          </h1>
+            {ui("m4e7afebcfbae")}</h1>
         </div>
       </div>
 
       <div className="space-y-5">
         <label className="block space-y-3">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Email
-          </span>
+            {ui("m84add5b29527")}</span>
           <input
             type="email"
             value={email}
@@ -96,8 +103,7 @@ export default function LoginForm() {
 
         <label className="block space-y-3">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Password
-          </span>
+            {ui("m8be3c943b160")}</span>
           <input
             type="password"
             value={password}
@@ -111,7 +117,7 @@ export default function LoginForm() {
 
       {error ? (
         <p className="font-primary text-sm text-error">
-          {error}
+          {uiText(error)}
         </p>
       ) : null}
 
@@ -121,15 +127,14 @@ export default function LoginForm() {
           disabled={isSubmitting}
           className="inline-flex min-h-12 items-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
         >
-          {isSubmitting ? "Signing In..." : "Sign In"}
+          {uiText(isSubmitting ? "Signing In..." : "Sign In")}
         </button>
 
-        <a
+        <LocaleLink
           href="/forgot-password"
           className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground"
         >
-          Forgot password?
-        </a>
+          {ui("m4c29f7f03358")}</LocaleLink>
       </div>
     </form>
   );

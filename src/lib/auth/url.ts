@@ -1,3 +1,4 @@
+import { localizedPath, resolveLocale } from "@/i18n/config";
 export function getSiteUrl() {
   const publicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
@@ -12,6 +13,6 @@ export function getSiteUrl() {
   return "http://localhost:3000";
 }
 
-export function getResetPasswordRedirectUrl() {
-  return `${getSiteUrl()}/reset-password`;
+export function getResetPasswordRedirectUrl(locale: string = "de") {
+  return `${getSiteUrl()}${localizedPath("/reset-password", resolveLocale(locale))}`;
 }

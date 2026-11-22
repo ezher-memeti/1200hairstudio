@@ -3,6 +3,7 @@ import {
   type NextRequest,
   NextResponse,
 } from "next/server";
+import { isLocale, localeCookie } from "@/i18n/config";
 import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors";
 
 function elapsedMilliseconds(startedAt: number) {
@@ -19,9 +20,10 @@ function logTiming(
   duration: number,
   authState?: "anonymous" | "authenticated" | "unknown",
 ) {
+  const safePathname = pathname.replace(/^(\/(?:(?:de|en)\/)?(?:booking\/manage|unsubscribe))\/[^/]+/, "$1/[token]");
   const auth = authState ? ` auth=${authState}` : "";
   console.info(
-    `[PERF] ${operation} path=${pathname} duration=${formatDuration(duration)}ms${auth}`,
+    `[PERF] ${operation} path=${safePathname} duration=${formatDuration(duration)}ms${auth}`,
   );
 }
 
@@ -48,13 +50,13 @@ function clearSupabaseAuthCookies(
   });
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, initialResponse?: NextResponse) {
   const middlewareStartedAt = performance.now();
   const pathname = request.nextUrl.pathname;
   let cookieReadDuration = 0;
   let cookieWriteDuration = 0;
 
-  let response = NextResponse.next({
+  let response = initialResponse ?? NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -76,10 +78,16 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           const startedAt = performance.now();
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-            response.cookies.set(name, value, options);
-          });
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          // Forward refreshed cookies into the rewritten server render as well as
+          // the browser response. Preserve locale headers and accumulated cookies.
+          const previous = response;
+          const rewrite = previous.headers.get("x-middleware-rewrite");
+          response = rewrite
+            ? NextResponse.rewrite(rewrite, { request: { headers: request.headers } })
+            : NextResponse.next({ request: { headers: request.headers } });
+          previous.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
           const duration = elapsedMilliseconds(startedAt);
           cookieWriteDuration += duration;
           logTiming("SUPABASE_COOKIE_WRITE", pathname, duration);
@@ -102,6 +110,16 @@ export async function updateSession(request: NextRequest) {
       ? "authenticated"
       : "anonymous";
   logTiming("SUPABASE_AUTH_GET_USER", pathname, authDuration, authState);
+
+  // Only legacy, unprefixed UI requests need account-locale negotiation.
+  if (user && !error && !request.cookies.get(localeCookie) && !/^\/(?:de|en|api|auth|_next)(?:\/|$)/.test(pathname) && !/\.[^/]+$/.test(pathname)) {
+    const [{ data: customer }, { data: profile }] = await Promise.all([
+      supabase.from("customers").select("preferred_locale").eq("profile_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("preferred_locale").eq("id", user.id).maybeSingle(),
+    ]);
+    const preferred = isLocale(customer?.preferred_locale) ? customer.preferred_locale : profile?.preferred_locale;
+    if (isLocale(preferred)) response.headers.set("x-app-preferred-locale", preferred);
+  }
 
   let staleCookieClearDuration = 0;
   if (isStaleRefreshTokenError(error)) {

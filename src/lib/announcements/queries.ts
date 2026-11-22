@@ -1,3 +1,5 @@
+import { getLocale } from "next-intl/server";
+import { localizeRow } from "@/i18n/content";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -22,7 +24,8 @@ export const getActiveAnnouncements = cache(async (): Promise<Announcement[]> =>
       console.error("Unable to load public announcements", error);
       return [];
     }
-    return (data ?? []) as Announcement[];
+    const locale = await getLocale();
+    return (data ?? []).map(row => localizeRow(row, ["title", "message", "cta_text"], locale)) as Announcement[];
   } finally {
     console.log(`getActiveAnnouncements: ${(performance.now() - startedAt).toFixed(3)}ms`);
   }

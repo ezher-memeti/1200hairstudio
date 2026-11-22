@@ -1,3 +1,6 @@
+
+import { useLocale as useInterfaceLocale } from "next-intl";
+import { textFor as interfaceText } from "@/i18n/text";
 import Image from "next/image";
 
 type BrandLogoProps = {
@@ -6,11 +9,14 @@ type BrandLogoProps = {
 };
 
 export default function BrandLogo({ className = "", priority = false }: BrandLogoProps) {
+  const interfaceLocale = useInterfaceLocale();
+  const displayText = (value: string) => interfaceText(interfaceLocale, value);
+
   return (
     <span className={`relative block shrink-0 ${className}`}>
       <Image
         src="/brand/logo.png"
-        alt="1200 Hairstudio"
+        alt={displayText("1200 Hairstudio")}
         width={1562}
         height={1562}
         priority={priority}

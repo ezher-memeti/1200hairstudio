@@ -1,7 +1,11 @@
+
+import { useTranslations } from "next-intl";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
 export default function ImprintPage() {
+  const ui = useTranslations("ui");
+
   return (
     <>
       <Header />
@@ -10,11 +14,9 @@ export default function ImprintPage() {
           <div className="max-w-3xl space-y-8">
             <div className="space-y-4">
               <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                Legal
-              </p>
+                {ui("m902c91d94e0f")}</p>
               <h1 className="font-display text-[clamp(2.4rem,6vw,4.75rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-                Imprint
-              </h1>
+                {ui("mdb71e0bfdd6b")}</h1>
             </div>
 
             <div className="space-y-8 border-t border-border pt-8">
@@ -27,15 +29,13 @@ export default function ImprintPage() {
                   <br />
                   8599 Salmsach
                   <br />
-                  Switzerland
-                </p>
+                  {ui("m77dcd849e550")}</p>
               </div>
 
               <dl className="space-y-6">
                 <div className="space-y-2 border-t border-border pt-6">
                   <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    Owner / Responsible Person
-                  </dt>
+                    {ui("m924d6ae88b80")}</dt>
                   <dd className="font-primary text-base leading-7 text-foreground-secondary">
                     [PLACEHOLDER]
                   </dd>
@@ -43,8 +43,7 @@ export default function ImprintPage() {
 
                 <div className="space-y-2 border-t border-border pt-6">
                   <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    Email
-                  </dt>
+                    {ui("m84add5b29527")}</dt>
                   <dd className="font-primary text-base leading-7 text-foreground-secondary">
                     [PLACEHOLDER]
                   </dd>
@@ -52,8 +51,7 @@ export default function ImprintPage() {
 
                 <div className="space-y-2 border-t border-border pt-6">
                   <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    Phone
-                  </dt>
+                    {ui("m77064d526523")}</dt>
                   <dd className="font-primary text-base leading-7 text-foreground-secondary">
                     [PLACEHOLDER]
                   </dd>
@@ -61,8 +59,7 @@ export default function ImprintPage() {
 
                 <div className="space-y-2 border-t border-border pt-6">
                   <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    Business / UID Information
-                  </dt>
+                    {ui("mf8376084c466")}</dt>
                   <dd className="font-primary text-base leading-7 text-foreground-secondary">
                     [PLACEHOLDER]
                   </dd>

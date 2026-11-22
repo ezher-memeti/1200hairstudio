@@ -1,8 +1,20 @@
 "use client";
+import { weekdayLabel } from "@/i18n/format";
+import { formatDateForLocale } from "@/i18n/config";
+
+
+import { intlLocale } from "@/i18n/config";
+import { useLocale } from "next-intl";
+
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { ChevronLeft, ChevronRight, Download, Eye, Mail, X } from "lucide-react";
 import {
   createAdminAppointment,
@@ -61,15 +73,6 @@ type AppointmentCard = AdminAppointmentDetail & {
 };
 
 const SLOT_MINUTES = 30;
-const WEEKDAY_NAMES = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-] as const;
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
   confirmed: "Confirmed",
@@ -132,8 +135,8 @@ function getWeekDates(dateKey: string) {
   return Array.from({ length: 7 }, (_, index) => addDays(start, index));
 }
 
-function formatDayLabel(dateKey: string) {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatDayLabel(dateKey: string, locale: string = "de") {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Europe/Zurich",
     weekday: "long",
     day: "2-digit",
@@ -141,8 +144,8 @@ function formatDayLabel(dateKey: string) {
   }).format(new Date(`${dateKey}T12:00:00`));
 }
 
-function formatDateHeading(dateKey: string) {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatDateHeading(dateKey: string, locale: string = "de") {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Europe/Zurich",
     weekday: "long",
     day: "2-digit",
@@ -151,13 +154,13 @@ function formatDateHeading(dateKey: string) {
   }).format(new Date(`${dateKey}T12:00:00`));
 }
 
-function formatDateRange(startDateKey: string, endDateKey: string) {
-  const formatter = new Intl.DateTimeFormat("en-GB", {
+function formatDateRange(startDateKey: string, endDateKey: string, locale: string = "de") {
+  const formatter = new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Europe/Zurich",
     day: "2-digit",
     month: "short",
   });
-  const yearFormatter = new Intl.DateTimeFormat("en-GB", {
+  const yearFormatter = new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Europe/Zurich",
     year: "numeric",
   });
@@ -311,6 +314,13 @@ export default function AdminAppointmentsView({
   recurringBookings,
   sales,
 }: Props) {
+  const locale = useLocale();
+
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+  const audit = useTranslations("audit");
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -860,16 +870,13 @@ export default function AdminAppointmentsView({
     <section className="space-y-8">
       <div className="space-y-4">
         <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Appointments
-        </p>
+          {ui("m1f3f4957c553")}</p>
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">
             <h1 className="font-admin-display text-[clamp(2.2rem,5vw,4.25rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-              Appointments
-            </h1>
+              {ui("m1f3f4957c553")}</h1>
             <p className="max-w-2xl font-admin-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-              Zurich-time scheduling with week, day, and grouped list views.
-            </p>
+              {ui("m89258c1842e4")}</p>
           </div>
 
           <div className="inline-flex w-full max-w-md border border-border bg-surface p-1">
@@ -886,7 +893,7 @@ export default function AdminAppointmentsView({
                       : "text-foreground-secondary hover:bg-background hover:text-foreground"
                   }`}
                 >
-                  {mode}
+                  {uiText(mode)}
                 </button>
               );
             })}
@@ -898,24 +905,23 @@ export default function AdminAppointmentsView({
             onClick={openCreateModal}
             className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
           >
-            + New Appointment
-          </button>
+            {ui("me9add7f4de3f")}</button>
         </div>
       </div>
 
       {createFeedback && !isCreateOpen ? (
         <div className="border border-border bg-surface px-5 py-4">
-          <p className="font-admin-primary text-sm text-foreground-secondary">{createFeedback}</p>
+          <p className="font-admin-primary text-sm text-foreground-secondary">{uiText(createFeedback)}</p>
         </div>
       ) : null}
 
       <div className="flex flex-col gap-4 border border-border bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="space-y-1">
           <p className="font-admin-primary text-xs uppercase tracking-[0.22em] text-foreground-muted">
-            {view === "week" ? "Week Range" : view === "day" ? "Selected Day" : "List Range"}
+            {uiText(view === "week" ? "Week Range" : view === "day" ? "Selected Day" : "List Range")}
           </p>
           <p className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-            {view === "day" ? formatDateHeading(selectedDate) : formatDateRange(weekStart, weekEnd)}
+            {uiText(view === "day" ? formatDateHeading(selectedDate, locale) : formatDateRange(weekStart, weekEnd, locale))}
           </p>
         </div>
 
@@ -931,8 +937,7 @@ export default function AdminAppointmentsView({
             className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
           >
             <ChevronLeft size={16} />
-            Previous
-          </button>
+            {ui("m50f94286ba30")}</button>
           <button
             type="button"
             onClick={() =>
@@ -943,8 +948,7 @@ export default function AdminAppointmentsView({
             }
             className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
           >
-            Next
-            <ChevronRight size={16} />
+            {ui("mbc981983e7f5")}<ChevronRight size={16} />
           </button>
         </div>
       </div>
@@ -987,17 +991,17 @@ export default function AdminAppointmentsView({
                       }`}
                     >
                       <p className="font-admin-display text-lg uppercase tracking-[-0.04em] text-foreground">
-                        {WEEKDAY_NAMES[columnIndex]}
+                        {weekdayLabel(columnIndex + 1, locale)}
                       </p>
                       <p className="mt-1 font-admin-primary text-sm text-foreground-secondary">
-                        {formatDayLabel(dateKey)}
+                        {formatDayLabel(dateKey, locale)}
                       </p>
                       <p className="mt-2 font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                        {isClosed
+                        {uiText(isClosed
                           ? "Closed"
                           : `${effectiveHours.open_time?.slice(0, 5) ?? "--:--"}-${
                               effectiveHours.close_time?.slice(0, 5) ?? "--:--"
-                            }`}
+                            }`)}
                       </p>
                     </div>
 
@@ -1007,7 +1011,7 @@ export default function AdminAppointmentsView({
                         style={{ height: `${WEEK_NORMALIZED_HEIGHT}px` }}
                       >
                         <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                          {effectiveHours.reason || "Closed"}
+                          {effectiveHours.reason || uiText("Closed")}
                         </p>
                       </div>
                     ) : (
@@ -1130,15 +1134,14 @@ export default function AdminAppointmentsView({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-admin-primary text-xs uppercase tracking-[0.22em] text-foreground-muted">
-                      Timeline
-                    </p>
+                      {ui("m018514a3d58a")}</p>
                     <p className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-                      {formatDateHeading(selectedDate)}
+                      {formatDateHeading(selectedDate, locale)}
                     </p>
                   </div>
                   <p className="font-admin-primary text-xs uppercase tracking-[0.22em] text-foreground-secondary">
                     {effectiveHours.is_closed
-                      ? effectiveHours.reason || "Closed"
+                      ? effectiveHours.reason || uiText("Closed")
                       : `${effectiveHours.open_time?.slice(0, 5)}-${effectiveHours.close_time?.slice(0, 5)}`}
                   </p>
                 </div>
@@ -1146,7 +1149,7 @@ export default function AdminAppointmentsView({
                 {isClosed ? (
                   <div className="flex min-h-[132px] items-center justify-center border border-border bg-background/40 px-4 text-center">
                     <p className="font-admin-primary text-sm uppercase tracking-[0.22em] text-foreground-muted">
-                      {effectiveHours.reason || "Closed"}
+                      {effectiveHours.reason || uiText("Closed")}
                     </p>
                   </div>
                 ) : (
@@ -1227,23 +1230,22 @@ export default function AdminAppointmentsView({
                 <div className="flex flex-col gap-2 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-                      {formatDateHeading(dateKey)}
+                      {formatDateHeading(dateKey, locale)}
                     </p>
                     <p className="font-admin-primary text-xs uppercase tracking-[0.2em] text-foreground-secondary">
                       {effectiveHours.is_closed
-                        ? effectiveHours.reason || "Closed"
+                        ? effectiveHours.reason || uiText("Closed")
                         : `${effectiveHours.open_time?.slice(0, 5)}-${effectiveHours.close_time?.slice(0, 5)}`}
                     </p>
                   </div>
                   <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                    {dayAppointments.length} appointment{dayAppointments.length === 1 ? "" : "s"}
+                    {audit("appointmentCount", { count: dayAppointments.length })}
                   </p>
                 </div>
 
                 {dayAppointments.length === 0 ? (
                   <p className="pt-4 font-admin-primary text-sm leading-6 text-foreground-secondary">
-                    No appointments scheduled.
-                  </p>
+                    {ui("m05c99d237ac4")}</p>
                 ) : (
                   <div className="divide-y divide-border">
                     {dayAppointments.map((appointment) => (
@@ -1258,7 +1260,7 @@ export default function AdminAppointmentsView({
                             {appointment.customer_name}
                           </p>
                           <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                            {appointment.booking_type === "customer" ? "Registered customer" : "Guest booking"}
+                            {uiText(appointment.booking_type === "customer" ? "Registered customer" : "Guest booking")}
                           </p>
                         </div>
                         <div>
@@ -1273,7 +1275,7 @@ export default function AdminAppointmentsView({
                           {STATUS_LABELS[appointment.status]}
                         </p>
                         <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                          {appointment.booking_type}
+                          {uiText(appointment.booking_type)}
                         </p>
                       </button>
                     ))}
@@ -1304,20 +1306,19 @@ export default function AdminAppointmentsView({
             <div className="sticky -top-6 z-20 -mx-5 -mt-6 flex items-start justify-between gap-4 border-b border-border bg-surface px-5 pb-4 pt-6 sm:-mx-6 sm:px-6">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                  Appointment
-                </p>
+                  {ui("m2d05c593246b")}</p>
                 <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
                   {selectedDetail.customer_name}
                 </h2>
                 <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
-                  {selectedDetail.service_name} • {selectedDetail.date_label} • {selectedDetail.time_label}
+                  {selectedDetail.service_name} • {formatDateForLocale(selectedDetail.start_at, locale)} • {selectedDetail.time_label}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedAppointmentId(null)}
                 className="inline-flex h-11 w-11 items-center justify-center border border-border text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
-                aria-label="Close appointment panel"
+                aria-label={ui("m55e8351eb6c2")}
               >
                 <X size={18} />
               </button>
@@ -1326,37 +1327,35 @@ export default function AdminAppointmentsView({
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="border border-border bg-background/40 px-4 py-4">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                  Contact
-                </p>
+                  {ui("mb37456c4530b")}</p>
                 <p className="mt-2 font-admin-display text-xl uppercase tracking-[-0.04em] text-foreground">
                   {selectedDetail.customer_name}
                 </p>
                 <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
-                  {selectedDetail.customer_email || "No email"}
+                  {selectedDetail.customer_email || uiText("No email")}
                 </p>
                 <p className="mt-1 font-admin-primary text-sm text-foreground-secondary">
-                  {selectedDetail.customer_phone || "No phone"}
+                  {selectedDetail.customer_phone || uiText("No phone")}
                 </p>
                 <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                  {selectedDetail.booking_type === "customer" ? "Registered customer" : "Guest"}
+                  {uiText(selectedDetail.booking_type === "customer" ? "Registered customer" : "Guest")}
                 </p>
               </div>
 
               <div className="border border-border bg-background/40 px-4 py-4">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                  Schedule
-                </p>
+                  {ui("m0a8adac9d6d5")}</p>
                 <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
-                  Date: {selectedDetail.date_label}
+                  {ui("m81b7d2ea42df")}{formatDateForLocale(selectedDetail.start_at, locale)}
                 </p>
                 <p className="mt-1 font-admin-primary text-sm text-foreground-secondary">
-                  Start: {formatZurichTime(selectedDetail.start_at)}
+                  {ui("m1c7c77b27543")}{formatZurichTime(selectedDetail.start_at)}
                 </p>
                 <p className="mt-1 font-admin-primary text-sm text-foreground-secondary">
-                  End: {formatZurichTime(selectedDetail.end_at)}
+                  {ui("mb8ce37a1915f")}{formatZurichTime(selectedDetail.end_at)}
                 </p>
                 <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                  Status: {STATUS_LABELS[selectedDetail.status]}
+                  {ui("m11dc9e195292")}{STATUS_LABELS[selectedDetail.status]}
                 </p>
               </div>
             </div>
@@ -1365,26 +1364,26 @@ export default function AdminAppointmentsView({
               <div className="mt-4 border border-border bg-background/40 px-4 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">Payment</p>
-                    <p className="mt-2 font-admin-display text-xl uppercase text-foreground">{selectedFinanceAppointment.paymentStatus.replaceAll("_", " ")}</p>
+                    <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">{ui("mb41a92bed032")}</p>
+                    <p className="mt-2 font-admin-display text-xl uppercase text-foreground">{uiText(selectedFinanceAppointment.paymentStatus.replaceAll("_", " "))}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-right font-admin-primary text-xs sm:grid-cols-3">
-                    <span><b className="block text-foreground-muted">Original</b>CHF {selectedFinanceAppointment.originalPrice.toFixed(2)}</span>
-                    <span><b className="block text-foreground-muted">Discount</b>−CHF {selectedFinanceAppointment.discountAmount.toFixed(2)}</span>
-                    <span><b className="block text-foreground-muted">Final</b>CHF {selectedFinanceAppointment.amountDue.toFixed(2)}</span>
-                    <span><b className="block text-foreground-muted">Paid</b>CHF {selectedFinanceAppointment.netPaid.toFixed(2)}</span>
-                    <span className="text-accent"><b className="block text-foreground-muted">Remaining</b>CHF {Math.max(0, selectedFinanceAppointment.amountDue - selectedFinanceAppointment.netPaid).toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">{ui("mc0a8060f3b11")}</b>CHF {selectedFinanceAppointment.originalPrice.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">{ui("mb524936d7aa1")}</b>−CHF {selectedFinanceAppointment.discountAmount.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">{ui("m672b22cc516e")}</b>CHF {selectedFinanceAppointment.amountDue.toFixed(2)}</span>
+                    <span><b className="block text-foreground-muted">{ui("mdc9d4584a554")}</b>CHF {selectedFinanceAppointment.netPaid.toFixed(2)}</span>
+                    <span className="text-accent"><b className="block text-foreground-muted">{ui("mcc632b5e2fd2")}</b>CHF {Math.max(0, selectedFinanceAppointment.amountDue - selectedFinanceAppointment.netPaid).toFixed(2)}</span>
                   </div>
                 </div>
-                {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{selectedFinanceAppointment.discountSource === "manual" ? "Manual discount" : selectedFinanceAppointment.discountSource === "loyalty" ? "Loyalty reward" : "Promotion"} — {selectedFinanceAppointment.discountLabel ?? "Discount"}</p> : null}
-                {selectedDetail.status === "completed" && selectedFinanceAppointment.netPaid < selectedFinanceAppointment.amountDue ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-rose-300">Completed appointment · payment outstanding</p> : null}
+                {selectedFinanceAppointment.discountSource ? <p className="mt-3 font-admin-primary text-xs text-foreground-secondary">{uiText(selectedFinanceAppointment.discountSource === "manual" ? "Manual discount" : selectedFinanceAppointment.discountSource === "loyalty" ? "Loyalty reward" : "Promotion")} — {selectedFinanceAppointment.discountLabel ?? uiText("Discount")}</p> : null}
+                {selectedDetail.status === "completed" && selectedFinanceAppointment.netPaid < selectedFinanceAppointment.amountDue ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-rose-300">{ui("m8939677355da")}</p> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {selectedSale ? <>
-                    <span className="inline-flex min-h-11 items-center justify-center border border-emerald-400/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-emerald-300">Paid</span>
-                    <Link href={`/admin/finance/sales?saleId=${encodeURIComponent(selectedSale.id)}`} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background">View Sale</Link>
-                    {selectedSale.refundableAmount > 0 ? <Link href={`/admin/finance/sales?saleId=${encodeURIComponent(selectedSale.id)}&refund=1`} className="inline-flex min-h-11 items-center justify-center border border-accent/60 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-accent">Record Refund</Link> : null}
+                    <span className="inline-flex min-h-11 items-center justify-center border border-emerald-400/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-emerald-300">{ui("mdc9d4584a554")}</span>
+                    <Link href={`/admin/finance/sales?saleId=${encodeURIComponent(selectedSale.id)}`} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background">{ui("mbd1f146972c6")}</Link>
+                    {selectedSale.refundableAmount > 0 ? <Link href={`/admin/finance/sales?saleId=${encodeURIComponent(selectedSale.id)}&refund=1`} className="inline-flex min-h-11 items-center justify-center border border-accent/60 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-accent">{ui("m7b02e80087ff")}</Link> : null}
                   </> : (
-                    <button type="button" onClick={() => setIsCheckoutOpen(true)} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background">Checkout</button>
+                    <button type="button" onClick={() => setIsCheckoutOpen(true)} className="inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background">{ui("m3ac8e9e58c5a")}</button>
                   )}
                 </div>
               </div>
@@ -1393,28 +1392,27 @@ export default function AdminAppointmentsView({
             <div className="mt-4 border border-border bg-background/40 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">Receipt</p>
-                  {selectedReceipt ? <><p className="mt-2 font-admin-display text-xl uppercase text-foreground">Beleg {selectedReceipt.receipt_number}</p><p className="mt-1 font-admin-primary text-xs text-foreground-secondary">Issued {new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedReceipt.issued_at))}</p></> : <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">No receipt generated</p>}
+                  <p className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">{ui("mf6ce3b6fcfca")}</p>
+                  {selectedReceipt ? <><p className="mt-2 font-admin-display text-xl uppercase text-foreground">{uiText("Receipt")} {selectedReceipt.receipt_number}</p><p className="mt-1 font-admin-primary text-xs text-foreground-secondary">{ui("mdeb5d5e2f038")}{" "}{new Intl.DateTimeFormat(intlLocale(locale), { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedReceipt.issued_at))}</p></> : <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">{ui("m9526c43fe6f5")}</p>}
                 </div>
-                {selectedReceipt ? <div className="text-right font-admin-primary text-xs"><p className="text-lg text-foreground">CHF {selectedReceipt.total.toFixed(2)}</p><p className={selectedReceipt.emailed_at ? "mt-1 text-emerald-300" : "mt-1 text-foreground-muted"}>{selectedReceipt.emailed_at ? "Emailed" : "Not emailed"}</p></div> : null}
+                {selectedReceipt ? <div className="text-right font-admin-primary text-xs"><p className="text-lg text-foreground">CHF {selectedReceipt.total.toFixed(2)}</p><p className={selectedReceipt.emailed_at ? "mt-1 text-emerald-300" : "mt-1 text-foreground-muted"}>{uiText(selectedReceipt.emailed_at ? "Emailed" : "Not emailed")}</p></div> : null}
               </div>
-              {selectedReceipt ? <div className="mt-4 flex flex-wrap gap-2"><a href={`/api/admin/receipts/${selectedReceipt.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Eye size={14}/>View Receipt</a><a href={`/api/admin/receipts/${selectedReceipt.id}?format=pdf`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Download size={14}/>Download PDF</a><button type="button" disabled={isReceiptPending || !selectedDetail.customer_email?.trim()} onClick={emailReceipt} className="inline-flex min-h-11 items-center justify-center gap-2 border border-accent/50 px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-accent disabled:cursor-not-allowed disabled:opacity-35"><Mail size={14}/>{isReceiptPending ? "Sending..." : selectedReceipt.emailed_at ? "Resend" : "Send to Customer"}</button></div> : selectedFinanceAppointment && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue ? <button type="button" disabled={isReceiptPending} onClick={generateReceipt} className="mt-4 inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-40">{isReceiptPending ? "Generating..." : "Generate Receipt"}</button> : <p className="mt-3 font-admin-primary text-xs text-foreground-muted">The receipt becomes available when the appointment balance is fully settled.</p>}
-              {selectedReceipt && !selectedDetail.customer_email?.trim() ? <p className="mt-3 font-admin-primary text-xs text-foreground-muted">No customer email address is available.</p> : null}
-              {selectedReceipt?.payment_method === null && selectedReceipt.total === 0 ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-accent">No payment required</p> : null}
-              {receiptFeedback ? <p className="mt-3 font-admin-primary text-sm text-foreground-secondary">{receiptFeedback}</p> : null}
+              {selectedReceipt ? <div className="mt-4 flex flex-wrap gap-2"><a href={`/api/admin/receipts/${selectedReceipt.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Eye size={14}/>{ui("m94c8c4b5ab07")}</a><a href={`/api/admin/receipts/${selectedReceipt.id}?format=pdf`} className="inline-flex min-h-11 items-center justify-center gap-2 border border-border px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-foreground-secondary hover:text-accent"><Download size={14}/>{ui("m98e5ef062b2a")}</a><button type="button" disabled={isReceiptPending || !selectedDetail.customer_email?.trim()} onClick={emailReceipt} className="inline-flex min-h-11 items-center justify-center gap-2 border border-accent/50 px-4 font-admin-primary text-[10px] uppercase tracking-[0.14em] text-accent disabled:cursor-not-allowed disabled:opacity-35"><Mail size={14}/>{uiText(isReceiptPending ? "Sending..." : selectedReceipt.emailed_at ? "Resend" : "Send to Customer")}</button></div> : selectedFinanceAppointment && selectedFinanceAppointment.netPaid >= selectedFinanceAppointment.amountDue ? <button type="button" disabled={isReceiptPending} onClick={generateReceipt} className="mt-4 inline-flex min-h-11 items-center justify-center bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.16em] text-background disabled:opacity-40">{uiText(isReceiptPending ? "Generating..." : "Generate Receipt")}</button> : <p className="mt-3 font-admin-primary text-xs text-foreground-muted">{ui("m83f52c500d68")}</p>}
+              {selectedReceipt && !selectedDetail.customer_email?.trim() ? <p className="mt-3 font-admin-primary text-xs text-foreground-muted">{ui("m58f0278644a9")}</p> : null}
+              {selectedReceipt?.payment_method === null && selectedReceipt.total === 0 ? <p className="mt-3 font-admin-primary text-xs uppercase tracking-[0.14em] text-accent">{ui("m36e7fd70214c")}</p> : null}
+              {receiptFeedback ? <p className="mt-3 font-admin-primary text-sm text-foreground-secondary">{uiText(receiptFeedback)}</p> : null}
             </div>
 
             <div className="mt-6 space-y-3">
               <label className="block">
                 <span className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                  Notes
-                </span>
+                  {ui("m70440046a3dc")}</span>
                 <textarea
                   value={draftNotes}
                   onChange={(event) => setDraftNotes(event.target.value)}
                   rows={5}
                   className="mt-2 w-full border border-border bg-background px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                  placeholder="Add notes (Optional)"
+                  placeholder={ui("m00e8e5b51e5c")}
                 />
               </label>
             </div>
@@ -1426,8 +1424,7 @@ export default function AdminAppointmentsView({
                 onClick={openEditModal}
                 className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:text-foreground-muted"
               >
-                Edit
-              </button>
+                {ui("m5301648dcf6b")}</button>
               {(["confirmed", "completed", "cancelled", "no_show"] as const).map((status) => (
                 <button
                   key={status}
@@ -1436,7 +1433,7 @@ export default function AdminAppointmentsView({
                   onClick={() => saveAppointment({ status, notes: draftNotes })}
                   className="inline-flex min-h-11 items-center justify-center border border-border px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:text-foreground-muted"
                 >
-                  Mark {STATUS_LABELS[status]}
+                  {ui("m31e9697d43a1")}{STATUS_LABELS[status]}
                 </button>
               ))}
               <button
@@ -1445,21 +1442,20 @@ export default function AdminAppointmentsView({
                 onClick={() => saveAppointment({ notes: draftNotes })}
                 className="inline-flex min-h-11 items-center justify-center border border-border bg-accent px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
               >
-                Save Notes
-              </button>
+                {ui("m57e55b2b2b4b")}</button>
               <button
                 type="button"
                 disabled={isPending}
                 onClick={openRemoveModal}
                 className="inline-flex min-h-11 items-center justify-center border border-rose-500/40 px-4 font-admin-primary text-xs uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
               >
-                {selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment"}
+                {uiText(selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment")}
               </button>
             </div>
 
             {feedback ? (
               <p className="mt-4 font-admin-primary text-sm text-foreground-secondary">
-                {feedback}
+                {uiText(feedback)}
               </p>
             ) : null}
           </div>
@@ -1472,20 +1468,17 @@ export default function AdminAppointmentsView({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                  Appointments
-                </p>
+                  {ui("m1f3f4957c553")}</p>
                 <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                  Edit Appointment
-                </h2>
+                  {ui("m3ebd6c11986a")}</h2>
                 <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
-                  Update service, date, time, and notes for this appointment.
-                </p>
+                  {ui("m038c5ee1fb81")}</p>
               </div>
               <button
                 type="button"
                 onClick={closeEditModal}
                 className="inline-flex h-11 w-11 items-center justify-center border border-border text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
-                aria-label="Close appointment editor"
+                aria-label={ui("m108a70bd1eea")}
               >
                 <X size={18} />
               </button>
@@ -1498,23 +1491,22 @@ export default function AdminAppointmentsView({
                     {selectedDetail.customer_name}
                   </p>
                   <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
-                    {selectedDetail.customer_email || "No email"} • {selectedDetail.customer_phone || "No phone"}
+                    {selectedDetail.customer_email || uiText("No email")} • {selectedDetail.customer_phone || uiText("No phone")}
                   </p>
                 </div>
 
-                <AdminSelect label="Service" value={editForm.serviceId} onChange={(value) => setEditForm((current) => current ? { ...current, serviceId: value } : current)} options={services.map((service) => ({ value: service.id, label: `${service.name} · ${service.duration_max ?? service.duration_min} min · ${formatServicePrice(service.price)}` }))} searchable={services.length > 8} />
+                <AdminSelect label={ui("m329cb8b6ba8c")} value={editForm.serviceId} onChange={(value) => setEditForm((current) => current ? { ...current, serviceId: value } : current)} options={services.map((service) => ({ value: service.id, label: `${service.name} · ${service.duration_max ?? service.duration_min} min · ${formatServicePrice(service.price)}` }))} searchable={services.length > 8} />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <DateTimePicker mode="date" label="Date" value={editForm.dateKey} onChange={(nextDate) => setEditForm((current) => current ? { ...current, dateKey: nextDate } : current)} />
-                  <AdminSelect label="Time" value={editForm.startTime} onChange={(value) => setEditForm((current) => current ? { ...current, startTime: value } : current)} disabled={isEditPending} options={editAvailableSlots.map((slot) => ({ value: slot.time, label: slot.time }))} />
+                  <DateTimePicker mode="date" label={ui("meb9a4bc1c0c1")} value={editForm.dateKey} onChange={(nextDate) => setEditForm((current) => current ? { ...current, dateKey: nextDate } : current)} />
+                  <AdminSelect label={ui("m6c82e6dd8680")} value={editForm.startTime} onChange={(value) => setEditForm((current) => current ? { ...current, startTime: value } : current)} disabled={isEditPending} options={editAvailableSlots.map((slot) => ({ value: slot.time, label: slot.time }))} />
                 </div>
               </div>
 
               <div className="space-y-4">
                 <label className="space-y-2">
                   <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                    Notes
-                  </span>
+                    {ui("m70440046a3dc")}</span>
                   <textarea
                     rows={6}
                     value={editForm.notes}
@@ -1524,7 +1516,7 @@ export default function AdminAppointmentsView({
                       )
                     }
                     className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Add notes (Optional)"
+                    placeholder={ui("m00e8e5b51e5c")}
                   />
                 </label>
 
@@ -1540,14 +1532,13 @@ export default function AdminAppointmentsView({
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
                   <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
-                    Send update email
-                  </span>
+                    {ui("m2382412deef2")}</span>
                 </label>
 
                 {editSlotsError ? (
                   <div className="border border-border bg-background/35 px-4 py-3">
                     <p className="font-admin-primary text-sm text-foreground-secondary">
-                      {editSlotsError}
+                      {uiText(editSlotsError)}
                     </p>
                   </div>
                 ) : null}
@@ -1555,7 +1546,7 @@ export default function AdminAppointmentsView({
                 {editFeedback ? (
                   <div className="border border-border bg-background/35 px-4 py-3">
                     <p className="font-admin-primary text-sm text-foreground-secondary">
-                      {editFeedback}
+                      {uiText(editFeedback)}
                     </p>
                   </div>
                 ) : null}
@@ -1568,15 +1559,14 @@ export default function AdminAppointmentsView({
                 onClick={closeEditModal}
                 className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
               >
-                Cancel
-              </button>
+                {ui("m77dfd2135f4d")}</button>
               <button
                 type="button"
                 disabled={isEditPending}
                 onClick={submitEditAppointment}
                 className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
               >
-                {isEditPending ? "Saving..." : "Save Changes"}
+                {uiText(isEditPending ? "Saving..." : "Save Changes")}
               </button>
             </div>
           </div>
@@ -1597,15 +1587,14 @@ export default function AdminAppointmentsView({
           <div className="admin-scrollbar max-h-[calc(100dvh-24px)] w-full max-w-xl overflow-y-auto overscroll-contain border border-border bg-surface px-5 py-6 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6">
             <div className="space-y-2">
               <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                Appointments
-              </p>
+                {ui("m1f3f4957c553")}</p>
               <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                {selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment"}
+                {uiText(selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment")}
               </h2>
               <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
-                {selectedDetail.recurring_booking_id
+                {uiText(selectedDetail.recurring_booking_id
                   ? "This permanently removes only this future appointment. The recurring series and later appointments remain active."
-                  : "This permanently removes the appointment. You can optionally notify the customer by email."}
+                  : "This permanently removes the appointment. You can optionally notify the customer by email.")}
               </p>
             </div>
 
@@ -1614,7 +1603,7 @@ export default function AdminAppointmentsView({
                 {selectedDetail.customer_name}
               </p>
               <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
-                {selectedDetail.service_name} • {selectedDetail.date_label} • {selectedDetail.time_label}
+                {selectedDetail.service_name} • {formatDateForLocale(selectedDetail.start_at, locale)} • {selectedDetail.time_label}
               </p>
             </div>
 
@@ -1626,14 +1615,13 @@ export default function AdminAppointmentsView({
                 className="h-4 w-4 accent-[var(--accent)]"
               />
               <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
-                Send cancellation email
-              </span>
+                {ui("md6aabf15e825")}</span>
             </label> : null}
 
             {removeFeedback ? (
               <div className="mt-4 border border-border bg-background/35 px-4 py-3">
                 <p className="font-admin-primary text-sm text-foreground-secondary">
-                  {removeFeedback}
+                  {uiText(removeFeedback)}
                 </p>
               </div>
             ) : null}
@@ -1644,15 +1632,14 @@ export default function AdminAppointmentsView({
                 onClick={closeRemoveModal}
                 className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
               >
-                Cancel
-              </button>
+                {ui("m77dfd2135f4d")}</button>
               <button
                 type="button"
                 disabled={isPending}
                 onClick={removeAppointment}
                 className="inline-flex min-h-12 items-center justify-center border border-rose-500/40 px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-foreground-muted"
               >
-                {isPending ? "Removing..." : selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment"}
+                {uiText(isPending ? "Removing..." : selectedDetail.recurring_booking_id ? "Remove This Appointment" : "Remove Appointment")}
               </button>
             </div>
           </div>
@@ -1665,20 +1652,17 @@ export default function AdminAppointmentsView({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                  Appointments
-                </p>
+                  {ui("m1f3f4957c553")}</p>
                 <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                  New Appointment
-                </h2>
+                  {ui("mf1be0cbfac1d")}</h2>
                 <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
-                  Create a confirmed appointment for an existing customer or a manual guest.
-                </p>
+                  {ui("m759a2c0a94ef")}</p>
               </div>
               <button
                 type="button"
                 onClick={closeCreateModal}
                 className="inline-flex h-11 w-11 items-center justify-center border border-border text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
-                aria-label="Close appointment creator"
+                aria-label={ui("mb0ea3b610d10")}
               >
                 <X size={18} />
               </button>
@@ -1688,8 +1672,7 @@ export default function AdminAppointmentsView({
               <div className="space-y-4">
                 <label className="space-y-2">
                   <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                    Search Existing Customer
-                  </span>
+                    {ui("mda75dbdb6175")}</span>
                   <input
                     type="text"
                     value={createForm.customerSearch}
@@ -1701,7 +1684,7 @@ export default function AdminAppointmentsView({
                       }))
                     }
                     className="w-full border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Search by name, email, or phone"
+                    placeholder={ui("m5c5f3caabd40")}
                   />
                 </label>
 
@@ -1717,21 +1700,19 @@ export default function AdminAppointmentsView({
                         {customer.full_name}
                       </p>
                       <p className="font-admin-primary text-sm text-foreground-secondary">
-                        {customer.email || "No email"} • {customer.phone || "No phone"}
+                        {customer.email || uiText("No email")} • {customer.phone || uiText("No phone")}
                       </p>
                     </button>
                   ))}
                   {filteredCustomers.length === 0 ? (
                     <p className="px-3 py-4 font-admin-primary text-sm text-foreground-secondary">
-                      No matching customer. You can still create a manual appointment below.
-                    </p>
+                      {ui("m9b4c1adba58d")}</p>
                   ) : null}
                 </div>
 
                 <label className="space-y-2">
                   <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                    Customer Name
-                  </span>
+                    {ui("m75636316f9d7")}</span>
                   <input
                     type="text"
                     value={createForm.customerName}
@@ -1745,11 +1726,10 @@ export default function AdminAppointmentsView({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <label className="space-y-2">
                     <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                      Customer Email
-                    </span>
+                      {ui("m5a4bc8d69307")}</span>
                     <input
                       type="email"
-                      placeholder="Customer email (Optional)" value={createForm.customerEmail}
+                      placeholder={ui("mc7c84c81ff57")} value={createForm.customerEmail}
                       onChange={(event) =>
                         setCreateForm((current) => ({ ...current, customerEmail: event.target.value }))
                       }
@@ -1758,11 +1738,10 @@ export default function AdminAppointmentsView({
                   </label>
                   <label className="space-y-2">
                     <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                      Customer Phone
-                    </span>
+                      {ui("m268cb76567b5")}</span>
                     <input
                       type="tel"
-                      placeholder="Customer phone (Optional)" value={createForm.customerPhone}
+                      placeholder={ui("mfce04b27cbd2")} value={createForm.customerPhone}
                       onChange={(event) =>
                         setCreateForm((current) => ({ ...current, customerPhone: event.target.value }))
                       }
@@ -1773,11 +1752,11 @@ export default function AdminAppointmentsView({
               </div>
 
               <div className="space-y-4">
-                <AdminSelect label="Service" value={createForm.serviceId} onChange={(value) => setCreateForm((current) => ({ ...current, serviceId: value }))} placeholder="Select service" options={services.map((service) => ({ value: service.id, label: `${service.name} · ${service.duration_max ?? service.duration_min} min · ${formatServicePrice(service.price)}` }))} searchable={services.length > 8} />
+                <AdminSelect label={ui("m329cb8b6ba8c")} value={createForm.serviceId} onChange={(value) => setCreateForm((current) => ({ ...current, serviceId: value }))} placeholder={ui("mf216b2305e94")} options={services.map((service) => ({ value: service.id, label: `${service.name} · ${service.duration_max ?? service.duration_min} min · ${formatServicePrice(service.price)}` }))} searchable={services.length > 8} />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <DateTimePicker mode="date" label="Date" value={createForm.dateKey} onChange={(nextDate) => setCreateForm((current) => ({ ...current, dateKey: nextDate }))} />
-                  <AdminSelect label="Time" value={createForm.startTime} onChange={(value) => setCreateForm((current) => ({ ...current, startTime: value }))} disabled={!createForm.serviceId || !createForm.dateKey || isCreatePending} placeholder={isCreatePending ? "Loading..." : "Select available time"} options={availableSlots.map((slot) => ({ value: slot.time, label: slot.time }))} />
+                  <DateTimePicker mode="date" label={ui("meb9a4bc1c0c1")} value={createForm.dateKey} onChange={(nextDate) => setCreateForm((current) => ({ ...current, dateKey: nextDate }))} />
+                  <AdminSelect label={ui("m6c82e6dd8680")} value={createForm.startTime} onChange={(value) => setCreateForm((current) => ({ ...current, startTime: value }))} disabled={!createForm.serviceId || !createForm.dateKey || isCreatePending} placeholder={uiText(isCreatePending ? "Loading..." : "Select available time")} options={availableSlots.map((slot) => ({ value: slot.time, label: slot.time }))} />
                 </div>
 
                 {selectedService ? (
@@ -1786,21 +1765,20 @@ export default function AdminAppointmentsView({
                       {selectedService.name}
                     </p>
                     <p className="mt-2 font-admin-primary text-sm text-foreground-secondary">
-                      Duration {selectedService.duration_max ?? selectedService.duration_min} min • {formatServicePrice(selectedService.price)}
+                      {ui("m1370004da76f")}{selectedService.duration_max ?? selectedService.duration_min} min • {formatServicePrice(selectedService.price)}
                     </p>
                   </div>
                 ) : null}
 
                 {slotsError ? (
                   <div className="border border-border bg-background/35 px-4 py-3">
-                    <p className="font-admin-primary text-sm text-foreground-secondary">{slotsError}</p>
+                    <p className="font-admin-primary text-sm text-foreground-secondary">{uiText(slotsError)}</p>
                   </div>
                 ) : null}
 
                 <label className="space-y-2">
                   <span className="font-admin-primary text-[11px] uppercase tracking-[0.2em] text-foreground-muted">
-                    Notes
-                  </span>
+                    {ui("m70440046a3dc")}</span>
                   <textarea
                     rows={5}
                     value={createForm.notes}
@@ -1808,7 +1786,7 @@ export default function AdminAppointmentsView({
                       setCreateForm((current) => ({ ...current, notes: event.target.value }))
                     }
                     className="w-full resize-none border border-border bg-transparent px-4 py-3 font-admin-primary text-sm text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                    placeholder="Add notes (Optional)"
+                    placeholder={ui("m00e8e5b51e5c")}
                   />
                 </label>
 
@@ -1825,13 +1803,12 @@ export default function AdminAppointmentsView({
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
                   <span className="font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
-                    Send confirmation email
-                  </span>
+                    {ui("m0f23e14aab75")}</span>
                 </label>
 
                 {createFeedback ? (
                   <div className="border border-border bg-background/35 px-4 py-3">
-                    <p className="font-admin-primary text-sm text-foreground-secondary">{createFeedback}</p>
+                    <p className="font-admin-primary text-sm text-foreground-secondary">{uiText(createFeedback)}</p>
                   </div>
                 ) : null}
               </div>
@@ -1843,15 +1820,14 @@ export default function AdminAppointmentsView({
                 onClick={closeCreateModal}
                 className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
               >
-                Cancel
-              </button>
+                {ui("m77dfd2135f4d")}</button>
               <button
                 type="button"
                 disabled={isCreatePending}
                 onClick={submitCreateAppointment}
                 className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-admin-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
               >
-                {isCreatePending ? "Creating..." : "Create Appointment"}
+                {uiText(isCreatePending ? "Creating..." : "Create Appointment")}
               </button>
             </div>
           </div>

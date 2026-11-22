@@ -1,4 +1,5 @@
 export type CustomerRecord = {
+  preferred_locale?: "de" | "en" | null;
   id: string;
   profile_id: string | null;
   full_name: string;

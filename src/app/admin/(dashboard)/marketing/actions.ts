@@ -1,5 +1,7 @@
 "use server";
 
+import { contentPayload } from "@/i18n/content-editing";
+import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { canReceiveMarketingEmail, isValidEmail } from "@/lib/customers/marketing-consent";
@@ -8,11 +10,13 @@ import type { CustomerRecord } from "@/lib/customers/types";
 import { sendGmailMessage } from "@/lib/email/gmail";
 import { sendMarketingEmail } from "@/lib/email/marketing";
 import { getEligibleMarketingRecipients } from "@/lib/marketing/audience";
-import { buildMarketingCampaignEmail } from "@/lib/marketing/email-template";
+import { getLocale } from "next-intl/server";
+import { notificationLocale } from "@/i18n/config";
+import { buildMarketingCampaignEmail, resolveMarketingContent } from "@/lib/marketing/email-template";
 import { getMarketingCampaignDetail } from "@/lib/marketing/queries";
 import type { MarketingAudienceFilters, MarketingEmailContent, MarketingTemplateInput } from "@/lib/marketing/types";
 
-type ActionResult = { success: true; message: string; campaignId?: string } | { success: false; message: string };
+type ActionResult = { success: true; message: string; campaignId?: string; templateId?: string } | { success: false; message: string };
 
 function clean(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -21,6 +25,7 @@ function clean(value: unknown, max: number) {
 function validateContent(input: MarketingEmailContent): MarketingEmailContent {
   const content = {
     campaignName: clean(input.campaignName, 120), templateId: clean(input.templateId, 80) || null,
+    translations: input.translations?.de ? { de: { subject: clean(input.translations.de.subject, 160), preheader: clean(input.translations.de.preheader, 200), headline: clean(input.translations.de.headline, 180), content: clean(input.translations.de.content, 5000), ctaText: clean(input.translations.de.ctaText, 80) } } : undefined,
     subject: clean(input.subject, 160), preheader: clean(input.preheader, 200), headline: clean(input.headline, 180),
     content: clean(input.content, 5000), ctaText: clean(input.ctaText, 80), ctaUrl: clean(input.ctaUrl, 500),
   };
@@ -45,12 +50,16 @@ function validateTemplate(input: MarketingTemplateInput) {
   return template;
 }
 
-export async function saveMarketingTemplate(input: MarketingTemplateInput, templateId?: string): Promise<ActionResult> {
+export async function saveMarketingTemplate(input: MarketingTemplateInput, templateId?: string, locale: Locale = "en"): Promise<ActionResult> {
   try {
     const { supabase } = await requireAdminUser();
-    const template = validateTemplate(input);
-    const payload = {
-      name: template.name,
+    if (!isLocale(locale)) throw new Error("Invalid content language.");
+    if (!templateId && (!input.name.trim() || !input.subject.trim() || !input.headline.trim() || !input.content.trim())) throw new Error("Complete the required English source fields before creating this item.");
+    const active = locale === "de" ? { ...input, ...Object.fromEntries(["name", "description", "subject", "preheader", "headline", "content", "ctaText"].map(key => [key, input.german?.[key] ?? ""])) } : input;
+    const validatedActive = validateTemplate(active);
+    const template = locale === "en" || !templateId ? validateTemplate(input) : input;
+    const payload = contentPayload({
+      name: clean(template.name, 120),
       description: template.description || null,
       default_subject: template.subject,
       default_preheader: template.preheader || null,
@@ -58,8 +67,8 @@ export async function saveMarketingTemplate(input: MarketingTemplateInput, templ
       default_content: template.content,
       default_cta_text: template.ctaText || null,
       default_cta_url: template.ctaUrl || null,
-      is_active: true,
-    };
+      ...(!templateId ? { is_active: true } : {}),
+    }, ["name", "description", "default_subject", "default_preheader", "default_headline", "default_content", "default_cta_text"], locale, { name: locale === "de" ? validatedActive.name : clean(input.german?.name, 120), description: locale === "de" ? validatedActive.description : clean(input.german?.description, 500), default_subject: locale === "de" ? validatedActive.subject : clean(input.german?.subject, 160), default_preheader: locale === "de" ? validatedActive.preheader : clean(input.german?.preheader, 200), default_headline: locale === "de" ? validatedActive.headline : clean(input.german?.headline, 180), default_content: locale === "de" ? validatedActive.content : clean(input.german?.content, 5000), default_cta_text: locale === "de" ? validatedActive.ctaText : clean(input.german?.ctaText, 80) }, !templateId);
 
     if (templateId !== undefined) {
       const normalizedTemplateId = clean(templateId, 80);
@@ -90,7 +99,7 @@ export async function saveMarketingTemplate(input: MarketingTemplateInput, templ
       }
 
       revalidatePath("/admin/marketing");
-      return { success: true, message: "Template updated." };
+      return { success: true, templateId: normalizedTemplateId, message: "Template updated." };
     }
 
     const { data: createdTemplate, error: insertError } = await supabase
@@ -104,7 +113,7 @@ export async function saveMarketingTemplate(input: MarketingTemplateInput, templ
     }
 
     revalidatePath("/admin/marketing");
-    return { success: true, message: "Template created." };
+    return { success: true, templateId: createdTemplate.id as string, message: "Template created." };
   } catch (error) {
     console.error("Marketing template validation or authorization failed", error);
     return { success: false, message: error instanceof Error ? error.message : "Unable to save template." };
@@ -127,7 +136,7 @@ export async function deleteMarketingTemplate(templateId: string): Promise<Actio
 }
 
 function campaignPayload(content: MarketingEmailContent, filters: MarketingAudienceFilters, createdBy: string) {
-  return { name: content.campaignName, template_id: content.templateId, subject: content.subject, preheader: content.preheader || null, headline: content.headline, content: content.content, cta_text: content.ctaText || null, cta_url: content.ctaUrl || null, audience_filters: filters, created_by: createdBy };
+  return { name: content.campaignName, template_id: content.templateId, subject: content.subject, preheader: content.preheader || null, headline: content.headline, content: content.content, cta_text: content.ctaText || null, cta_url: content.ctaUrl || null, audience_filters: { ...filters, localized_content: content.translations }, created_by: createdBy };
 }
 
 export async function previewMarketingAudience(filters: MarketingAudienceFilters) {
@@ -136,18 +145,27 @@ export async function previewMarketingAudience(filters: MarketingAudienceFilters
   return getEligibleMarketingRecipients(customers, filters);
 }
 
-export async function saveMarketingDraft(input: MarketingEmailContent, filters: MarketingAudienceFilters, campaignId?: string): Promise<ActionResult> {
+export async function saveMarketingDraft(input: MarketingEmailContent, filters: MarketingAudienceFilters, campaignId?: string, locale: Locale = "en"): Promise<ActionResult> {
   try {
     const { supabase, user } = await requireAdminUser();
+    if (!isLocale(locale)) throw new Error("Invalid content language.");
     const content = validateContent(input);
-    const payload = { ...campaignPayload(content, filters, user.id), status: "draft", recipient_count: 0 };
+    if (locale === "de") validateContent({ ...content, ...content.translations?.de });
+    const payload: Record<string, unknown> = { ...campaignPayload(content, filters, user.id), status: "draft", recipient_count: 0 };
+    let expectedUpdatedAt: string | null = null;
     if (campaignId) {
-      const { data: existingDraft, error: lookupError } = await supabase.from("marketing_campaigns").select("id,status").eq("id", campaignId).maybeSingle();
+      const { data: existingDraft, error: lookupError } = await supabase.from("marketing_campaigns").select("id,status,audience_filters,updated_at").eq("id", campaignId).maybeSingle();
       if (lookupError) throw lookupError;
       if (!existingDraft || existingDraft.status !== "draft") return { success: false, message: "This draft was not found or can no longer be edited." };
+      expectedUpdatedAt = existingDraft.updated_at;
+      if (locale === "de") {
+        for (const field of ["subject", "preheader", "headline", "content", "cta_text"]) delete payload[field];
+      } else {
+        payload.audience_filters = { ...filters, localized_content: existingDraft.audience_filters?.localized_content };
+      }
     }
     const query = campaignId
-      ? supabase.from("marketing_campaigns").update(payload).eq("id", campaignId).eq("status", "draft").select("id").maybeSingle()
+      ? supabase.from("marketing_campaigns").update(payload).eq("id", campaignId).eq("status", "draft").eq("updated_at", expectedUpdatedAt).select("id").maybeSingle()
       : supabase.from("marketing_campaigns").insert(payload).select("id").single();
     const { data, error } = await query;
     if (error) throw error;
@@ -178,7 +196,7 @@ export async function sendMarketingTest(input: MarketingEmailContent): Promise<A
     const { user } = await requireAdminUser();
     const content = validateContent(input);
     if (!user.email) return { success: false, message: "Your admin account has no email address." };
-    const email = buildMarketingCampaignEmail(content);
+    const email = buildMarketingCampaignEmail(resolveMarketingContent(content, await getLocale()));
     await sendGmailMessage({ to: user.email, subject: `[TEST] ${content.subject}`, html: email.html, text: email.text });
     return { success: true, message: `Test email sent to ${user.email}.` };
   } catch (error) { console.error("Marketing test email failed", error); return { success: false, message: "The test email could not be sent." }; }
@@ -206,7 +224,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
     const { data: campaign, error: campaignError } = await campaignQuery;
     if (campaignError || !campaign) throw campaignError ?? new Error("Campaign draft was not found or could not be prepared for sending.");
     activeCampaignId = campaign.id;
-    const email = buildMarketingCampaignEmail(content);
+
     let sent = 0, failed = 0, skipped = 0, trackedRecipients = 0;
     for (const customerId of selectedIds) {
       const { data: freshCustomer, error: customerError } = await supabase.from("customers").select("*").eq("id", customerId).maybeSingle();
@@ -237,7 +255,10 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
         continue;
       }
       try {
-        const result = await sendMarketingEmail({ customer: campaignCustomer, subject: content.subject, html: email.html, text: email.text });
+        const locale = notificationLocale(campaignCustomer.preferred_locale, null);
+        const localized = resolveMarketingContent(content, locale);
+        const email = buildMarketingCampaignEmail(localized);
+        const result = await sendMarketingEmail({ customer: campaignCustomer, subject: localized.subject, html: email.html, text: email.text });
         status = result.sent ? "sent" : "skipped";
         result.sent ? sent += 1 : skipped += 1;
       } catch (emailError) { status = "failed"; failed += 1; console.error("Marketing recipient email failed", { campaignId: campaign.id, customerId, error: emailError }); }

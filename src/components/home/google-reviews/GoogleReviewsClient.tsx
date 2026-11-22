@@ -1,4 +1,6 @@
 "use client";
+import { useTranslations } from "next-intl";
+
 
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -7,12 +9,16 @@ import styles from "./google-reviews.module.css";
 
 const SPEED = 24; // CSS pixels/second, independent of review count and breakpoints.
 function Stars({ rating }: { rating: number }) {
-  return <span className={styles.stars} role="img" aria-label={`${rating} out of 5 stars`}>
+  const copy = useTranslations("communication");
+  return <span className={styles.stars} role="img" aria-label={copy("stars", { rating })}>
     <span aria-hidden="true">★★★★★</span>
     <span aria-hidden="true" className={styles.starFill} style={{ width: `${rating / 5 * 100}%` }}>★★★★★</span>
   </span>;
 }
 function Review({ review, duplicate }: { review: GoogleReview; duplicate: boolean }) {
+  const copy = useTranslations("communication");
+  const ui = useTranslations("ui");
+
   const tabIndex = duplicate ? -1 : undefined;
   const initials = review.author.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0]).join("").toUpperCase();
   const author = <>
@@ -27,14 +33,14 @@ function Review({ review, duplicate }: { review: GoogleReview; duplicate: boolea
     <div className={styles.card}>
     <div className={styles.reviewHeader}>
       {review.authorUri
-        ? <a href={review.authorUri} tabIndex={tabIndex} target="_blank" rel="noopener noreferrer" className={styles.author} aria-label={`${review.author}, Google Maps profile (opens in a new tab)`}>{author}</a>
+        ? <a href={review.authorUri} tabIndex={tabIndex} target="_blank" rel="noopener noreferrer" className={styles.author} aria-label={copy("reviewProfile", { author: review.author })}>{author}</a>
         : <div className={styles.author}>{author}</div>}
       <Stars rating={review.rating} />
     </div>
     <p className={styles.quote} dir="auto" lang={review.language ?? undefined}>
       <a href={review.uri} target="_blank" rel="noopener noreferrer" tabIndex={tabIndex}>
         {review.text || "View rating on Google Maps"}
-        <span className="sr-only"> — Open the complete original review on Google Maps (opens in a new tab).</span>
+        <span className="sr-only"> {" "}{ui("m241c02fb17f3")}</span>
       </a>
     </p>
     </div>
@@ -42,6 +48,8 @@ function Review({ review, duplicate }: { review: GoogleReview; duplicate: boolea
 }
 
 export default function GoogleReviewsClient({ data }: { data: GoogleReviews }) {
+  const ui = useTranslations("ui");
+
   // Four source sequences fill the 3-card viewport before hydration, even with one review.
   const initialCopies = 4;
   const [copies, setCopies] = useState(initialCopies);
@@ -126,11 +134,11 @@ export default function GoogleReviewsClient({ data }: { data: GoogleReviews }) {
     resumeTimer.current = setTimeout(() => { if (browsingMode.current === "touch") endBrowsing(); }, 700);
   }
   if (!data.reviews.length) return null;
-  return <section id="reviews" aria-label="Google reviews" className={`${styles.section} font-primary`}
+  return <section id="reviews" aria-label={ui("mab027155bc89")} className={`${styles.section} font-primary`}
     data-browsing={browsing ?? undefined} data-touching={touching}>
     <div className={`page-container ${styles.container}`}>
     <div className={styles.viewport} ref={viewport} role="region" tabIndex={0}
-      aria-label="Client reviews. Focus or swipe to browse; select review text to read the full original."
+      aria-label={ui("m49b4886849ca")}
       onFocusCapture={(event) => {
         // Touch browsers can focus AFTER pointer-up. Such focus is not a
         // keyboard reading session and must not latch the static layout.
@@ -176,10 +184,10 @@ export default function GoogleReviewsClient({ data }: { data: GoogleReviews }) {
         <a className={styles.googleLogo} href={data.mapsUri} target="_blank" rel="noopener noreferrer" aria-label={`${data.name} on Google Maps (opens in a new tab)`}>
           <Image src="/images/attribution/google-maps-white.svg" alt="Google Maps" width={98} height={18} unoptimized />
         </a>
-        <span className={styles.order}>By relevance</span>
+        <span className={styles.order}>{ui("m80f1e06ab855")}</span>
         {data.attributions.map((a, i) => <span key={`${a.name}-${i}`}>{a.uri ? <a href={a.uri} target="_blank" rel="noopener noreferrer">{a.name}</a> : a.name}</span>)}
       </div>
-      <a className={styles.viewAll} href={data.reviewsUri} target="_blank" rel="noopener noreferrer">View all reviews <span aria-hidden="true">↗</span></a>
+      <a className={styles.viewAll} href={data.reviewsUri} target="_blank" rel="noopener noreferrer">{ui("m11433b701701")}{" "}<span aria-hidden="true">↗</span></a>
     </div>
     </div>
   </section>;

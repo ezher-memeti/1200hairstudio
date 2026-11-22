@@ -1,3 +1,5 @@
+
+import { getLocale, getTranslations } from "next-intl/server";
 import { getBusinessHours, getBusinessHourDayLabel, formatBusinessHourRange } from "@/lib/public/business-hours";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
@@ -12,6 +14,9 @@ const fallbackHours = [
 ];
 
 export default async function VisitStudio({ content, directionsUrl }: { content: HomepageContent; directionsUrl?: string | null }) {
+  const ui = await getTranslations("ui");
+  const locale = await getLocale();
+
   const businessHours = await getBusinessHours();
   const hoursToRender = businessHours.length > 0 ? businessHours : fallbackHours;
   const address = `${content.visit_address_line_1}, ${content.visit_address_line_2}, Switzerland`;
@@ -51,7 +56,7 @@ export default async function VisitStudio({ content, directionsUrl }: { content:
                       className={`flex items-center justify-between gap-6 ${!isLast ? "border-b border-border pb-3" : ""}`}
                     >
                       <span className="font-primary text-sm uppercase tracking-[0.22em] text-foreground">
-                        {getBusinessHourDayLabel(hour.day_of_week)}
+                        {getBusinessHourDayLabel(hour.day_of_week, locale)}
                       </span>
                       <span
                         className={`font-primary text-sm uppercase tracking-[0.22em] ${
@@ -60,7 +65,7 @@ export default async function VisitStudio({ content, directionsUrl }: { content:
                             : "text-foreground-secondary"
                         }`}
                       >
-                        {formatBusinessHourRange(hour)}
+                        {formatBusinessHourRange(hour, locale)}
                       </span>
                     </div>
                   );
@@ -84,7 +89,7 @@ export default async function VisitStudio({ content, directionsUrl }: { content:
         <div className="relative w-full self-center justify-self-stretch overflow-hidden bg-surface">
           <div className="relative aspect-[5/4] min-h-[20rem] w-full sm:min-h-[24rem] lg:min-h-[28rem]">
             <iframe
-              title="1200 Barbershop studio location"
+              title={ui("m6f6ddaf9b611")}
               src={mapEmbedUrl}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"

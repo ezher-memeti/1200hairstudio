@@ -28,7 +28,7 @@ for (const template of templates) {
   const html = await readFile(resolve(root, relativePath), "utf8");
   const tokens = [...html.matchAll(/{{\s*\.([A-Za-z]+)\s*}}/g)];
   assert.deepEqual([...new Set(tokens.map((match) => match[1]))].sort(), [...template.variables].sort(), `${template.file}: missing or unexpected Supabase variables`);
-  assert(!html.replace(/{{\s*\.[A-Za-z]+\s*}}/g, "").includes("{{"), `${template.file}: unsupported template expression`);
+  assert(!html.replace(/{{\s*\.[A-Za-z]+\s*}}/g, "").replace(/{{ if eq \.Data\.preferred_locale "en" }}|{{ else }}|{{ end }}/g, "").includes("{{"), `${template.file}: unsupported template expression`);
   assert.equal((html.match(/href="{{ \.ConfirmationURL }}"/g) ?? []).length, 1, `${template.file}: expected exactly one CTA using ConfirmationURL`);
   assert.equal((html.match(/{{ \.ConfirmationURL }}/g) ?? []).length, 1, `${template.file}: ConfirmationURL must appear only in the CTA href`);
   assert(!/Button not working|Copy the (?:secure|verification) link|word-break:break-all/i.test(html), `${template.file}: fallback URL sections must not be restored`);
@@ -43,7 +43,7 @@ for (const template of templates) {
   assert(html.includes("Schulstrasse 2") && html.includes("8599 Salmsach, Switzerland"), `${template.file}: missing business footer`);
   const sectionName = `[auth.email.template.${template.type}]`;
   const section = config.split(sectionName)[1]?.split(/\n\[/)[0];
-  assert(section?.includes(`subject = "${template.subject}"`) && section.includes(`content_path = "./${relativePath}"`), `${template.file}: local Supabase configuration is inconsistent`);
+  assert(section?.includes(template.subject) && section.includes(`content_path = "./${relativePath}"`), `${template.file}: local Supabase configuration is inconsistent`);
 
   if (previewDir) {
     const confirmationUrl = new URL("https://auth.example.invalid/auth/v1/verify");
@@ -51,8 +51,12 @@ for (const template of templates) {
     confirmationUrl.searchParams.set("type", template.type === "confirmation" ? "signup" : template.type);
     confirmationUrl.searchParams.set("redirect_to", `https://1200.example${template.redirect}`);
     const values = { ConfirmationURL: confirmationUrl.toString(), SiteURL: "https://1200.example" };
-    const preview = html.replace(/{{\s*\.([A-Za-z]+)\s*}}/g, (_, variable) => escapeHtml(values[variable]));
-    await writeFile(resolve(previewDir, template.file), preview);
+    for (const locale of ["de", "en"]) {
+    const selected = html.replace(/{{ if eq \.Data\.preferred_locale "en" }}([\s\S]*?){{ else }}([\s\S]*?){{ end }}/g, (_, en, de) => locale === "en" ? en : de);
+    assert(!selected.replace(/{{ \.(?:ConfirmationURL|SiteURL) }}/g, "").includes("{{"), "Unbalanced locale expressions");
+    const preview = selected.replace(/{{\s*\.([A-Za-z]+)\s*}}/g, (_, variable) => escapeHtml(values[variable]));
+    await writeFile(resolve(previewDir, `${locale}-${template.file}`), preview);
+    }
   }
   console.log(`PASS ${template.type}: HTML safety, link variables, branding, and local configuration`);
 }

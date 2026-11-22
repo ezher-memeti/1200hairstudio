@@ -1,3 +1,4 @@
+import { getLocale } from "next-intl/server";
 import "server-only";
 
 import { revalidatePath } from "next/cache";
@@ -26,13 +27,14 @@ async function getEmailDetails(appointment: AppointmentRecord) {
     appointment.customer_id
       ? supabase.from("customers").select("full_name, email").eq("id", appointment.customer_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from("services").select("name, price").eq("id", appointment.service_id).maybeSingle(),
+    supabase.from("services").select("name, name_de, price").eq("id", appointment.service_id).maybeSingle(),
   ]);
 
   return {
     customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Customer",
     customerEmail: customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
     serviceName: service?.name ?? "Service",
+    serviceNameDe: service?.name_de,
     price: Number(appointment.final_price ?? appointment.original_price ?? service?.price ?? 0),
   };
 }
@@ -91,6 +93,7 @@ export async function cancelResolvedAppointment(
         appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: details.serviceName,
+        serviceNameDe: details.serviceNameDe,
         startAt: appointment.start_at,
         endAt: appointment.end_at,
         price: details.price,
@@ -170,6 +173,7 @@ export async function rescheduleResolvedAppointment(
         appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: validation.service.name,
+        serviceNameDe: validation.service.name_de,
         startAt: updatedAppointment.start_at,
         endAt: updatedAppointment.end_at,
         price: details.price,
@@ -186,7 +190,7 @@ export async function rescheduleResolvedAppointment(
     emailWarning,
     updatedAppointment: {
       ...updatedAppointment,
-      date: formatZurichDate(updatedAppointment.start_at),
+      date: formatZurichDate(updatedAppointment.start_at, await getLocale()),
       time: formatZurichTimeRange(updatedAppointment.start_at, updatedAppointment.end_at),
     },
   };

@@ -1,4 +1,8 @@
 "use client";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -24,6 +28,10 @@ function formatPrice(price: number) {
 }
 
 export default function Services({ services, content }: ServicesProps) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const [activeServiceId, setActiveServiceId] = useState(
     services[0]?.id ?? "",
   );
@@ -64,7 +72,7 @@ export default function Services({ services, content }: ServicesProps) {
           <div
             className="mt-8 flex flex-col border-t border-border lg:mt-10"
             role="tablist"
-            aria-label="Signature services"
+            aria-label={ui("m61c4d1cb41a7")}
           >
             {services.map((service, index) => {
               const isActive =
@@ -151,7 +159,7 @@ export default function Services({ services, content }: ServicesProps) {
                   <Image
                     key={service.id}
                     src={service.image_url || fallbackServiceImage}
-                    alt={isActive ? service.name : ""}
+                    alt={uiText(isActive ? service.name : "")}
                     fill
                     loading={isTransitionImage ? "eager" : "lazy"}
                     quality={88}

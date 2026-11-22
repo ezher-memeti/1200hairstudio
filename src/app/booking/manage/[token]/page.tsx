@@ -1,3 +1,6 @@
+import { getLocale } from "next-intl/server";
+
+import { getTranslations } from "next-intl/server";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import BookingManagementView from "@/components/booking/BookingManagementView";
@@ -16,11 +19,13 @@ export const metadata = {
 };
 
 export default async function ManageBookingPage({ params }: { params: Promise<{ token: string }> }) {
+  const ui = await getTranslations("ui");
+
   const { token } = await params;
   const managed = await resolveManagedAppointment(token);
 
   if (!managed) {
-    return <><Header /><main className="page-container flex min-h-[65vh] items-center justify-center py-16"><div className="max-w-xl border border-border bg-surface p-8 text-center sm:p-12"><p className="font-primary text-[10px] uppercase tracking-[0.3em] text-accent">Manage Booking</p><h1 className="mt-5 font-display text-4xl uppercase leading-none text-foreground">Link unavailable</h1><p className="mt-5 font-primary text-sm leading-7 text-foreground-secondary">{INVALID_LINK_MESSAGE}</p></div></main><Footer /></>;
+    return <><Header /><main className="page-container flex min-h-[65vh] items-center justify-center py-16"><div className="max-w-xl border border-border bg-surface p-8 text-center sm:p-12"><p className="font-primary text-[10px] uppercase tracking-[0.3em] text-accent">{ui("mef0f85c8ba0a")}</p><h1 className="mt-5 font-display text-4xl uppercase leading-none text-foreground">{ui("mb1e6a1dcebcd")}</h1><p className="mt-5 font-primary text-sm leading-7 text-foreground-secondary">{INVALID_LINK_MESSAGE}</p></div></main><Footer /></>;
   }
 
   const { appointment, supabase } = managed;
@@ -38,7 +43,7 @@ export default async function ManageBookingPage({ params }: { params: Promise<{ 
           booking={{
             reference: appointment.booking_reference ?? "Booking",
             service: service?.name ?? "Service",
-            date: formatZurichDate(appointment.start_at),
+            date: formatZurichDate(appointment.start_at, await getLocale()),
             time: formatZurichTimeRange(appointment.start_at, appointment.end_at),
             status: appointment.status.replace("_", " "),
             ...capabilities,

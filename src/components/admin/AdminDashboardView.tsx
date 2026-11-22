@@ -1,8 +1,18 @@
 "use client";
+import { useLocale as useInterfaceLocale } from "next-intl";
+import { textFor as interfaceText } from "@/i18n/text";
+
+import { intlLocale } from "@/i18n/config";
+import { useLocale } from "next-intl";
+import { textFor } from "@/i18n/text";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 /* eslint-disable react/no-unescaped-entities */
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { useState } from "react";
 import {
   ArrowRight,
@@ -57,8 +67,8 @@ const zurichDateKey = (value: string) =>
     month: "2-digit",
     day: "2-digit",
   }).format(new Date(value));
-const fullDate = (value: string) =>
-  new Intl.DateTimeFormat("en-GB", {
+const fullDate = (value: string, locale: string) =>
+  new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Europe/Zurich",
     weekday: "long",
     day: "numeric",
@@ -69,6 +79,12 @@ const duration = (start: string, end: string) =>
   `${Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000))} min`;
 
 export default function AdminDashboardView(props: Props) {
+  const uiText = useUiText();
+  const locale = useLocale();
+
+  const ui = useTranslations("ui");
+  const audit = useTranslations("audit");
+
   const [trendRange, setTrendRange] = useState<"7" | "30">("7");
   const trend = trendRange === "7" ? props.sevenDayComparison : props.thirtyDayComparison;
   const nowMs = new Date(props.now).getTime();
@@ -87,17 +103,17 @@ export default function AdminDashboardView(props: Props) {
     0,
   );
   const unsentReceipts = props.finance.receipts.filter((item) => !item.emailed_at);
-  const activities = buildActivity(props).slice(0, 8);
+  const activities = buildActivity(props, locale).slice(0, 8);
   const kpis = [
     {
       label: "Today's Appointments",
       value: String(active.length).padStart(2, "0"),
-      detail: fullDate(props.now),
+      detail: fullDate(props.now, locale),
     },
     {
       label: "Today's Revenue",
       value: money(props.todayComparison.current.totals.netRevenue),
-      detail: deltaLabel(props.todayComparison.changes.netRevenue),
+      detail: props.todayComparison.changes.netRevenue === null ? uiText("No previous-day baseline") : audit("deltaComparison", { arrow: props.todayComparison.changes.netRevenue >= 0 ? "↑" : "↓", percent: Math.abs(props.todayComparison.changes.netRevenue).toFixed(1) }),
     },
     {
       label: "Next Appointment",
@@ -107,7 +123,7 @@ export default function AdminDashboardView(props: Props) {
     {
       label: "Available Slots",
       value: String(props.availableSlots.length).padStart(2, "0"),
-      detail: props.availabilityService ? `For ${props.availabilityService.name}` : "No active service",
+      detail: props.availabilityService ? audit("forService", { service: props.availabilityService.name }) : "No active service",
     },
   ];
 
@@ -116,13 +132,11 @@ export default function AdminDashboardView(props: Props) {
       <header className="flex min-w-0 flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6 xl:pb-6">
         <div className="min-w-0">
           <p className="text-[10px] uppercase tracking-[0.28em] text-foreground-secondary sm:text-xs sm:tracking-[0.34em]">
-            Dashboard
-          </p>
+            {ui("md87f47b47e4d")}</p>
           <h1 className="mt-2 font-admin-display text-[2.5rem] font-semibold uppercase leading-none tracking-[-0.04em] text-foreground sm:text-5xl xl:text-6xl">
-            Good Day
-          </h1>
+            {ui("mc80c2931d7e6")}</h1>
           <p className="mt-2 break-words text-xs leading-5 text-foreground-secondary sm:text-sm">
-            {fullDate(props.now)} · Europe/Zurich
+            {fullDate(props.now, locale)} · Europe/Zurich
           </p>
         </div>
         <Link
@@ -130,21 +144,20 @@ export default function AdminDashboardView(props: Props) {
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 bg-accent px-5 text-[11px] uppercase tracking-[.16em] text-background sm:w-auto"
         >
           <Plus size={15} />
-          New Appointment
-        </Link>
+          {ui("mf1be0cbfac1d")}</Link>
       </header>
 
       <div className="grid min-w-0 grid-cols-2 gap-2.5 xl:grid-cols-4 xl:gap-3">
         {kpis.map((item) => (
           <article key={item.label} className="min-w-0 border border-border bg-surface p-3.5 sm:p-4">
             <p className="text-[8px] uppercase tracking-[.14em] text-foreground-muted sm:text-[10px] sm:tracking-[.18em]">
-              {item.label}
+              {uiText(item.label)}
             </p>
             <p className="mt-2 break-words font-admin-display text-2xl leading-none tracking-[-.04em] text-foreground sm:text-3xl">
               {item.value}
             </p>
             <p className="mt-1.5 line-clamp-2 break-words text-[10px] leading-4 text-foreground-secondary sm:text-xs sm:leading-5">
-              {item.detail}
+              {uiText(item.detail)}
             </p>
           </article>
         ))}
@@ -194,20 +207,24 @@ function Schedule({
   nowMs: number;
   slots: AvailableSlotDisplay[];
 }) {
+  const interfaceLocale = useInterfaceLocale();
+  const displayText = (value: string) => interfaceText(interfaceLocale, value);
+
+  const ui = useTranslations("ui");
+
   return (
     <section className="min-w-0 overflow-hidden border border-border bg-surface">
       <div className="flex min-w-0 items-end justify-between gap-4 border-b border-border p-4 sm:px-5 sm:py-4">
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">Today's Schedule</p>
+          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">{ui("m7ed2732abc53")}</p>
           <h2 className="mt-1.5 break-words font-admin-display text-xl uppercase text-foreground sm:text-2xl">
-            Appointments
-          </h2>
+            {ui("m1f3f4957c553")}</h2>
         </div>
         <Link
           href="/admin/appointments"
           className="inline-flex min-h-11 shrink-0 items-center text-right text-[9px] uppercase tracking-[.12em] text-accent sm:min-h-0 sm:text-[11px]"
         >
-          View All <span className="hidden sm:inline">Appointments</span>&nbsp;→
+          {ui("mefd83559209c")}<span className="hidden sm:inline">{ui("m1f3f4957c553")}</span>&nbsp;→
         </Link>
       </div>
       <div className="divide-y divide-border">
@@ -225,7 +242,7 @@ function Schedule({
               </strong>
               <span className="min-w-0">
                 <b className="block truncate text-sm text-foreground">{item.customer_name}</b>
-                <small className="block truncate text-[10px] text-foreground-muted">{item.booking_type}</small>
+                <small className="block truncate text-[10px] text-foreground-muted">{displayText(item.booking_type)}</small>
               </span>
               <span className="text-right text-xs text-foreground sm:hidden">
                 {money(finance?.amountDue ?? Number(item.final_price ?? 0))}
@@ -240,22 +257,22 @@ function Schedule({
                 {money(finance?.amountDue ?? Number(item.final_price ?? 0))}
               </span>
               <span className="hidden text-[9px] uppercase tracking-[.1em] text-foreground-muted sm:block">
-                {item.status.replaceAll("_", " ")}
+                {displayText(item.status.replaceAll("_", " "))}
               </span>
             </Link>
           );
         })}
         {!appointments.length ? (
           <div className="px-5 py-7">
-            <p className="text-sm text-foreground-secondary">No appointments scheduled today.</p>
-            <p className="mt-1 text-xs text-foreground-muted">The day is currently clear.</p>
+            <p className="text-sm text-foreground-secondary">{ui("mff739771f381")}</p>
+            <p className="mt-1 text-xs text-foreground-muted">{ui("m689c12d154ef")}</p>
           </div>
         ) : null}
       </div>
       {slots.length ? (
         <div className="border-t border-border px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-1 text-[9px] uppercase tracking-[.15em] text-foreground-muted">Open slots</p>
+            <p className="mr-1 text-[9px] uppercase tracking-[.15em] text-foreground-muted">{ui("md47ecc230b14")}</p>
             {slots.slice(0, 8).map((slot) => (
               <span key={slot.slot_start} className="border border-border px-2.5 py-1.5 text-[11px] text-foreground-secondary">
                 {slot.time}
@@ -269,41 +286,45 @@ function Schedule({
 }
 
 function RegisterCard({ register }: { register: RegisterSessionDetail | null }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   return (
     <aside className="min-w-0 border border-border bg-surface p-4 sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">Register</p>
+          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">{ui("md672995a1465")}</p>
           <h2 className="mt-1.5 font-admin-display text-2xl uppercase text-foreground">
-            {register ? "Open" : "Closed"}
+            {uiText(register ? "Open" : "Closed")}
           </h2>
         </div>
         <span className={`border px-2.5 py-1 text-[9px] uppercase tracking-[.14em] ${register ? "border-emerald-500/40 text-emerald-300" : "border-border text-foreground-muted"}`}>
-          {register ? "Open" : "Closed"}
+          {uiText(register ? "Open" : "Closed")}
         </span>
       </div>
       {register ? (
         <div className="mt-4">
-          <p className="text-[9px] uppercase tracking-[.14em] text-foreground-muted">Expected Cash</p>
+          <p className="text-[9px] uppercase tracking-[.14em] text-foreground-muted">{ui("m06ad8947fca5")}</p>
           <p className="mt-1.5 break-words font-admin-display text-3xl text-accent">
             {money(register.expectedCash)}
           </p>
           <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-xs">
             <div>
-              <dt className="text-foreground-muted">Opened</dt>
+              <dt className="text-foreground-muted">{ui("mc4f1f5b1d49f")}</dt>
               <dd className="mt-1 text-foreground">{time(register.session.opened_at)}</dd>
             </div>
             <div>
-              <dt className="text-foreground-muted">Cash payments</dt>
+              <dt className="text-foreground-muted">{ui("m486fba75b697")}</dt>
               <dd className="mt-1 text-foreground">{money(register.breakdown.cashPayments)}</dd>
             </div>
           </dl>
         </div>
       ) : (
-        <p className="mt-4 text-sm leading-6 text-foreground-muted">No register is currently open.</p>
+        <p className="mt-4 text-sm leading-6 text-foreground-muted">{ui("mcd12ff19e25f")}</p>
       )}
       <Link href="/admin/finance/register" className="mt-4 inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.14em] text-accent sm:min-h-0">
-        {register ? "View Register" : "Open Register"} →
+        {uiText(register ? "View Register" : "Open Register")} →
       </Link>
     </aside>
   );
@@ -318,12 +339,14 @@ function RevenuePerformance({
   trendRange: "7" | "30";
   onRangeChange: (value: "7" | "30") => void;
 }) {
+  const ui = useTranslations("ui");
+
   return (
     <section className="min-w-0 border border-border bg-surface p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">Revenue Performance</p>
-          <p className="mt-1 text-xs leading-5 text-foreground-secondary">Net revenue against the previous equivalent period.</p>
+          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">{ui("m5ffdf3d30953")}</p>
+          <p className="mt-1 text-xs leading-5 text-foreground-secondary">{ui("m707a1c213683")}</p>
         </div>
         <div className="flex w-fit border border-border">
           {(["7", "30"] as const).map((value) => (
@@ -333,8 +356,7 @@ function RevenuePerformance({
               onClick={() => onRangeChange(value)}
               className={`min-h-9 px-4 text-[10px] uppercase tracking-[.14em] ${trendRange === value ? "bg-accent text-background" : "text-foreground-muted"}`}
             >
-              {value} Days
-            </button>
+              {value} {ui("mf6bb0f468a85")}</button>
           ))}
         </div>
       </div>
@@ -356,6 +378,10 @@ function BusinessSnapshot({
   month: FinanceComparison["current"]["totals"];
   topService: string;
 }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const rows = [
     ["Net revenue", money(month.netRevenue)],
     ["Completed appointments", String(month.completedAppointments)],
@@ -367,17 +393,16 @@ function BusinessSnapshot({
     <aside className="min-w-0 border border-border bg-surface p-4 sm:p-5">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">Business Snapshot</p>
-          <h2 className="mt-1.5 font-admin-display text-2xl uppercase text-foreground">This Month</h2>
+          <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">{ui("med827ee68f44")}</p>
+          <h2 className="mt-1.5 font-admin-display text-2xl uppercase text-foreground">{ui("m0f6cc3a89ce9")}</h2>
         </div>
         <Link href="/admin/finance" className="inline-flex min-h-11 shrink-0 items-center text-[10px] uppercase tracking-[.13em] text-accent sm:min-h-0">
-          View →
-        </Link>
+          {ui("mcf3dbdab782e")}</Link>
       </div>
       <dl className="mt-3 divide-y divide-border">
         {rows.map(([label, value]) => (
           <div key={label} className="flex min-w-0 items-start justify-between gap-3 py-2.5">
-            <dt className="min-w-0 text-xs leading-5 text-foreground-muted">{label}</dt>
+            <dt className="min-w-0 text-xs leading-5 text-foreground-muted">{uiText(label)}</dt>
             <dd className="min-w-0 break-words text-right text-sm leading-5 text-foreground">{value}</dd>
           </div>
         ))}
@@ -387,22 +412,27 @@ function BusinessSnapshot({
 }
 
 function RecentActivity({ activities }: { activities: Array<{ at: string; label: string; context: string }> }) {
+  const uiText = useUiText();
+  const locale = useLocale();
+
+  const ui = useTranslations("ui");
+
   return (
     <section className="min-w-0 border border-border bg-surface p-4 sm:p-5">
-      <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">Recent Activity</p>
+      <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">{ui("m8aebf36d41d7")}</p>
       <div className="mt-2 divide-y divide-border">
         {activities.map((item, index) => (
           <div key={`${item.at}-${index}`} className="min-w-0 py-2.5">
-            <p className="break-words text-sm text-foreground">{item.label}</p>
+            <p className="break-words text-sm text-foreground">{uiText(item.label)}</p>
             <p className="mt-0.5 break-words text-[11px] leading-5 text-foreground-muted">
-              {item.context} · {fullDate(item.at)} {time(item.at)}
+              {item.context} · {fullDate(item.at, locale)} {time(item.at)}
             </p>
           </div>
         ))}
         {!activities.length ? (
           <div className="py-5">
-            <p className="text-sm text-foreground-secondary">No recent activity.</p>
-            <p className="mt-1 text-xs text-foreground-muted">New bookings and payments will appear here.</p>
+            <p className="text-sm text-foreground-secondary">{ui("m107fe2b93d7a")}</p>
+            <p className="mt-1 text-xs text-foreground-muted">{ui("m20e7d819f181")}</p>
           </div>
         ) : null}
       </div>
@@ -421,18 +451,22 @@ function Attention({
   unsentReceipts: number;
   tomorrowBookings: number;
 }) {
+  const ui = useTranslations("ui");
+  const uiText = useUiText();
+  const audit = useTranslations("audit");
+
   const items = [
     outstandingCount
       ? {
-          text: `${outstandingCount} appointment${outstandingCount === 1 ? " has" : "s have"} outstanding payments`,
-          detail: `${money(outstandingTotal)} outstanding`,
+          text: audit("outstandingAppointments", { count: outstandingCount }),
+          detail: audit("outstandingAmount", { amount: money(outstandingTotal) }),
           href: "/admin/finance",
           action: "Review",
         }
       : null,
     unsentReceipts
       ? {
-          text: `${unsentReceipts} receipt${unsentReceipts === 1 ? " has" : "s have"} not been emailed`,
+          text: audit("unsentReceipts", { count: unsentReceipts }),
           detail: "Customer delivery pending",
           href: "/admin/finance/receipts",
           action: "Review",
@@ -440,7 +474,7 @@ function Attention({
       : null,
     tomorrowBookings > 0 && tomorrowBookings < 3
       ? {
-          text: `Tomorrow has only ${tomorrowBookings} booking${tomorrowBookings === 1 ? "" : "s"}`,
+          text: audit("lowBookings", { count: tomorrowBookings }),
           detail: "Review upcoming availability",
           href: "/admin/calendar",
           action: "Calendar",
@@ -450,23 +484,23 @@ function Attention({
 
   return (
     <aside className="min-w-0 border border-border bg-surface p-4 sm:p-5">
-      <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">Needs Attention</p>
+      <p className="text-[10px] uppercase tracking-[.18em] text-foreground-muted">{ui("m3dcfe8c50196")}</p>
       <div className="mt-2 divide-y divide-border">
         {items.map((item) => (
           <div key={item.text} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-2.5">
             <div className="min-w-0">
               <p className="break-words text-sm leading-5 text-foreground">{item.text}</p>
-              <p className="mt-0.5 break-words text-xs leading-5 text-foreground-muted">{item.detail}</p>
+              <p className="mt-0.5 break-words text-xs leading-5 text-foreground-muted">{uiText(item.detail)}</p>
             </div>
             <Link href={item.href} className="inline-flex min-h-11 items-center text-[10px] uppercase tracking-[.14em] text-accent sm:min-h-0">
-              {item.action} →
+              {uiText(item.action)} →
             </Link>
           </div>
         ))}
         {!items.length ? (
           <div className="py-5">
-            <p className="text-sm text-emerald-300">Everything is up to date.</p>
-            <p className="mt-1 text-xs text-foreground-muted">No action is currently required.</p>
+            <p className="text-sm text-emerald-300">{ui("m2772acacfd94")}</p>
+            <p className="mt-1 text-xs text-foreground-muted">{ui("m4c1fa6707b01")}</p>
           </div>
         ) : null}
       </div>
@@ -475,6 +509,10 @@ function Attention({
 }
 
 function QuickActions() {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const items = [
     { label: "New Appointment", href: "/admin/appointments?new=1", icon: Plus },
     { label: "Checkout", href: "/admin/appointments", icon: CreditCard },
@@ -486,7 +524,7 @@ function QuickActions() {
   return (
     <section className="min-w-0 border-y border-border py-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <p className="shrink-0 text-[10px] uppercase tracking-[.18em] text-foreground-muted lg:w-28">Quick Actions</p>
+        <p className="shrink-0 text-[10px] uppercase tracking-[.18em] text-foreground-muted lg:w-28">{ui("mc40810f5c31d")}</p>
         <div className="grid min-w-0 flex-1 auto-rows-fr grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2">
           {items.map(({ label, href, icon: Icon }) => (
             <Link
@@ -495,7 +533,7 @@ function QuickActions() {
               className="grid min-h-12 min-w-0 grid-cols-[14px_minmax(0,1fr)_12px] items-center gap-3 border border-border px-3 py-3 text-[10px] uppercase leading-4 tracking-[.09em] text-foreground-secondary transition-colors hover:border-accent/50 hover:text-accent"
             >
               <Icon size={14} className="shrink-0" />
-              <span className="min-w-0 whitespace-normal [overflow-wrap:normal]">{label}</span>
+              <span className="min-w-0 whitespace-normal [overflow-wrap:normal]">{uiText(label)}</span>
               <ArrowRight size={12} className="shrink-0" />
             </Link>
           ))}
@@ -510,7 +548,7 @@ function deltaLabel(value: number | null) {
   return `${value >= 0 ? "↑" : "↓"} ${Math.abs(value).toFixed(1)}% vs yesterday`;
 }
 
-function buildActivity(props: Props) {
+function buildActivity(props: Props, locale: string) {
   const events: Array<{ at: string; label: string; context: string }> = [];
   props.finance.transactions.forEach((item) =>
     events.push({
@@ -535,7 +573,7 @@ function buildActivity(props: Props) {
     events.push({
       at: item.emailed_at ?? item.issued_at,
       label: item.emailed_at ? "Receipt emailed" : "Receipt issued",
-      context: `Beleg ${item.receipt_number} · ${item.customer_name ?? "Customer"}`,
+      context: `${textFor(locale, "Receipt")} ${item.receipt_number} · ${item.customer_name ?? "Customer"}`,
     }),
   );
   return events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());

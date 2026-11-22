@@ -1,3 +1,5 @@
+
+import { getTranslations } from "next-intl/server";
 import SelectedWorkClient from "@/components/home/SelectedWorkClient";
 import SelectedWorkBackground from "@/components/home/SelectedWorkBackground";
 import { getActiveSelectedWork } from "@/lib/public/selected-work";
@@ -5,6 +7,8 @@ import type { WorkItem } from "@/components/home/CircularGallery";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 export default async function SelectedWork({ content }: { content: HomepageContent }) {
+  const ui = await getTranslations("ui");
+
   const selectedWork = await getActiveSelectedWork();
 
   const works: WorkItem[] = selectedWork.map((item) => ({
@@ -37,8 +41,7 @@ export default async function SelectedWork({ content }: { content: HomepageConte
         ) : (
           <div className="pt-8 sm:pt-10">
             <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-              Selected work is unavailable right now.
-            </p>
+              {ui("mff6afc7c1e8c")}</p>
           </div>
         )}
       </div>

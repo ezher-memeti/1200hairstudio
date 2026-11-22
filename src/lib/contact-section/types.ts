@@ -1,4 +1,5 @@
 export type ContactSectionSettings = {
+  german?: Record<string, string>;
   id: string | null;
   isEnabled: boolean;
   eyebrow: string;

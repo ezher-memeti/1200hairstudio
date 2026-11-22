@@ -1,4 +1,10 @@
 "use client";
+import { useLocale } from "next-intl";
+import { weekdayLabels } from "@/i18n/format";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { updateBusinessHours } from "@/app/admin/(dashboard)/settings/actions";
@@ -20,15 +26,6 @@ type HourFormRow = {
   previous_close_time: string;
 };
 
-const dayNames = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
 
 function toFormRow(hour: BusinessHourRecord): HourFormRow {
   const openTime = hour.open_time ?? "09:00";
@@ -49,6 +46,11 @@ export default function BusinessHoursManager({
   initialHours,
   loadError,
 }: BusinessHoursManagerProps) {
+  const uiText = useUiText();
+  const dayNames = weekdayLabels(useLocale(), "long");
+
+  const ui = useTranslations("ui");
+
   const [rows, setRows] = useState<HourFormRow[]>(
     initialHours
       .slice()
@@ -213,11 +215,9 @@ export default function BusinessHoursManager({
     <section className="space-y-8">
       <div className="space-y-2">
         <h2 className="font-admin-display text-2xl font-semibold text-foreground">
-          Business Hours
-        </h2>
+          {ui("meb144fe410b9")}</h2>
         <p className="max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
-          Set weekly opening hours and schedule exceptions.
-        </p>
+          {ui("meb2ec8d5354b")}</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -226,21 +226,19 @@ export default function BusinessHoursManager({
           onClick={copyMondayToWeekdays}
           className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
         >
-          Copy Monday to weekdays
-        </button>
+          {ui("m50afff58bd51")}</button>
         <button
           type="button"
           onClick={setWeekendClosed}
           className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
         >
-          Set weekend closed
-        </button>
+          {ui("m07f9a1e8b97b")}</button>
       </div>
 
       {loadError ? (
         <div className="border border-border bg-surface px-5 py-5">
           <p className="font-primary text-sm leading-7 text-foreground-secondary">
-            {loadError}
+            {uiText(loadError)}
           </p>
         </div>
       ) : null}
@@ -248,7 +246,7 @@ export default function BusinessHoursManager({
       {feedback ? (
         <div className="border border-border bg-surface px-5 py-4">
           <p className="font-primary text-sm text-foreground-secondary">
-            {feedback}
+            {uiText(feedback)}
           </p>
         </div>
       ) : null}
@@ -276,13 +274,13 @@ export default function BusinessHoursManager({
                   className="h-4 w-4 accent-[var(--accent)]"
                 />
                 <span className="font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary">
-                  {row.is_closed ? "Closed" : "Working"}
+                  {uiText(row.is_closed ? "Closed" : "Working")}
                 </span>
               </label>
 
-              <DateTimePicker mode="time" minuteStep={5} label="Opening" value={row.open_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { open_time: nextTime, previous_open_time: nextTime || row.previous_open_time })} />
+              <DateTimePicker mode="time" minuteStep={5} label={ui("m56e44065a564")} value={row.open_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { open_time: nextTime, previous_open_time: nextTime || row.previous_open_time })} />
 
-              <DateTimePicker mode="time" minuteStep={5} label="Closing" value={row.close_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { close_time: nextTime, previous_close_time: nextTime || row.previous_close_time })} />
+              <DateTimePicker mode="time" minuteStep={5} label={ui("m76a032e9c77c")} value={row.close_time} disabled={row.is_closed} onChange={(nextTime) => updateRow(row.id, { close_time: nextTime, previous_close_time: nextTime || row.previous_close_time })} />
             </div>
           </div>
         ))}
@@ -291,12 +289,11 @@ export default function BusinessHoursManager({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-h-6">
           {saveState === "saved" ? (
-            <p className="font-primary text-sm text-success">Saved</p>
+            <p className="font-primary text-sm text-success">{ui("mc0ae8f6ea841")}</p>
           ) : null}
           {saveState === "saving" || isPending ? (
             <p className="font-primary text-sm text-foreground-secondary">
-              Saving...
-            </p>
+              {ui("mae7e887517b0")}</p>
           ) : null}
         </div>
 
@@ -306,8 +303,7 @@ export default function BusinessHoursManager({
           onClick={saveChanges}
           className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
         >
-          Save Changes
-        </button>
+          {ui("mfa2984b367b8")}</button>
       </div>
     </section>
   );

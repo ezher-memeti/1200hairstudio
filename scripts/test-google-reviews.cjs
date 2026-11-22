@@ -22,17 +22,24 @@ function renderReviews(data) {
   const css = Object.fromEntries([...fs.readFileSync(path.join(__dirname, '../src/components/home/google-reviews/google-reviews.module.css'), 'utf8').matchAll(/\.([A-Za-z][\w-]*)/g)].map((m) => [m[1], m[1]]));
   const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/components/home/google-reviews/GoogleReviewsClient.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   new Function('require','module','exports',compiled)((name)=>{
+    if(name==='@/i18n/use-ui-text')return {useUiText:()=>value=>value};
     if(name==='react')return {...React,useLayoutEffect:()=>{}};
     if(name==='next/image')return ({unoptimized,...props})=>React.createElement('img',props);
     if(name.endsWith('.module.css'))return css;
     return require(name);
   },component,component.exports);
-  return renderToStaticMarkup(React.createElement(component.exports.default,{data}));
+  return renderToStaticMarkup(React.createElement(require("next-intl").NextIntlClientProvider,{locale:"en",messages:require("../messages/en.json"),timeZone:"Europe/Zurich"},React.createElement(component.exports.default,{data})));
+}
+function loadTranslationText() {
+  const component = { exports: {} };
+  const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/i18n/text.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  new Function('require', 'module', 'exports', compiled)((name) => name.startsWith('.') ? require(path.resolve(__dirname, '../src/i18n', name)) : require(name), component, component.exports);
+  return component.exports;
 }
 function loadComponent(file, mocks = {}) {
   const component = { exports: {} };
   const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  new Function('require', 'module', 'exports', compiled)((name) => mocks[name] ?? require(name), component, component.exports);
+  new Function('require', 'module', 'exports', compiled)((name) => name === '@/i18n/text' ? loadTranslationText() : name === '@/i18n/use-ui-text' ? {useUiText:()=>value=>value} : mocks[name] ?? require(name), component, component.exports);
   return component.exports.default;
 }
 async function renderContact(place, overrides = {}) {
@@ -47,7 +54,7 @@ async function renderContact(place, overrides = {}) {
     phoneNumber: '+41000000000', callCtaLabel: 'Call', instagramEnabled: true,
     instagramUrl: 'https://instagram.com/synthetic', instagramCtaLabel: 'Instagram',
     googleLeaveReviewUrl: 'https://unverified.example/review', eyebrow: 'Contact', title: 'Connect', ...overrides };
-  const html = require('react-dom/server').renderToStaticMarkup(await Loader({settings}));
+  const html = require('react-dom/server').renderToStaticMarkup(React.createElement(require('next-intl').NextIntlClientProvider,{locale:'en',messages:require('../messages/en.json'),timeZone:'Europe/Zurich'},await Loader({settings})));
   assert.equal(settings.googleLeaveReviewUrl, 'https://unverified.example/review', 'Stored settings are not mutated');
   return { html, calls };
 }

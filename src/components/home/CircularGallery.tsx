@@ -1,4 +1,6 @@
 "use client";
+import { useTranslations } from "next-intl";
+
 
 import Image from "next/image";
 import {
@@ -99,6 +101,8 @@ export default function CircularGallery({
   onActiveIndexChange,
   onInteracted,
 }: CircularGalleryProps) {
+  const ui = useTranslations("ui");
+
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const scrollFrameRef = useRef<number | null>(null);
@@ -609,7 +613,7 @@ export default function CircularGallery({
         className="relative mx-auto overflow-hidden [perspective:900px] [perspective-origin:center_center] md:[perspective:1200px] xl:[perspective:1400px]"
         tabIndex={0}
         role="region"
-        aria-label="Selected Work gallery"
+        aria-label={ui("m84dab7bf8c77")}
         onKeyDown={handleKeyDown}
       >
         <div
@@ -726,7 +730,7 @@ export default function CircularGallery({
             type="button"
             onClick={goToPrevious}
             className="inline-flex min-h-12 min-w-12 touch-manipulation items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-foreground-secondary"
-            aria-label="Previous work"
+            aria-label={ui("me54f85078ffb")}
           >
             ←
           </button>
@@ -734,7 +738,7 @@ export default function CircularGallery({
             type="button"
             onClick={goToNext}
             className="inline-flex min-h-12 min-w-12 touch-manipulation items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-foreground-secondary"
-            aria-label="Next work"
+            aria-label={ui("m690b6a1e9dea")}
           >
             →
           </button>

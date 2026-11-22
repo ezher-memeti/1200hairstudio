@@ -1,33 +1,7 @@
+import { intlLocale } from "@/i18n/config";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
 import type { ServiceRecord } from "@/lib/services/types";
-
-const weekdayLong = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-] as const;
-
-const weekdayShortUpper = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
-const monthShortUpper = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"] as const;
-const monthLong = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
 
 const ZURICH_TIME_ZONE = "Europe/Zurich";
 
@@ -217,17 +191,17 @@ export function getEffectiveHours(
   };
 }
 
-export function createBookingDateOption(date: Date): BookingDateOption {
+export function createBookingDateOption(date: Date, locale: string = "de"): BookingDateOption {
   const weekday = getWeekdayNumber(date);
   const day = date.getDate();
-  const monthIndex = date.getMonth();
+  const display = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlLocale(locale), { ...options, timeZone: ZURICH_TIME_ZONE }).format(date).toUpperCase();
 
   return {
     id: toDateKey(date),
-    day: weekdayShortUpper[weekday - 1],
+    day: display({ weekday: "short" }),
     date: String(day).padStart(2, "0"),
-    month: monthShortUpper[monthIndex],
-    fullDate: `${weekdayLong[weekday - 1].toUpperCase()}, ${String(day).padStart(2, "0")} ${monthLong[monthIndex].toUpperCase()} ${date.getFullYear()}`,
+    month: display({ month: "short" }),
+    fullDate: display({ weekday: "long", day: "2-digit", month: "long", year: "numeric" }),
     effectiveHours: {
       date: toDateKey(date),
       day_of_week: weekday,
@@ -246,6 +220,7 @@ export function generateUpcomingDateOptions(
   options?: {
     count?: number;
     horizonDays?: number;
+    locale?: string;
   },
 ) {
   const startDate = parseDateKey(startDateKey) ?? getCurrentZurichDateTime().date;
@@ -259,7 +234,7 @@ export function generateUpcomingDateOptions(
       startDate.getMonth(),
       startDate.getDate() + offset,
     );
-    dates.push(createBookingDateOption(nextDate));
+    dates.push(createBookingDateOption(nextDate, options?.locale));
   }
 
   return dates;

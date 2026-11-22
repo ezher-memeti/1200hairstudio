@@ -1,4 +1,5 @@
 "use client";
+import { useUiText } from "@/i18n/use-ui-text";
 
 import { useEffect, useMemo, useState } from "react";
 import { useScrollVideoProgress } from "@/components/home/ScrollVideoSection";
@@ -15,6 +16,7 @@ export default function SectionTwoClient({
 }: {
   content: HomepageContent;
 }) {
+  const uiText = useUiText();
   const progress = useScrollVideoProgress();
   const [preview, setPreview] = useState<NextAvailabilityPreview | null>(null);
   const [hasError, setHasError] = useState(false);
@@ -93,14 +95,14 @@ export default function SectionTwoClient({
           >
             <div className="space-y-2">
               <p className="font-primary text-xs uppercase tracking-[0.32em] text-foreground-muted">
-                {dayLabel}
+                {uiText(dayLabel)}
               </p>
               <h2 className="font-display max-w-xl text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-                {dateLabel}
+                {uiText(dateLabel)}
               </h2>
             </div>
             <p className="font-primary text-sm uppercase tracking-[0.24em] text-foreground-secondary sm:text-base">
-              {status}
+              {uiText(status)}
             </p>
           </div>
 
@@ -124,9 +126,9 @@ export default function SectionTwoClient({
               </div>
             ) : (
               <p className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-muted">
-                {isLoading
+                {uiText(isLoading
                   ? "Checking the current schedule window."
-                  : "No availability in the current schedule window."}
+                  : "No availability in the current schedule window.")}
               </p>
             )}
 

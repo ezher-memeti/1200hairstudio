@@ -1,6 +1,9 @@
 "use client";
+import { useLocale as useInterfaceLocale } from "next-intl";
+import { textFor as interfaceText } from "@/i18n/text";
 
-import { useRouter } from "next/navigation";
+
+import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -11,6 +14,9 @@ type LogoutButtonProps = {
 export default function LogoutButton({
   fullWidth = false,
 }: LogoutButtonProps) {
+  const interfaceLocale = useInterfaceLocale();
+  const displayText = (value: string) => interfaceText(interfaceLocale, value);
+
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -31,7 +37,7 @@ export default function LogoutButton({
         fullWidth ? "w-full" : ""
       }`}
     >
-      {isSubmitting ? "Logging Out..." : "Logout"}
+      {isSubmitting ? displayText("Logging Out...") : displayText("Logout")}
     </button>
   );
 }

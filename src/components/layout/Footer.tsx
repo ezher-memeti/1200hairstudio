@@ -1,7 +1,13 @@
+
+import { Link as LocaleLink } from "@/i18n/navigation";
+
+import { useTranslations } from "next-intl";
 import { homepageContentDefaults, type HomepageContent } from "@/lib/homepage-content-defaults";
 import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function Footer({ content = homepageContentDefaults }: { content?: HomepageContent }) {
+  const ui = useTranslations("ui");
+
   return (
     <footer className="border-t border-border bg-background">
       <div className="page-container py-8 sm:py-10">
@@ -27,18 +33,16 @@ export default function Footer({ content = homepageContentDefaults }: { content?
               <span className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
                 © 1200 Hairstudio
               </span>
-              <a
+              <LocaleLink
                 href="/privacy"
                 className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground-secondary"
               >
-                Privacy
-              </a>
-              <a
+                {ui("mcf01481f626d")}</LocaleLink>
+              <LocaleLink
                 href="/imprint"
                 className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground-secondary"
               >
-                Imprint
-              </a>
+                {ui("mdb71e0bfdd6b")}</LocaleLink>
             </div>
           </div>
         </div>

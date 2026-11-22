@@ -245,11 +245,11 @@ otp_expiry = 3600
 # Local email content only. Hosted templates require separate Dashboard approval.
 # Signup confirmation settings, redirect allowlists, and SMTP settings are unchanged.
 [auth.email.template.confirmation]
-subject = "Confirm your email | 1200 Hairstudio"
+subject = '{{ if eq .Data.preferred_locale "en" }}Confirm your email | 1200 Hairstudio{{ else }}Bestätige deine E-Mail | 1200 Hairstudio{{ end }}'
 content_path = "./supabase/templates/auth/confirm-signup.html"
 
 [auth.email.template.recovery]
-subject = "Reset your password | 1200 Hairstudio"
+subject = '{{ if eq .Data.preferred_locale "en" }}Reset your password | 1200 Hairstudio{{ else }}Setze dein Passwort zurück | 1200 Hairstudio{{ end }}'
 content_path = "./supabase/templates/auth/reset-password.html"
 
 # Uncomment to customize notification email template

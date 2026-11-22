@@ -1,3 +1,5 @@
+import { publicBookingModeError } from "@/lib/site-mode-booking";
+import { getActiveBookingLocale } from "@/i18n/server";
 import "server-only";
 
 import { getUtcIsoForZurichDateTime } from "@/lib/appointments/availability";
@@ -26,11 +28,11 @@ async function getRecurringEmailDetails(series: RecurringBookingRecord): Promise
   const admin = createAdminClient();
   const [{ data: customer }, { data: service }, { data: appointments }] = await Promise.all([
     admin.from("customers").select("full_name,email").eq("id", series.customer_id).maybeSingle(),
-    admin.from("services").select("name").eq("id", series.service_id).maybeSingle(),
+    admin.from("services").select("name,name_de").eq("id", series.service_id).maybeSingle(),
     admin.from("appointments").select("start_at").eq("recurring_booking_id", series.id).eq("status", "confirmed").gt("start_at", new Date().toISOString()).order("start_at", { ascending: true }),
   ]);
   if (!customer?.email || !service || !series.ends_on) return null;
-  return { to: customer.email, customerId: series.customer_id, recurringBookingId: series.id, customerName: customer.full_name, serviceName: service.name, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on, reservedCount: appointments?.length ?? 0, upcomingAppointments: (appointments ?? []).map((appointment) => ({ startAt: appointment.start_at })) };
+  return { to: customer.email, customerId: series.customer_id, recurringBookingId: series.id, customerName: customer.full_name, serviceName: service.name, serviceNameDe: service.name_de, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on, reservedCount: appointments?.length ?? 0, upcomingAppointments: (appointments ?? []).map((appointment) => ({ startAt: appointment.start_at })) };
 }
 
 async function sendRecurringNotification(event: "paused" | "resumed" | "removed", details: RecurringEmailDetails | null) {
@@ -108,11 +110,12 @@ export async function previewRecurringBooking(input: RecurringBookingInput, opti
 async function generateOccurrences(series: RecurringBookingRecord, bookingSource: "admin" | "customer", fromDate?: string | null) {
   const admin = createAdminClient();
   const [{ data: customer }, { data: service }] = await Promise.all([
-    admin.from("customers").select("id,full_name,email,phone").eq("id", series.customer_id).maybeSingle(),
+    admin.from("customers").select("id,full_name,email,phone,preferred_locale").eq("id", series.customer_id).maybeSingle(),
     admin.from("services").select("id,name,price,is_active").eq("id", series.service_id).maybeSingle(),
   ]);
   if (!customer || !service?.is_active) throw new Error("Customer or service is unavailable.");
   if (!series.ends_on) throw new Error("Recurring booking has no end date.");
+  const bookingLocale = await getActiveBookingLocale(customer.preferred_locale);
   const preview = await previewRecurringBooking(
     { customerId: series.customer_id, serviceId: series.service_id, frequency: series.frequency, weekday: series.weekday, startTime: series.start_time.slice(0, 5), startsOn: series.starts_on, endsOn: series.ends_on },
     { fromDate, enforceCustomerPolicy: bookingSource === "customer" },
@@ -150,7 +153,7 @@ async function generateOccurrences(series: RecurringBookingRecord, bookingSource
       }
       continue;
     }
-    const { error } = await admin.from("appointments").insert({ customer_id: customer.id, service_id: service.id, booking_source: bookingSource, customer_name: customer.full_name, customer_email: customer.email || null, customer_phone: customer.phone || null, start_at: occurrence.startAt, end_at: occurrence.endAt, status: "confirmed", original_price: price, discount_amount: 0, final_price: price, promotion_id: null, discount_source: null, discount_label: null, discount_type: null, discount_value: null, booking_reference: credentials.bookingReference, manage_token_hash: credentials.managementTokenHash, recurring_booking_id: series.id, recurring_occurrence_date: occurrence.occurrenceDate });
+    const { error } = await admin.from("appointments").insert({ booking_locale: bookingLocale, customer_id: customer.id, service_id: service.id, booking_source: bookingSource, customer_name: customer.full_name, customer_email: customer.email || null, customer_phone: customer.phone || null, start_at: occurrence.startAt, end_at: occurrence.endAt, status: "confirmed", original_price: price, discount_amount: 0, final_price: price, promotion_id: null, discount_source: null, discount_label: null, discount_type: null, discount_value: null, booking_reference: credentials.bookingReference, manage_token_hash: credentials.managementTokenHash, recurring_booking_id: series.id, recurring_occurrence_date: occurrence.occurrenceDate });
     if (isAppointmentTimeConflictError(error)) {
       await recordConcurrentConflict(occurrence.occurrenceDate);
       continue;
@@ -165,6 +168,10 @@ async function generateOccurrences(series: RecurringBookingRecord, bookingSource
 }
 
 export async function createRecurringBookingSeries(input: RecurringBookingInput & { customerId: string }, bookingSource: "admin" | "customer") {
+  if (bookingSource === "customer") {
+    const modeError = await publicBookingModeError();
+    if (modeError) throw new Error(modeError);
+  }
   validateInput(input);
   if (weekdayForDateKey(input.startsOn) !== input.weekday) throw new Error("Starting date must match the selected weekday.");
   const openWeekdays = await getRecurringOpenBusinessWeekdays();

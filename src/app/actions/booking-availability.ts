@@ -1,4 +1,5 @@
 "use server";
+import { getLocale } from "next-intl/server";
 
 import {
   addDaysToDateKey,
@@ -24,6 +25,7 @@ export async function getServiceBookingAvailability(serviceId: string) {
   const bookingSettings = await getBookingSettings();
   const currentZurich = getCurrentZurichDateTime();
   const dates = generateUpcomingDateOptions(currentZurich.dateKey, {
+    locale: await getLocale(),
     count: 10,
     horizonDays: bookingSettings.maximumHorizonDays + 1,
   });
@@ -78,7 +80,7 @@ export async function getNextAvailabilityPreview() {
         const date = parseDateKey(dateKey);
         if (!date) continue;
 
-        const bookingDate = createBookingDateOption(date);
+        const bookingDate = createBookingDateOption(date, await getLocale());
         const effectiveHours =
           exceptions.find((exception) => exception.date === dateKey) ??
           businessHours.find(

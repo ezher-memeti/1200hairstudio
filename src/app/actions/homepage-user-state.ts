@@ -1,4 +1,6 @@
 "use server";
+import { getLocale } from "next-intl/server";
+import { resolveLocale } from "@/i18n/config";
 
 import { getCurrentUserRole, type UserRole } from "@/lib/auth/customer";
 import { createClient } from "@/lib/supabase/server";
@@ -152,14 +154,14 @@ export async function getHomepageBookingUserState(): Promise<HomepageBookingUser
       if (bookingToken) {
         const managed = await resolveManagedAppointment(bookingToken);
         if (managed?.appointment.id === registeredAppointment.id) {
-          manageUrl = getBookingManagementUrl(bookingToken);
+          manageUrl = getBookingManagementUrl(bookingToken, resolveLocale(await getLocale()));
         }
       }
       const service = services.find((item) => item.id === registeredAppointment?.service_id);
       persistedConfirmation = {
         serviceTitle: service?.name ?? "Service",
         price: Number(registeredAppointment.final_price ?? service?.price ?? 0),
-        date: formatZurichDate(registeredAppointment.start_at).toUpperCase(),
+        date: formatZurichDate(registeredAppointment.start_at, await getLocale()).toUpperCase(),
         time: formatZurichTimeRange(registeredAppointment.start_at, registeredAppointment.end_at),
         bookingReference: registeredAppointment.booking_reference,
         manageUrl,
@@ -172,10 +174,10 @@ export async function getHomepageBookingUserState(): Promise<HomepageBookingUser
         persistedConfirmation = {
           serviceTitle: service?.name ?? "Service",
           price: Number(managed.appointment.final_price ?? service?.price ?? 0),
-          date: formatZurichDate(managed.appointment.start_at).toUpperCase(),
+          date: formatZurichDate(managed.appointment.start_at, await getLocale()).toUpperCase(),
           time: formatZurichTimeRange(managed.appointment.start_at, managed.appointment.end_at),
           bookingReference: managed.appointment.booking_reference ?? null,
-          manageUrl: getBookingManagementUrl(bookingToken),
+          manageUrl: getBookingManagementUrl(bookingToken, resolveLocale(await getLocale())),
           status: managed.appointment.status,
         };
       } else {

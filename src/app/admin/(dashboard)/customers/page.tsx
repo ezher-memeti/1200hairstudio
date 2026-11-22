@@ -13,5 +13,5 @@ export default async function AdminCustomersPage() {
   ]);
   const loyaltySummaries = await getAdminCustomerLoyaltySummaries(customers.filter((customer) => !customer.id.startsWith("legacy-guest:")).map((customer) => customer.id));
 
-  return <AdminCustomersView customers={customers} activeServices={services.map((service) => ({ id: service.id, name: service.name }))} recurringBookings={recurringBookings} loyaltySummaries={loyaltySummaries} todayIso={new Date().toISOString()} />;
+  return <AdminCustomersView customers={customers} activeServices={services.map((service) => ({ id: service.id, name: service.name, sourceName: service.source_name ?? service.name }))} recurringBookings={recurringBookings} loyaltySummaries={loyaltySummaries} todayIso={new Date().toISOString()} />;
 }

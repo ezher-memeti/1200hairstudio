@@ -22,12 +22,12 @@ export async function POST(request: NextRequest) {
   if (appointment.status !== "confirmed" || appointment.start_at !== body.appointmentStartAt) return NextResponse.json({ error: "Appointment is no longer eligible" }, { status: 409 });
   const [{ data: customer }, { data: service }] = await Promise.all([
     appointment.customer_id ? admin.from("customers").select("full_name,email,is_registered").eq("id", appointment.customer_id).maybeSingle() : Promise.resolve({ data: null }),
-    admin.from("services").select("name").eq("id", appointment.service_id).maybeSingle(),
+    admin.from("services").select("name,name_de").eq("id", appointment.service_id).maybeSingle(),
   ]);
   const email = (customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "").trim().toLowerCase();
   if (!email) return NextResponse.json({ error: "Customer email is unavailable" }, { status: 422 });
   try {
-    await sendAppointmentReminderEmail({ to: email, customerId: appointment.customer_id, appointmentId: appointment.id, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
+    await sendAppointmentReminderEmail({ to: email, customerId: appointment.customer_id, appointmentId: appointment.id, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", serviceNameDe: service?.name_de, startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
     return NextResponse.json({ ok: true });
   } catch (sendError) {
     console.error("INTERNAL APPOINTMENT REMINDER EMAIL ERROR", { appointmentId: appointment.id, error: sendError });

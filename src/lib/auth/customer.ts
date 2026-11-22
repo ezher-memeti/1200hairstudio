@@ -1,4 +1,6 @@
-import { redirect } from "next/navigation";
+import { isLocale } from "@/i18n/config";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "@/i18n/server";
 import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { CustomerRecord } from "@/lib/customers/types";
@@ -52,7 +54,7 @@ export async function requireCustomerUser() {
   } = await supabase.auth.getUser();
 
   if (!user || (error && isStaleRefreshTokenError(error))) {
-    redirect("/login");
+    return await redirect("/login");
   }
 
   const { data: profile } = await supabase
@@ -62,11 +64,11 @@ export async function requireCustomerUser() {
     .maybeSingle();
 
   if (profile?.role === "admin") {
-    redirect("/admin");
+    return await redirect("/admin");
   }
 
   if (profile?.role !== "customer") {
-    redirect("/login");
+    return await redirect("/login");
   }
 
   return {
@@ -84,7 +86,7 @@ export const requireAdminUser = cache(async () => {
   } = await supabase.auth.getUser();
 
   if (!user || (error && isStaleRefreshTokenError(error))) {
-    redirect("/admin/login");
+    return await redirect("/admin/login");
   }
 
   const { data: profile } = await supabase
@@ -94,11 +96,11 @@ export const requireAdminUser = cache(async () => {
     .maybeSingle();
 
   if (profile?.role === "customer") {
-    redirect("/account");
+    return await redirect("/account");
   }
 
   if (profile?.role !== "admin") {
-    redirect("/admin/login");
+    return await redirect("/admin/login");
   }
 
   return {
@@ -131,12 +133,34 @@ export async function ensureCustomerRecord(
     throw new Error("Unable to create customer account.");
   }
 
+  const previousCustomer = await supabase.rpc("get_my_customer");
+  const hadCustomer = Array.isArray(previousCustomer.data) ? previousCustomer.data.length > 0 : Boolean(previousCustomer.data);
   const { data, error } = await supabase.rpc("ensure_my_customer", {
     p_full_name: fallbackFullName,
     p_phone: fallbackPhone || null,
   });
   const customer = Array.isArray(data) ? data[0] : data;
   if (error || !customer) throw new Error("Unable to prepare customer account.");
+  // Initialize only a newly created customer, never an existing saved preference.
+  if (!hadCustomer && !previousCustomer.error && isLocale(user.user_metadata.preferred_locale)) {
+    try {
+      const admin = createAdminClient();
+      const { data: localeProfile, error: localeProfileError } = await admin.from("profiles").select("preferred_locale").eq("id", user.id).maybeSingle();
+      if (localeProfileError) throw new Error("Unable to save email preferences right now.");
+      const locale = isLocale(localeProfile?.preferred_locale) ? localeProfile.preferred_locale : user.user_metadata.preferred_locale;
+      const { data: initialized, error: localeError } = await admin.from("customers").update({ preferred_locale: locale }).eq("id", customer.id).eq("profile_id", user.id).is("preferred_locale", null).select("id");
+      if (localeError) throw new Error("Unable to save email preferences right now.");
+      if (initialized?.length) {
+        const { error: profileLocaleError } = await admin.from("profiles").update({ preferred_locale: locale }).eq("id", user.id).is("preferred_locale", null);
+        if (profileLocaleError) throw new Error("Unable to save email preferences right now.");
+      }
+    } catch {
+      // Optional language initialization must not block account setup or booking.
+      // A booking still records its own locale, and explicit switching can retry.
+      console.warn("CUSTOMER LOCALE INITIALIZATION UNAVAILABLE");
+    }
+  }
+
 
   if (shouldRecordSignupMarketingConsent(customer as CustomerRecord, requestedSignupMarketingConsent)) {
     const consent = await supabase.rpc("set_my_marketing_email_preference", {

@@ -17,7 +17,12 @@
     "test:whatsapp": "node scripts/test-whatsapp.cjs",
     "test:whatsapp-webhook": "node scripts/test-whatsapp-webhook.cjs",
     "test:receipt-pdf": "node scripts/test-receipt-pdf.cjs",
-    "validate:gmail-oauth": "node --env-file=.env.local scripts/validate-gmail-oauth.mjs"
+    "validate:gmail-oauth": "node --env-file=.env.local scripts/validate-gmail-oauth.mjs",
+    "test:i18n": "node scripts/test-i18n.cjs",
+    "test:admin-content": "node scripts/test-admin-content.cjs",
+    "validate:translations": "node scripts/validate-translations.cjs",
+    "test:localization-audit": "node scripts/test-localization-audit.cjs",
+    "test:site-mode": "node scripts/test-site-mode.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -26,6 +31,7 @@
     "lucide-react": "^1.32.0",
     "mapbox-gl": "^3.29.0",
     "next": "15.5.28",
+    "next-intl": "^4.15.3",
     "pdf-lib": "^1.17.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",

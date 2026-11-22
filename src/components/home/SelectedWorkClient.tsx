@@ -1,4 +1,6 @@
 "use client";
+import { useTranslations } from "next-intl";
+
 
 import { useMemo, useState } from "react";
 import CircularGallery, { type WorkItem } from "@/components/home/CircularGallery";
@@ -10,6 +12,8 @@ type SelectedWorkClientProps = {
 export default function SelectedWorkClient({
   works,
 }: SelectedWorkClientProps) {
+  const ui = useTranslations("ui");
+
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasInteracted, setHasInteracted] = useState(false);
 
@@ -32,8 +36,8 @@ export default function SelectedWorkClient({
         <p
           className={`font-primary text-xs uppercase tracking-[0.34em] text-foreground-muted transition-opacity duration-300 ${interactionHint}`}
         >
-          <span className="hidden sm:inline">Swipe or scroll ↔</span>
-          <span className="sm:hidden">Swipe to explore</span>
+          <span className="hidden sm:inline">{ui("m0afbe6f03b3a")}</span>
+          <span className="sm:hidden">{ui("m90adbadf2d7c")}</span>
         </p>
       </div>
     </>

@@ -1,5 +1,7 @@
 "use server";
 
+import { contentPayload } from "@/i18n/content-editing";
+import { isLocale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
@@ -159,6 +161,10 @@ export async function upsertService(formData: FormData) {
     } = await supabase.auth.getUser();
     const id = (formData.get("id") ?? "").toString().trim() || undefined;
     const name = (formData.get("name") ?? "").toString().trim();
+    const contentLocale = formData.get("contentLocale") ?? "en";
+    if (!isLocale(contentLocale)) return { error: "Invalid content language." };
+    const german = { name: (formData.get("name_de") ?? "").toString() };
+    const activeName = contentLocale === "de" ? german.name.trim() : name;
     const price = toNumber(formData.get("price"));
     const durationMin = toNumber(formData.get("durationMin"));
     const durationMax = toNullableNumber(
@@ -173,8 +179,8 @@ export async function upsertService(formData: FormData) {
       .trim();
     const imageFileEntry = formData.get("image");
 
-    if (!name) {
-      return { error: "Service name is required." };
+    if ((!id && !name) || !activeName) {
+      return { error: !id && !name ? "Complete the required English source fields before creating this item." : "Service name is required." };
     }
 
     if (!Number.isFinite(price) || price < 0) {
@@ -254,7 +260,7 @@ export async function upsertService(formData: FormData) {
       }
     }
 
-    const values = {
+    const values = contentPayload({
       name,
       price,
       duration_min: durationMin,
@@ -262,7 +268,7 @@ export async function upsertService(formData: FormData) {
       image_url: nextImageUrl,
       is_active: isActive,
       sort_order: sortOrder,
-    };
+    }, ["name"], contentLocale, german, !id);
 
     const query = id
       ? supabase
@@ -271,7 +277,7 @@ export async function upsertService(formData: FormData) {
           .eq("id", id)
       : supabase.from("services").insert(values);
 
-    const { error } = await query;
+    const { data: saved, error } = await query.select("id").single();
 
     if (error) {
       return { error: error.message };
@@ -288,7 +294,7 @@ export async function upsertService(formData: FormData) {
     revalidatePath("/");
     revalidatePath("/admin/services");
     revalidatePath("/admin/site-settings/services");
-    return { error: null };
+    return { error: null, id: saved.id as string };
   } catch (error) {
     return toActionError(error);
   }

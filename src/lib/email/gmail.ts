@@ -1,4 +1,8 @@
 import "server-only";
+import { localizedServiceName } from "@/i18n/content";
+import { getNotificationLocale } from "@/i18n/notifications";
+import { textFor } from "@/i18n/text";
+import { localizedPath, intlLocale, type Locale } from "@/i18n/config";
 
 import { google } from "googleapis";
 import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/availability";
@@ -16,6 +20,7 @@ type BookingEmailDetails = {
   to: string;
   customerName: string;
   serviceName: string;
+  serviceNameDe?: string | null;
   startAt: string;
   endAt: string;
   price: number;
@@ -179,7 +184,7 @@ export async function sendCustomerEmail(message: CustomerEmailMessage) {
   }
 }
 
-function buildBookingSummary(details: BookingEmailDetails) {
+function buildBookingSummary(details: BookingEmailDetails, locale: Locale = "de") {
   const durationMinutes = Math.max(
     0,
     Math.round(
@@ -189,8 +194,9 @@ function buildBookingSummary(details: BookingEmailDetails) {
 
   return {
     customerName: details.customerName,
-    serviceName: details.serviceName,
-    dateLabel: formatZurichDate(details.startAt),
+    serviceName: localizedServiceName(locale, details.serviceName, details.serviceNameDe),
+    dateLabel: new Intl.DateTimeFormat(intlLocale(locale), { timeZone: "Europe/Zurich", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(details.startAt)),
+    locale,
     timeLabel: formatZurichTimeRange(details.startAt, details.endAt),
     priceLabel: formatServicePrice(details.price),
     durationLabel: durationMinutes > 0 ? `${durationMinutes} min` : "By arrangement",
@@ -224,18 +230,19 @@ type EmailTemplateContent = {
 };
 
 function buildPlainTextEmail(summary: ReturnType<typeof buildBookingSummary>, content: EmailTemplateContent, branding: EmailBranding) {
+  const t = (value: string) => textFor(summary.locale, value);
   return [
-    `Hi ${summary.customerName},`,
+    `${t("Hi")} ${summary.customerName},`,
     "",
     content.headline,
     content.body,
     "",
-    `Service: ${summary.serviceName}`,
-    `Date: ${summary.dateLabel}`,
-    `Time: ${summary.timeLabel}`,
-    `Duration: ${summary.durationLabel}`,
-    `Price: ${summary.priceLabel}`,
-    summary.bookingReference ? `Booking reference: ${summary.bookingReference}` : "",
+    `${t("Service")} : ${summary.serviceName}`,
+    `${t("Date")} : ${summary.dateLabel}`,
+    `${t("Time")} : ${summary.timeLabel}`,
+    `${t("Duration")} : ${summary.durationLabel}`,
+    `${t("Price")} : ${summary.priceLabel}`,
+    summary.bookingReference ? `${t("Booking reference")} : ${summary.bookingReference}` : "",
     content.ctaHref ? "" : "",
     content.ctaHref ? `${content.ctaLabel ?? "Manage Appointment"}: ${content.ctaHref}` : "",
     "",
@@ -264,6 +271,7 @@ function buildEmailHtml(
   content: EmailTemplateContent,
   branding: EmailBranding,
 ) {
+  const t = (value: string) => textFor(summary.locale, value);
   const ctaHtml =
     content.ctaHref && content.ctaLabel
       ? `
@@ -316,22 +324,22 @@ function buildEmailHtml(
                             <tr>
                               <td style="padding: 24px 24px 8px 24px;">
                                 <div style="font-size: 11px; line-height: 1.4; letter-spacing: 0.24em; text-transform: uppercase; color: #8c8c8c; padding-bottom: 18px;">
-                                  Appointment Details
+                                  ${t("Appointment Details")}
                                 </div>
                                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                   <tr>
-                                    ${renderDetailItem("Customer", summary.customerName)}
-                                    ${renderDetailItem("Service", summary.serviceName)}
+                                    ${renderDetailItem(t("Customer"), summary.customerName)}
+                                    ${renderDetailItem(t("Service"), summary.serviceName)}
                                   </tr>
                                   <tr>
-                                    ${renderDetailItem("Date", summary.dateLabel)}
-                                    ${renderDetailItem("Time", summary.timeLabel)}
+                                    ${renderDetailItem(t("Date"), summary.dateLabel)}
+                                    ${renderDetailItem(t("Time"), summary.timeLabel)}
                                   </tr>
                                   <tr>
-                                    ${renderDetailItem("Duration", summary.durationLabel)}
-                                    ${renderDetailItem("Price", summary.priceLabel)}
+                                    ${renderDetailItem(t("Duration"), summary.durationLabel)}
+                                    ${renderDetailItem(t("Price"), summary.priceLabel)}
                                   </tr>
-                                  ${summary.bookingReference ? `<tr>${renderDetailItem("Booking Reference", summary.bookingReference)}<td style="width: 50%;"></td></tr>` : ""}
+                                  ${summary.bookingReference ? `<tr>${renderDetailItem(t("Booking Reference"), summary.bookingReference)}<td style="width: 50%;"></td></tr>` : ""}
                                 </table>
                               </td>
                             </tr>
@@ -358,14 +366,16 @@ function buildEmailHtml(
 }
 
 export async function sendBookingConfirmationEmail(details: BookingEmailDetails) {
-  const summary = buildBookingSummary(details);
+  const locale = await getNotificationLocale(details);
+  const t = (value: string) => textFor(locale, value);
+  const summary = buildBookingSummary(details, locale);
   const branding = await getEmailBranding();
   const content = {
-    statusLabel: "Appointment Confirmed",
-    headline: "Your booking is locked in.",
-    body: "We have reserved your appointment and prepared your session details below.",
-    ctaLabel: details.manageUrl ? "Manage Booking →" : "Manage Appointment",
-    ctaHref: details.manageUrl ?? `${getSiteUrl()}/account`,
+    statusLabel: t('Appointment Confirmed'),
+    headline: t('Your booking is locked in.'),
+    body: t('We have reserved your appointment and prepared your session details below.'),
+    ctaLabel: details.manageUrl ? t("Manage Booking →") : t("Manage Appointment"),
+    ctaHref: details.manageUrl ? localizeEmailLink(details.manageUrl, locale) : `${getSiteUrl()}${localizedPath("/account", locale)}`,
   } satisfies EmailTemplateContent;
 
   await sendCustomerEmail({
@@ -374,21 +384,23 @@ export async function sendBookingConfirmationEmail(details: BookingEmailDetails)
     customerName: details.customerName,
     emailType: "appointment_confirmation",
     to: details.to,
-    subject: `Booking confirmed: ${summary.serviceName}`,
+    subject: `${t("Booking confirmed")} : ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),
     html: buildEmailHtml(summary, content, branding),
   });
 }
 
 export async function sendBookingCancellationEmail(details: BookingEmailDetails) {
-  const summary = buildBookingSummary(details);
+  const locale = await getNotificationLocale(details);
+  const t = (value: string) => textFor(locale, value);
+  const summary = buildBookingSummary(details, locale);
   const branding = await getEmailBranding();
   const content = {
-    statusLabel: "Appointment Cancelled",
-    headline: "This booking is no longer scheduled.",
-    body: "Your appointment has been cancelled. If you want to return to the chair, you can book a new time whenever it suits you.",
-    ctaLabel: "Manage Appointment",
-    ctaHref: `${getSiteUrl()}/account`,
+    statusLabel: t('Appointment Cancelled'),
+    headline: t('This booking is no longer scheduled.'),
+    body: t('Your appointment has been cancelled. If you want to return to the chair, you can book a new time whenever it suits you.'),
+    ctaLabel: t('Manage Appointment'),
+    ctaHref: `${getSiteUrl()}${localizedPath("/account", locale)}`,
   } satisfies EmailTemplateContent;
 
   await sendCustomerEmail({
@@ -398,21 +410,23 @@ export async function sendBookingCancellationEmail(details: BookingEmailDetails)
     emailType: "appointment_cancelled",
     metadata: details.bookingReference ? { booking_reference: details.bookingReference } : {},
     to: details.to,
-    subject: `Booking cancelled: ${summary.serviceName}`,
+    subject: `${t("Booking cancelled")} : ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),
     html: buildEmailHtml(summary, content, branding),
   });
 }
 
 export async function sendBookingUpdateEmail(details: BookingEmailDetails) {
-  const summary = buildBookingSummary(details);
+  const locale = await getNotificationLocale(details);
+  const t = (value: string) => textFor(locale, value);
+  const summary = buildBookingSummary(details, locale);
   const branding = await getEmailBranding();
   const content = {
-    statusLabel: "Appointment Updated",
-    headline: "Your booking details have changed.",
-    body: "We have updated your appointment. Please review the latest schedule information below.",
-    ctaLabel: "Manage Appointment",
-    ctaHref: `${getSiteUrl()}/account`,
+    statusLabel: t('Appointment Updated'),
+    headline: t('Your booking details have changed.'),
+    body: t('We have updated your appointment. Please review the latest schedule information below.'),
+    ctaLabel: t('Manage Appointment'),
+    ctaHref: `${getSiteUrl()}${localizedPath("/account", locale)}`,
   } satisfies EmailTemplateContent;
 
   await sendCustomerEmail({
@@ -421,20 +435,22 @@ export async function sendBookingUpdateEmail(details: BookingEmailDetails) {
     customerName: details.customerName,
     emailType: "appointment_rescheduled",
     to: details.to,
-    subject: `Booking updated: ${summary.serviceName}`,
+    subject: `${t("Booking updated")} : ${summary.serviceName}`,
     text: buildPlainTextEmail(summary, content, branding),
     html: buildEmailHtml(summary, content, branding),
   });
 }
 
 export async function sendAdminBookingNotificationEmail(details: BookingEmailDetails & { adminEmail: string }) {
-  const summary = buildBookingSummary(details);
+  const locale = await getNotificationLocale(details);
+  const t = (value: string) => textFor(locale, value);
+  const summary = buildBookingSummary(details, locale);
   const branding = await getEmailBranding();
   const content = {
-    statusLabel: "New Customer Booking",
-    headline: "A new appointment was booked.",
+    statusLabel: t('New Customer Booking'),
+    headline: t('A new appointment was booked.'),
     body: `${summary.customerName} booked ${summary.serviceName}.`,
-    ctaLabel: "View Appointments →",
+    ctaLabel: t('View Appointments →'),
     ctaHref: `${getSiteUrl()}/admin/appointments`,
   } satisfies EmailTemplateContent;
   await sendGmailMessage({
@@ -443,4 +459,10 @@ export async function sendAdminBookingNotificationEmail(details: BookingEmailDet
     text: buildPlainTextEmail(summary, content, branding),
     html: buildEmailHtml(summary, content, branding),
   });
+}
+
+function localizeEmailLink(value: string, locale: Locale) {
+  const url = new URL(value, getSiteUrl());
+  if (url.origin === new URL(getSiteUrl()).origin) url.pathname = localizedPath(url.pathname, locale);
+  return url.href;
 }

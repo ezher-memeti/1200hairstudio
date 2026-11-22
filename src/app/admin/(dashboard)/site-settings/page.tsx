@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from "@/i18n/server";
 
-export default function AdminSiteSettingsIndexPage() {
-  redirect("/admin/site-settings/services");
+export default async function AdminSiteSettingsIndexPage() {
+  return await redirect("/admin/site-settings/services");
 }

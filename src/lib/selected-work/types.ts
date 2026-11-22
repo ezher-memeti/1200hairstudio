@@ -1,4 +1,6 @@
 export type SelectedWorkRecord = {
+  title_de?: string | null;
+
   id: string;
   title: string | null;
   image_url: string;

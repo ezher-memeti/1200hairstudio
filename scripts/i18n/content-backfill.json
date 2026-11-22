@@ -1,0 +1,641 @@
+[
+  {
+    "table": "services",
+    "keyColumn": "id",
+    "key": "f81f71ea-0bd0-4055-b3fb-f82368f3c8a8",
+    "sourceField": "name",
+    "expectedSource": "Haare und Bart",
+    "column": "name_de",
+    "value": "Haare und Bart"
+  },
+  {
+    "table": "services",
+    "keyColumn": "id",
+    "key": "b395b2b0-ddb0-4d82-9193-24f0e5a0f530",
+    "sourceField": "name",
+    "expectedSource": "Herren - lange Haare",
+    "column": "name_de",
+    "value": "Herren - lange Haare"
+  },
+  {
+    "table": "services",
+    "keyColumn": "id",
+    "key": "f2f5e361-8231-412d-b465-05402908a5e9",
+    "sourceField": "name",
+    "expectedSource": "Kinder bis 12 Jahre alt",
+    "column": "name_de",
+    "value": "Kinder bis 12 Jahre alt"
+  },
+  {
+    "table": "services",
+    "keyColumn": "id",
+    "key": "33ca6e11-d655-4c17-a394-4416e2492031",
+    "sourceField": "name",
+    "expectedSource": "Herren - kurze Haare",
+    "column": "name_de",
+    "value": "Herren - kurze Haare"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_address_line_2",
+    "sourceField": "label",
+    "expectedSource": "Address line 2",
+    "column": "label_de",
+    "value": "Adresszeile 2"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_cta",
+    "sourceField": "label",
+    "expectedSource": "Directions CTA",
+    "column": "label_de",
+    "value": "Anfahrtsbutton"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_cta",
+    "sourceField": "value",
+    "expectedSource": "Get Directions →",
+    "column": "value_de",
+    "value": "Anfahrt →"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "availability_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Availability label",
+    "column": "label_de",
+    "value": "Verfügbarkeitsübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "availability_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Nächste Verfügbarkeit",
+    "column": "value_de",
+    "value": "Nächste Verfügbarkeit"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "availability_cta",
+    "sourceField": "label",
+    "expectedSource": "Availability CTA",
+    "column": "label_de",
+    "value": "Verfügbarkeitsbutton"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "availability_cta",
+    "sourceField": "value",
+    "expectedSource": "Alle Anzeigen →",
+    "column": "value_de",
+    "value": "Alle Anzeigen →"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "work_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Selected work label",
+    "column": "label_de",
+    "value": "Galerieübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "work_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Portfolio",
+    "column": "value_de",
+    "value": "Portfolio"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "work_title",
+    "sourceField": "label",
+    "expectedSource": "Selected work title",
+    "column": "label_de",
+    "value": "Galerietitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "work_title",
+    "sourceField": "value",
+    "expectedSource": "Schnitte,\nDie Überzeugen.",
+    "column": "value_de",
+    "value": "Schnitte,\nDie Überzeugen."
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "work_description",
+    "sourceField": "label",
+    "expectedSource": "Selected work description",
+    "column": "label_de",
+    "value": "Galeriebeschreibung"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "work_description",
+    "sourceField": "value",
+    "expectedSource": "Ein Einblick in meine Arbeit und meine Leidenschaft für präzise Haarschnitte.",
+    "column": "value_de",
+    "value": "Ein Einblick in meine Arbeit und meine Leidenschaft für präzise Haarschnitte."
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "booking_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Booking label",
+    "column": "label_de",
+    "value": "Buchungsübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "booking_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Buch jetzt deinen Termin",
+    "column": "value_de",
+    "value": "Buch jetzt deinen Termin"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "booking_title",
+    "sourceField": "label",
+    "expectedSource": "Booking title",
+    "column": "label_de",
+    "value": "Buchungstitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "booking_title",
+    "sourceField": "value",
+    "expectedSource": "Deine Zeit.\nDein Stuhl.",
+    "column": "value_de",
+    "value": "Deine Zeit.\nDein Stuhl."
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "booking_description",
+    "sourceField": "label",
+    "expectedSource": "Booking description",
+    "column": "label_de",
+    "value": "Buchungsbeschreibung"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "booking_description",
+    "sourceField": "value",
+    "expectedSource": "Wähle deine gewünschte Dienstleistung und reserviere deinen passenden Termin.",
+    "column": "value_de",
+    "value": "Wähle deine gewünschte Dienstleistung und reserviere deinen passenden Termin."
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "services_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Services label",
+    "column": "label_de",
+    "value": "Dienstleistungsübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "services_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Dienstleistungen",
+    "column": "value_de",
+    "value": "Dienstleistungen"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "services_title",
+    "sourceField": "label",
+    "expectedSource": "Services title",
+    "column": "label_de",
+    "value": "Dienstleistungstitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "services_title",
+    "sourceField": "value",
+    "expectedSource": "Sauber, Hygienisch, Stilvoll",
+    "column": "value_de",
+    "value": "Sauber, Hygienisch, Stilvoll"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Barber label",
+    "column": "label_de",
+    "value": "Barbierübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Herrenfriseur",
+    "column": "value_de",
+    "value": "Herrenfriseur"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_title",
+    "sourceField": "label",
+    "expectedSource": "Section title",
+    "column": "label_de",
+    "value": "Bereichstitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_title",
+    "sourceField": "value",
+    "expectedSource": "Inhaber",
+    "column": "value_de",
+    "value": "Inhaber"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_name",
+    "sourceField": "label",
+    "expectedSource": "Barber name",
+    "column": "label_de",
+    "value": "Name des Barbiers"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_experience_value",
+    "sourceField": "label",
+    "expectedSource": "Since year",
+    "column": "label_de",
+    "value": "Jahr"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_experience_label",
+    "sourceField": "label",
+    "expectedSource": "Since label",
+    "column": "label_de",
+    "value": "Seit-Beschriftung"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_experience_label",
+    "sourceField": "value",
+    "expectedSource": "Since",
+    "column": "value_de",
+    "value": "Seit"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_specialties",
+    "sourceField": "label",
+    "expectedSource": "Specialties",
+    "column": "label_de",
+    "value": "Spezialgebiete"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_specialties",
+    "sourceField": "value",
+    "expectedSource": "Präzise Schnitte, saubere Übergänge, moderne Styles.",
+    "column": "value_de",
+    "value": "Präzise Schnitte, saubere Übergänge, moderne Styles."
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_cta",
+    "sourceField": "label",
+    "expectedSource": "Barber CTA",
+    "column": "label_de",
+    "value": "Barbierbutton"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "barber_cta",
+    "sourceField": "value",
+    "expectedSource": "Termin buchen  →",
+    "column": "value_de",
+    "value": "Termin buchen  →"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Hero label",
+    "column": "label_de",
+    "value": "Startseitenübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Willkommen",
+    "column": "value_de",
+    "value": "Willkommen"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_title",
+    "sourceField": "label",
+    "expectedSource": "Hero title",
+    "column": "label_de",
+    "value": "Startseitentitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_description",
+    "sourceField": "label",
+    "expectedSource": "Hero description",
+    "column": "label_de",
+    "value": "Startseitenbeschreibung"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_description",
+    "sourceField": "value",
+    "expectedSource": "Hier verbinden sich stilvolle Haarschnitte mit individueller Beratung in einer einladenden und kinderfreundlichen Umgebung.",
+    "column": "value_de",
+    "value": "Hier verbinden sich stilvolle Haarschnitte mit individueller Beratung in einer einladenden und kinderfreundlichen Umgebung."
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_cta",
+    "sourceField": "label",
+    "expectedSource": "Hero CTA",
+    "column": "label_de",
+    "value": "Startseitenbutton"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_cta",
+    "sourceField": "value",
+    "expectedSource": "Termin buchen",
+    "column": "value_de",
+    "value": "Termin buchen"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_scroll_label",
+    "sourceField": "label",
+    "expectedSource": "Scroll label",
+    "column": "label_de",
+    "value": "Scrollbeschriftung"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "hero_scroll_label",
+    "sourceField": "value",
+    "expectedSource": "Scroll",
+    "column": "value_de",
+    "value": "Scrollen"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_eyebrow",
+    "sourceField": "label",
+    "expectedSource": "Visit label",
+    "column": "label_de",
+    "value": "Besuchsübertitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_eyebrow",
+    "sourceField": "value",
+    "expectedSource": "Schön dass du da bist",
+    "column": "value_de",
+    "value": "Schön dass du da bist"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_title",
+    "sourceField": "label",
+    "expectedSource": "Location title",
+    "column": "label_de",
+    "value": "Standorttitel"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_title",
+    "sourceField": "value",
+    "expectedSource": "Bis bald",
+    "column": "value_de",
+    "value": "Bis bald"
+  },
+  {
+    "table": "homepage_content",
+    "keyColumn": "content_key",
+    "key": "visit_address_line_1",
+    "sourceField": "label",
+    "expectedSource": "Address line 1",
+    "column": "label_de",
+    "value": "Adresszeile 1"
+  },
+  {
+    "table": "contact_section_settings",
+    "keyColumn": "id",
+    "key": "1e6a1857-0613-4e5d-8959-0f3e60b18135",
+    "sourceField": "eyebrow",
+    "expectedSource": "CONTACT",
+    "column": "eyebrow_de",
+    "value": "KONTAKT"
+  },
+  {
+    "table": "contact_section_settings",
+    "keyColumn": "id",
+    "key": "1e6a1857-0613-4e5d-8959-0f3e60b18135",
+    "sourceField": "title",
+    "expectedSource": "COME BY.  STAY CONNECTED.",
+    "column": "title_de",
+    "value": "KOMM VORBEI. BLEIB VERBUNDEN."
+  },
+  {
+    "table": "contact_section_settings",
+    "keyColumn": "id",
+    "key": "1e6a1857-0613-4e5d-8959-0f3e60b18135",
+    "sourceField": "description",
+    "expectedSource": "Visit the studio, call us, or connect with 1200 Hairstudio online.",
+    "column": "description_de",
+    "value": "Besuche das Studio, ruf uns an oder verbinde dich online mit 1200 Hairstudio."
+  },
+  {
+    "table": "contact_section_settings",
+    "keyColumn": "id",
+    "key": "1e6a1857-0613-4e5d-8959-0f3e60b18135",
+    "sourceField": "call_cta_label",
+    "expectedSource": "CALL NOW",
+    "column": "call_cta_label_de",
+    "value": "JETZT ANRUFEN"
+  },
+  {
+    "table": "contact_section_settings",
+    "keyColumn": "id",
+    "key": "1e6a1857-0613-4e5d-8959-0f3e60b18135",
+    "sourceField": "instagram_cta_label",
+    "expectedSource": "OPEN INSTAGRAM",
+    "column": "instagram_cta_label_de",
+    "value": "INSTAGRAM ÖFFNEN"
+  },
+  {
+    "table": "contact_section_settings",
+    "keyColumn": "id",
+    "key": "1e6a1857-0613-4e5d-8959-0f3e60b18135",
+    "sourceField": "leave_review_cta_label",
+    "expectedSource": "LEAVE A REVIEW",
+    "column": "leave_review_cta_label_de",
+    "value": "BEWERTUNG SCHREIBEN"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "89f01dd5-7d75-4804-be03-cd1011e74e7a",
+    "sourceField": "name",
+    "expectedSource": "Loyal Customer Offer",
+    "column": "name_de",
+    "value": "Angebot für treue Kunden"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "89f01dd5-7d75-4804-be03-cd1011e74e7a",
+    "sourceField": "description",
+    "expectedSource": "Exclusive offers for loyal customers and subscribers.",
+    "column": "description_de",
+    "value": "Exklusive Angebote für treue Kunden und Abonnenten."
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "89f01dd5-7d75-4804-be03-cd1011e74e7a",
+    "sourceField": "default_cta_text",
+    "expectedSource": "Claim Offer",
+    "column": "default_cta_text_de",
+    "value": "Angebot nutzen"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "ac3483ef-dc26-48cf-bec3-be86e3275388",
+    "sourceField": "name",
+    "expectedSource": "Come Back",
+    "column": "name_de",
+    "value": "Zeit für deinen nächsten Besuch"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "ac3483ef-dc26-48cf-bec3-be86e3275388",
+    "sourceField": "description",
+    "expectedSource": "Re-engage customers who have not booked recently.",
+    "column": "description_de",
+    "value": "Kunden ansprechen, die seit einiger Zeit nicht mehr gebucht haben."
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "ac3483ef-dc26-48cf-bec3-be86e3275388",
+    "sourceField": "default_cta_text",
+    "expectedSource": "Book Again",
+    "column": "default_cta_text_de",
+    "value": "Erneut buchen"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "161340cc-b241-4837-8a66-85b3620a2aef",
+    "sourceField": "name",
+    "expectedSource": "Special Offer",
+    "column": "name_de",
+    "value": "Sonderangebot"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "161340cc-b241-4837-8a66-85b3620a2aef",
+    "sourceField": "description",
+    "expectedSource": "Discounts, Hair + Beard deals and seasonal offers.",
+    "column": "description_de",
+    "value": "Rabatte, Haar-und-Bart-Angebote und saisonale Aktionen."
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "161340cc-b241-4837-8a66-85b3620a2aef",
+    "sourceField": "default_cta_text",
+    "expectedSource": "Book Now",
+    "column": "default_cta_text_de",
+    "value": "Jetzt buchen"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "560e6440-35b7-4242-81e3-0a5c7b09ba2a",
+    "sourceField": "name",
+    "expectedSource": "Holiday / Seasonal",
+    "column": "name_de",
+    "value": "Feiertage / Saison"
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "560e6440-35b7-4242-81e3-0a5c7b09ba2a",
+    "sourceField": "description",
+    "expectedSource": "Christmas, New Year, summer, Eid and seasonal campaigns.",
+    "column": "description_de",
+    "value": "Kampagnen zu Weihnachten, Neujahr, Sommer, Eid und weiteren Anlässen."
+  },
+  {
+    "table": "marketing_templates",
+    "keyColumn": "id",
+    "key": "560e6440-35b7-4242-81e3-0a5c7b09ba2a",
+    "sourceField": "default_cta_text",
+    "expectedSource": "Book Now",
+    "column": "default_cta_text_de",
+    "value": "Jetzt buchen"
+  }
+]

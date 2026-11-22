@@ -11,6 +11,8 @@ function load(file, mocks = {}) {
   new Function("require", "module", "exports", code)((name) => {
     if (name === "server-only") return {};
     if (Object.hasOwn(mocks, name)) return mocks[name];
+    if (name === "@/lib/site-mode") return load("src/lib/site-mode.ts");
+    if (name === "@/i18n/config") return load("src/i18n/config.ts");
     if (name.startsWith("@/")) throw new Error(`Unmocked import ${name}`);
     return require(name);
   }, module, module.exports);
@@ -78,7 +80,7 @@ async function test(name, fn) { Object.assign(process.env, env); await fn(); pas
   await test("Only exact webhook path bypasses session middleware for GET and POST", async () => {
     const { NextRequest } = require("next/server"); let authCalls = 0;
     const protectedResponse = new Response("existing protected behavior", { status: 403 });
-    const { middleware } = load("middleware.ts", {
+    const { middleware } = load("src/middleware.ts", {
       "@/lib/supabase/middleware": { updateSession: async () => { authCalls++; return protectedResponse; } },
     });
     for (const method of ["GET", "POST"]) {
@@ -94,7 +96,7 @@ async function test(name, fn) { Object.assign(process.env, env); await fn(); pas
     assert.equal(authCalls, 8);
   });
   await test("Valid webhook works with no session and cross-site Origin while unsigned POST remains rejected", async () => {
-    const { middleware } = load("middleware.ts", {
+    const { middleware } = load("src/middleware.ts", {
       "@/lib/supabase/middleware": { updateSession: async () => { throw new Error("Session service must not be reached"); } },
     });
     const { NextRequest } = require("next/server");

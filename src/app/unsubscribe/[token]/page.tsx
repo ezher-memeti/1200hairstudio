@@ -1,10 +1,19 @@
-import Link from "next/link";
+import { textFor } from "@/i18n/text";
+import { getLocale } from "next-intl/server";
+
+import { getTranslations } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyMarketingUnsubscribeToken } from "@/lib/email/marketing/unsubscribe-token";
 
 export const dynamic = "force-dynamic";
 
 export default async function UnsubscribePage({ params }: { params: Promise<{ token: string }> }) {
+  const uiLocale = await getLocale();
+  const uiText = <T,>(value: T): T => typeof value === "string" ? textFor(uiLocale, value) as T : value;
+
+  const ui = await getTranslations("ui");
+
   const { token } = await params;
   const customerId = verifyMarketingUnsubscribeToken(token);
   let success = false;
@@ -23,5 +32,5 @@ export default async function UnsubscribePage({ params }: { params: Promise<{ to
     success = !error && Boolean(data);
   }
 
-  return <main className="flex min-h-screen items-center bg-background px-5 py-16"><section className="mx-auto w-full max-w-2xl border border-border bg-surface p-6 text-center sm:p-10"><p className="font-primary text-xs uppercase tracking-[0.34em] text-accent">1200 Hairstudio</p><h1 className="mt-5 font-display text-4xl uppercase tracking-[-0.04em] text-foreground sm:text-5xl">{success ? "Unsubscribed" : "Link Not Valid"}</h1><p className="mx-auto mt-5 max-w-xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">{success ? "You have been unsubscribed from marketing emails from 1200 Hairstudio. You will still receive important emails related to your appointments." : "This unsubscribe link is invalid or has expired. No email preferences were changed."}</p><Link href="/" className="mt-8 inline-flex min-h-12 items-center justify-center bg-accent px-6 font-primary text-xs uppercase tracking-[0.18em] text-background">Return to Website</Link></section></main>;
+  return <main className="flex min-h-screen items-center bg-background px-5 py-16"><section className="mx-auto w-full max-w-2xl border border-border bg-surface p-6 text-center sm:p-10"><p className="font-primary text-xs uppercase tracking-[0.34em] text-accent">1200 Hairstudio</p><h1 className="mt-5 font-display text-4xl uppercase tracking-[-0.04em] text-foreground sm:text-5xl">{uiText(success ? "Unsubscribed" : "Link Not Valid")}</h1><p className="mx-auto mt-5 max-w-xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">{uiText(success ? "You have been unsubscribed from marketing emails from 1200 Hairstudio. You will still receive important emails related to your appointments." : "This unsubscribe link is invalid or has expired. No email preferences were changed.")}</p><Link href="/" className="mt-8 inline-flex min-h-12 items-center justify-center bg-accent px-6 font-primary text-xs uppercase tracking-[0.18em] text-background">{ui("m9f514d38aeb2")}</Link></section></main>;
 }

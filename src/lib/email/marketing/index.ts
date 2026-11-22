@@ -1,4 +1,5 @@
 import "server-only";
+import { notificationLocale } from "@/i18n/config";
 
 import { getSiteUrl } from "@/lib/auth/url";
 
@@ -18,10 +19,11 @@ export async function sendMarketingEmail(input: {
     return { sent: false, reason: "not_eligible" as const };
   }
 
-  const baseUrl = getSiteUrl();
+  const locale = notificationLocale(input.customer.preferred_locale, null);
+  const baseUrl = `${getSiteUrl()}/${locale}`;
   const token = createMarketingUnsubscribeToken(input.customer.id);
   const unsubscribeUrl = `${baseUrl.replace(/\/$/, "")}/unsubscribe/${encodeURIComponent(token)}`;
-  const footer = buildMarketingFooter(unsubscribeUrl);
+  const footer = buildMarketingFooter(unsubscribeUrl, locale);
 
   await sendCustomerEmail({
     to: input.customer.email,
