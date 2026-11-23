@@ -1,4 +1,5 @@
 "use client";
+import { bookingCompleted, bookingStarted, resetBookingAnalytics, trackEvent } from "@/lib/analytics/client";
 import { useLocale as useInterfaceLocale } from "next-intl";
 import { textFor as interfaceText } from "@/i18n/text";
 
@@ -895,6 +896,7 @@ export default function BookingSectionClient({
   );
 
   const handleServiceSelected = useCallback((serviceId: string) => {
+    if (serviceId !== state.serviceId) { bookingStarted(); trackEvent("service_selected"); }
     setState((current) => ({
       ...current,
       serviceId,
@@ -904,7 +906,7 @@ export default function BookingSectionClient({
     setDates([]);
     setSlotsByDate({});
     setAvailabilityError("");
-  }, []);
+  }, [state.serviceId]);
 
   const handleLoadAvailability = useCallback(async () => {
     if (!state.serviceId || isLoadingAvailability) return;
@@ -970,6 +972,7 @@ export default function BookingSectionClient({
         return;
       }
 
+      bookingCompleted(result.bookingReference);
       setConfirmed(true);
       setBookingReference(result.bookingReference ?? null);
       setManageUrl(result.manageUrl ?? null);
@@ -997,6 +1000,7 @@ export default function BookingSectionClient({
       return (
         <BookingConfirmation
           onReset={() => {
+            resetBookingAnalytics();
             setConfirmed(false);
             setHidePersistedConfirmation(true);
             setStep(0);

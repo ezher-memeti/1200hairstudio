@@ -133,7 +133,7 @@ export default function SectionTwoClient({
             )}
 
             <a
-              href="#booking"
+              href="#booking" data-analytics="booking_cta"
               className="inline-flex min-h-12 items-center font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:text-accent"
             >
               {content.availability_cta}

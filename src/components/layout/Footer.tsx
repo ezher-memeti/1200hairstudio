@@ -1,3 +1,5 @@
+import DeveloperCredit from "./DeveloperCredit";
+import PrivacySettingsButton from "@/components/analytics/PrivacySettingsButton";
 
 import { Link as LocaleLink } from "@/i18n/navigation";
 
@@ -30,6 +32,7 @@ export default async function Footer({ content = homepageContentDefaults }: { co
           <div className="flex flex-col gap-4 sm:gap-5 md:items-end">
             {instagramUrl ? <a
               href={instagramUrl}
+              data-analytics="instagram" data-analytics-contact="instagram"
               target="_blank"
               rel="noopener noreferrer"
               className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:text-foreground"
@@ -51,7 +54,9 @@ export default async function Footer({ content = homepageContentDefaults }: { co
                 className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground-secondary"
               >
                 {ui("mdb71e0bfdd6b")}</LocaleLink>
+              <span className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted transition-colors hover:text-foreground-secondary"><PrivacySettingsButton /></span>
             </div>
+            <DeveloperCredit />
           </div>
         </div>
       </div>

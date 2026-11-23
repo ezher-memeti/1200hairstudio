@@ -23,7 +23,8 @@
     "validate:translations": "node scripts/validate-translations.cjs",
     "test:localization-audit": "node scripts/test-localization-audit.cjs",
     "test:site-mode": "node scripts/test-site-mode.cjs",
-    "test:seo": "node scripts/test-seo.cjs"
+    "test:seo": "node scripts/test-seo.cjs",
+    "test:analytics": "node scripts/test-analytics.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

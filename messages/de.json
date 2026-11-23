@@ -1959,5 +1959,33 @@
       "metaDescription": "Die Website von 1200 Hairstudio wird vorübergehend überarbeitet. Bestehende Termine können weiterhin verwaltet werden."
     },
     "manageAppointment": "Deinen Termin verwalten"
+  },
+  "analytics": {
+    "title": "Cookie-Einstellungen",
+    "description": "Essenzieller Speicher ermöglicht Anmeldung, Buchungen und Sprachwahl. Optionale Analysen helfen uns, Besuche und Buchungen zu verstehen. Sie bleiben aus, bis du zustimmst.",
+    "accept": "Alle akzeptieren",
+    "reject": "Alle ablehnen",
+    "preferences": "Einstellungen",
+    "settings": "Cookie-Einstellungen",
+    "essential": "Essenzielle Cookies",
+    "essentialDescription": "Erforderlich für Anmeldung, Buchungssitzungen, Sprachwahl und das Speichern deiner Datenschutzentscheidung. Immer aktiv.",
+    "optional": "Analyse-Cookies",
+    "analyticsDescription": "Google Analytics 4 misst öffentliche Seitenbesuche und Buchungsinteraktionen. Kein Werbetracking. Du kannst deine Einwilligung jederzeit widerrufen.",
+    "save": "Einstellungen speichern",
+    "close": "Schliessen",
+    "policy": "Datenschutz zu Analysen",
+    "fullPolicy": "Vollständige Datenschutzerklärung",
+    "googlePolicy": "Datenschutzerklärung von Google",
+    "privacyIntro": "Informationen dazu, wie 1200 Hairstudio Daten der Website, Buchungen und optionalen Analysen verarbeitet.",
+    "providersBody": "Diese Website nutzt Dienstleister für Hosting, Anmeldung, Buchungen, Karten und Kommunikation. Das optionale Google Analytics 4 wird von Google bereitgestellt und erst nach Einwilligung in Analysen geladen. Die folgenden Informationen beschreiben diese optionale Verarbeitung.",
+    "policyBody": "Mit deiner Einwilligung verwenden wir Google Analytics 4 (Google), um öffentliche Seitenbesuche und Buchungsinteraktionen zu verstehen. Google erhält technische Browser- und Geräteinformationen und verarbeitet deine IP-Adresse zur Bereitstellung des Dienstes. Unsere Ereignisse enthalten nur öffentliche Seitenkategorien, Sprache, Website-Modus und festgelegte Interaktionsarten. Wir senden keine Namen, E-Mail-Adressen, Telefonnummern, Buchungsreferenzen, Termin-IDs, Notizen, Anmeldetokens, URL-Abfrageparameter oder URL-Fragmente in unseren Tracking-Daten. Werbespeicherung, Werbenutzerdaten, personalisierte Werbung und Google-Signale sind deaktiviert. Google kann Daten ausserhalb der Schweiz und des EWR verarbeiten, auch in den USA. Informationen zur Verarbeitung und zu Schutzmassnahmen findest du in der Datenschutzerklärung von Google.",
+    "cookiesBody": "Analysen sind optional und werden erst nach deiner Einwilligung geladen. Eine Ablehnung beeinträchtigt weder Anmeldung noch Buchung oder andere essenzielle Funktionen. Über die Cookie-Einstellungen kannst du deine Entscheidung jederzeit ändern oder widerrufen. Deine Entscheidung wird 180 Tage lokal gespeichert. Google-Analytics-Cookies (_ga und _ga_*) sind auf höchstens 180 Tage eingestellt. Für bestätigte Buchungen wird mit Einwilligung bis zu 180 Tage eine lokal gehashte Markierung gegen doppelte Ereignisse gespeichert. Sie wird nie an Google gesendet. Ein Widerruf stoppt weiteres Tracking und entfernt Analyse-Cookies und diese Markierungen aus diesem Browser. Bereits an Google übermittelte Daten werden dadurch nicht automatisch gelöscht. Die Aufbewahrung von Berichtsdaten wird separat in der Analytics-Property verwaltet.",
+    "bookingSystemBody": "Online-Termine werden über das Buchungssystem der Website mit Supabase-Anmeldung und Datenbankspeicherung verarbeitet. Buchungsdaten dienen zur Reservierung und Verwaltung von Terminen sowie für zugehörige Servicemitteilungen. Analysen sind optional und keine Voraussetzung für eine Buchung.",
+    "alwaysActive": "Immer aktiv",
+    "acceptedMessage": "Deine Cookie-Einstellungen wurden gespeichert. Du hast Analysen zugestimmt.",
+    "rejectedMessage": "Deine Cookie-Einstellungen wurden gespeichert. Analysen sind deaktiviert."
+  },
+  "developerCredit": {
+    "linkLabel": "{name} auf LinkedIn (öffnet in einem neuen Tab)"
   }
 }

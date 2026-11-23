@@ -83,7 +83,7 @@ export default function HeaderClient({
 
         <div className="hidden shrink-0 items-center gap-3 xl:flex">
           <Link
-            href="/#booking"
+            href="/#booking" data-analytics="booking_cta"
             className="inline-flex items-center border border-border bg-surface px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground transition-colors hover:bg-surface-elevated xl:text-xs 2xl:text-sm"
           >
             {ui("m27a1279cfe35")}</Link>
@@ -137,7 +137,7 @@ export default function HeaderClient({
               {uiText(authLink.label)}
             </Link>
             <Link
-              href="/#booking"
+              href="/#booking" data-analytics="booking_cta"
               className="mt-2 inline-flex items-center justify-center border border-border bg-accent px-4 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background hover:bg-accent-hover"
               onClick={() => setIsMenuOpen(false)}
             >

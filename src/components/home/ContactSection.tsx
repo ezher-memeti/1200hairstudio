@@ -27,6 +27,8 @@ function ContactActionLink({ action, preview }: { action: ContactAction; preview
       href={action.href}
       target={action.external ? "_blank" : undefined}
       rel={action.external ? "noopener noreferrer" : undefined}
+      data-analytics={preview ? undefined : action.icon === AtSign ? "instagram" : "contact"}
+      data-analytics-contact={action.icon === AtSign ? "instagram" : action.icon === Phone ? "phone" : "review"}
       aria-label={preview ? `${uiText(action.ariaLabel)} (${uiText("Preview")})` : uiText(action.ariaLabel)}
       onClick={preview ? (event) => event.preventDefault() : undefined}
       className="group relative flex min-h-[88px] min-w-0 flex-col items-center justify-center gap-2 px-1 py-4 text-center outline-none transition-colors duration-200 hover:bg-surface/40 focus-visible:bg-surface/40 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent sm:min-h-28 sm:gap-3 sm:px-3 sm:py-5 lg:min-h-40 lg:gap-5 lg:px-5 lg:py-7"

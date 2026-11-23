@@ -76,6 +76,7 @@ export default async function VisitStudio({ content, directionsUrl }: { content:
             <div className="pt-2">
               <a
                 href={mapsUrl}
+                data-analytics="contact" data-analytics-contact="maps"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex min-h-12 items-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"

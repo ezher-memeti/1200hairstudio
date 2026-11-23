@@ -53,7 +53,7 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
 
             <div className="pt-2">
               <a
-                href="#booking"
+                href="#booking" data-analytics="booking_cta"
                 className="inline-flex min-h-12 items-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
               >
                 {content.barber_cta}

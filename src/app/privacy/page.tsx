@@ -57,6 +57,7 @@ export default function PrivacyPage() {
   const uiText = <T,>(value: T): T => typeof value === "string" ? textFor(uiLocale, value) as T : value;
 
   const ui = useTranslations("ui");
+  const analytics = useTranslations("analytics");
 
   return (
     <>
@@ -70,7 +71,7 @@ export default function PrivacyPage() {
               <h1 className="font-display text-[clamp(2.4rem,6vw,4.75rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
                 {ui("m9db108ba6b7f")}</h1>
               <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                {ui("m15d0f08d4efd")}</p>
+                {analytics("privacyIntro")}</p>
             </div>
 
             <div className="space-y-8 border-t border-border pt-8">
@@ -83,7 +84,7 @@ export default function PrivacyPage() {
                     {uiText(section.title)}
                   </h2>
                   <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                    {uiText(section.body)}
+                    {section.title === "Cookies / Analytics" ? <>{analytics("policyBody")}<br /><br />{analytics("cookiesBody")}<br /><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">{analytics("googlePolicy")}</a></> : section.title === "Third-Party Services" ? analytics("providersBody") : section.title === "Booking System" ? analytics("bookingSystemBody") : uiText(section.body)}
                   </p>
                 </section>
               ))}

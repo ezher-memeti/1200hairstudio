@@ -1,3 +1,5 @@
+import DeveloperCredit from "@/components/layout/DeveloperCredit";
+import PrivacySettingsButton from "@/components/analytics/PrivacySettingsButton";
 import BrandLogo from "@/components/brand/BrandLogo";
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import { getTranslations } from "next-intl/server";
@@ -21,11 +23,11 @@ export async function ModeContact() {
   } catch { /* Optional configured action. No constructed social URL. */ }
   const phone = settings.phoneNumber.replace(/[^+\d]/g, "");
   return <div className={styles.contacts}>
-    {instagram ? <a href={instagram} target="_blank" rel="noopener noreferrer">{t("instagram")}<ModeArrow /></a> : null}
-    {/[0-9]{5}/.test(phone) ? <a href={`tel:${phone}`}>{t("contact")}<ModeArrow /></a> : null}
+    {instagram ? <a href={instagram} data-analytics="instagram" data-analytics-contact="instagram" target="_blank" rel="noopener noreferrer">{t("instagram")}<ModeArrow /></a> : null}
+    {/[0-9]{5}/.test(phone) ? <a href={`tel:${phone}`} data-analytics="contact" data-analytics-contact="phone">{t("contact")}<ModeArrow /></a> : null}
   </div>;
 }
 export async function ModeFooter() {
   const t = await getTranslations("siteMode");
-  return <footer className={styles.footer}><span>{t("brand")}</span><span>{t("location")}</span><span className={styles.footerNote}>{t("footer")}</span></footer>;
+  return <footer className={styles.footer}><span>{t("brand")}</span><span>{t("location")}</span><div className={styles.footerNote}>{t("footer")}<span aria-hidden="true"> · </span><PrivacySettingsButton /><DeveloperCredit className={styles.developerCredit} /></div></footer>;
 }
