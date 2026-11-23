@@ -6,7 +6,7 @@ import { getEffectiveServicePrice } from "@/lib/promotions/server";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
 import { getBookingSettings } from "@/lib/booking/settings";
 
-export default async function BookingSection({ content }: { content: HomepageContent }) {
+export default async function BookingSection({ content, headingLevel = 2 }: { content: HomepageContent; headingLevel?: 1 | 2 }) {
   const [services, bookingSettings] = await Promise.all([
     getActiveServices(),
     getBookingSettings(),
@@ -31,6 +31,7 @@ export default async function BookingSection({ content }: { content: HomepageCon
   }));
   return (
     <BookingSectionClient
+      headingLevel={headingLevel}
       authRole={null}
       allowGuestBookings={bookingSettings.allowGuestBookings}
       customerProfile={null}

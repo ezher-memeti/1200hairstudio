@@ -1,12 +1,20 @@
 
 import { Link as LocaleLink } from "@/i18n/navigation";
 
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 import { homepageContentDefaults, type HomepageContent } from "@/lib/homepage-content-defaults";
 import BrandLogo from "@/components/brand/BrandLogo";
 
-export default function Footer({ content = homepageContentDefaults }: { content?: HomepageContent }) {
-  const ui = useTranslations("ui");
+export default async function Footer({ content = homepageContentDefaults }: { content?: HomepageContent }) {
+  const [ui, contact] = await Promise.all([getTranslations("ui"), getPublicContactSectionSettings()]);
+  let instagramUrl: string | null = null;
+  if (contact?.isEnabled && contact.instagramEnabled) {
+    try {
+      const url = new URL(contact.instagramUrl);
+      if (url.protocol === "https:" && /(^|\.)instagram\.com$/.test(url.hostname) && !url.username && !url.password) instagramUrl = url.href;
+    } catch { /* Omit unconfigured social links. */ }
+  }
 
   return (
     <footer className="border-t border-border bg-background">
@@ -20,14 +28,14 @@ export default function Footer({ content = homepageContentDefaults }: { content?
           </div>
 
           <div className="flex flex-col gap-4 sm:gap-5 md:items-end">
-            <a
-              href="https://www.instagram.com/"
+            {instagramUrl ? <a
+              href={instagramUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary transition-colors hover:text-foreground"
             >
               Instagram
-            </a>
+            </a> : null}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5 md:justify-end">
               <span className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">

@@ -2,7 +2,10 @@ import { createTranslator } from "next-intl";
 import de from "../../messages/de.json";
 import en from "../../messages/en.json";
 import type { Locale } from "./config";
-const pairs = new Map(Object.entries({ ...en.ui, ...en.labels }).map(([key, source]) => [source, ({ ...de.ui, ...de.labels } as Record<string,string>)[key]]));
+// Build each dictionary once; spreading the full German dictionary inside every
+// entry previously made homepage bundle initialization quadratic.
+const germanLabels: Record<string, string> = { ...de.ui, ...de.labels };
+const pairs = new Map(Object.entries({ ...en.ui, ...en.labels }).map(([key, source]) => [source, germanLabels[key]]));
 const foldedPairs = new Map([...pairs].map(([source, translated]) => [source.toLowerCase(), translated]));
 export function textFor(locale: string, value: string): string {
   if (locale !== "de") return value;

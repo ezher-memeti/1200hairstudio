@@ -9,7 +9,8 @@ type PositionPoint = { width: number; focusX: number; translateX: number };
 
 const FRAME_COUNT = 228;
 const MAX_CONCURRENT_LOADS = 4;
-const INITIAL_PREFETCH_AHEAD = 6;
+// Keep initial frame traffic small; scrolling still fills the directional buffer.
+const INITIAL_PREFETCH_AHEAD = 2;
 const PREFETCH_AHEAD = 18;
 const PREFETCH_BEHIND = 8;
 const MAX_DECODED_FRAMES = 72;
@@ -267,6 +268,7 @@ export default function ScrollVideoSection({ children }: ScrollVideoSectionProps
             alt=""
             fill
             priority
+            fetchPriority="high"
             decoding="sync"
             unoptimized
             sizes="100vw"

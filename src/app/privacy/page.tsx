@@ -61,7 +61,7 @@ export default function PrivacyPage() {
   return (
     <>
       <Header />
-      <main className="bg-background">
+      <main className="bg-background [overflow-wrap:anywhere]">
         <section className="page-container py-12 sm:py-16 lg:py-20">
           <div className="max-w-4xl space-y-8">
             <div className="space-y-4">

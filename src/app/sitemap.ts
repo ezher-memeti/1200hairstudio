@@ -1,7 +1,11 @@
 import type { MetadataRoute } from "next";
 import { getSiteUrl } from "@/lib/auth/url";
 import { locales, localizedPath } from "@/i18n/config";
+import { indexablePaths, languageAlternates } from "@/lib/seo/metadata";
+import { getSiteMode } from "@/lib/site-mode";
+export const dynamic = "force-dynamic";
 export default function sitemap(): MetadataRoute.Sitemap {
+  if (getSiteMode() !== "live") return [];
   const origin = getSiteUrl();
-  return ["/", "/book", "/privacy", "/imprint"].flatMap(path => locales.map(locale => ({ url: `${origin}${localizedPath(path, locale)}`, alternates: { languages: Object.fromEntries(locales.map(l => [l === "de" ? "de-CH" : "en", `${origin}${localizedPath(path, l)}`])) } })));
+  return indexablePaths.flatMap(path => locales.map(locale => ({ url: `${origin}${localizedPath(path, locale)}`, alternates: { languages: languageAlternates(origin, path) } })));
 }

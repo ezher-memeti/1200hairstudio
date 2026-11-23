@@ -102,6 +102,7 @@ export default function CircularGallery({
   onInteracted,
 }: CircularGalleryProps) {
   const ui = useTranslations("ui");
+  const labels = useTranslations("labels");
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -651,7 +652,7 @@ export default function CircularGallery({
               }}
               className="snap-center flex-none px-2 text-left [transform-style:preserve-3d] [will-change:transform,opacity,filter] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:px-3 lg:px-4"
               aria-pressed={item.originalIndex === activeIndex}
-              aria-label={` `}
+              aria-label={item.title?.trim() || labels("selectedWorkImage")}
               style={item.style}
             >
               <div className="w-[82vw] min-w-[82vw] max-w-[420px] overflow-hidden rounded-[0.35rem] bg-surface sm:w-[380px] sm:min-w-[380px] lg:w-[420px] lg:min-w-[420px]">
@@ -663,7 +664,7 @@ export default function CircularGallery({
                   ) <= 1 ? (
                     <Image
                       src={item.image}
-                      alt={item.title ?? "Selected work image"}
+                      alt={item.title?.trim() || labels("selectedWorkImage")}
                       fill
                       sizes="(min-width: 1024px) 420px, (min-width: 640px) 380px, 82vw"
                       className="pointer-events-none object-cover [-webkit-user-drag:none]"

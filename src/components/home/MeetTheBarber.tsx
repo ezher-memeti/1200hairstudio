@@ -25,7 +25,7 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
               alt={ui("mdf6c85df66d3")}
               fill
               className="object-cover"
-              sizes="(min-width: 768px) 50vw, 100vw"
+              sizes="(min-width: 1280px) 448px, (min-width: 1024px) 400px, (min-width: 768px) 352px, 384px"
             />
           </div>
         </div>

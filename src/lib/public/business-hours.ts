@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createPublicClient } from "@/lib/supabase/public";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
 export {
@@ -10,7 +11,7 @@ export {
   getOpenBusinessWeekdays,
 } from "@/lib/public/business-hours-utils";
 
-export async function getBusinessHours() {
+export const getBusinessHours = cache(async () => {
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("business_hours")
@@ -22,4 +23,4 @@ export async function getBusinessHours() {
   }
 
   return (data ?? []) as BusinessHourRecord[];
-}
+});

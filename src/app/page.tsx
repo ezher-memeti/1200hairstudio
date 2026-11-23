@@ -1,3 +1,8 @@
+import { getLocale } from "next-intl/server";
+import { resolveLocale } from "@/i18n/config";
+import { getSiteUrl } from "@/lib/auth/url";
+import { businessStructuredData, serializeJsonLd } from "@/lib/seo/business";
+import { getBusinessHours } from "@/lib/public/business-hours";
 import { Suspense } from "react";
 import GoogleReviewsSection, { GoogleReviewsPlaceholder } from "@/components/home/GoogleReviewsSection";
 import BookingSection from "@/components/home/BookingSection";
@@ -18,18 +23,21 @@ import { getPublicContactSectionSettings } from "@/lib/contact-section/settings"
 export default async function Home() {
   const homeDataStartedAt = performance.now();
 
-  const [content, contactSettings] = await Promise.all([
+  const [content, contactSettings, businessHours, locale] = await Promise.all([
     timed("getHomepageContent", getHomepageContent),
     timed(
       "getPublicContactSectionSettings",
       getPublicContactSectionSettings
     ),
+    getBusinessHours(),
+    getLocale(),
   ]);
 
   console.log(`HOME_DATA: ${(performance.now() - homeDataStartedAt).toFixed(3)}ms`);
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(businessStructuredData(getSiteUrl(), resolveLocale(locale), content, contactSettings, businessHours)) }} />
       <Header />
 
       <main>

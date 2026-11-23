@@ -3,6 +3,7 @@ import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import { getTranslations } from "next-intl/server";
 import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 import styles from "./site-mode.module.css";
+import ModeArrow from "./ModeArrow";
 
 export async function ModeHeader() {
   const t = await getTranslations("siteMode");
@@ -20,8 +21,8 @@ export async function ModeContact() {
   } catch { /* Optional configured action. No constructed social URL. */ }
   const phone = settings.phoneNumber.replace(/[^+\d]/g, "");
   return <div className={styles.contacts}>
-    {instagram ? <a href={instagram} target="_blank" rel="noopener noreferrer">{t("instagram")}<span aria-hidden="true">↗</span></a> : null}
-    {/[0-9]{5}/.test(phone) ? <a href={`tel:${phone}`}>{t("contact")}<span aria-hidden="true">↗</span></a> : null}
+    {instagram ? <a href={instagram} target="_blank" rel="noopener noreferrer">{t("instagram")}<ModeArrow /></a> : null}
+    {/[0-9]{5}/.test(phone) ? <a href={`tel:${phone}`}>{t("contact")}<ModeArrow /></a> : null}
   </div>;
 }
 export async function ModeFooter() {

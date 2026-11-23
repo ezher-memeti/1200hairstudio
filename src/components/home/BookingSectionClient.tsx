@@ -733,6 +733,7 @@ function BookingConfirmation({
 }
 
 type BookingSectionClientProps = {
+  headingLevel?: 1 | 2;
   authRole: "admin" | "customer" | null;
   allowGuestBookings: boolean;
   customerProfile: {
@@ -749,6 +750,7 @@ type BookingSectionClientProps = {
 };
 
 export default function BookingSectionClient({
+  headingLevel = 2,
   authRole: initialAuthRole,
   allowGuestBookings,
   customerProfile: initialCustomerProfile,
@@ -759,6 +761,7 @@ export default function BookingSectionClient({
   shouldClearGuestBookingCookie: initialShouldClearGuestBookingCookie,
   loyaltyReward: initialLoyaltyReward,
 }: BookingSectionClientProps) {
+  const Heading = headingLevel === 1 ? "h1" : "h2";
   const interfaceLocale = useInterfaceLocale();
   const displayText = useCallback((value: string) => interfaceText(interfaceLocale, value), [interfaceLocale]);
 
@@ -1089,9 +1092,9 @@ export default function BookingSectionClient({
               <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
                 {content.booking_eyebrow}
               </p>
-              <h2 className="whitespace-pre-line font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
+              <Heading className="whitespace-pre-line font-display text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
                 {content.booking_title}
-              </h2>
+              </Heading>
               <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base">
                 {content.booking_description}
               </p>
