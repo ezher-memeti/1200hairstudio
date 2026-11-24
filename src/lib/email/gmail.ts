@@ -46,10 +46,10 @@ export type CustomerEmailType = (typeof CUSTOMER_EMAIL_TYPES)[number];
 export type CustomerEmailMessage = GmailMessage & { customerId?: string | null; appointmentId?: string | null; customerName?: string | null; emailType: CustomerEmailType; metadata?: Record<string, unknown> };
 
 function getRequiredEnv(name: "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "GOOGLE_REFRESH_TOKEN") {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
 
   if (!value) {
-    throw new Error(`Missing ${name}.`);
+    throw Object.assign(new Error(`Missing ${name}.`), { code: "gmail_configuration_missing" });
   }
 
   return value;
@@ -139,12 +139,48 @@ function buildMessage({ to, subject, html, text, attachments = [] }: GmailMessag
     .replace(/=+$/, "");
 }
 
-export async function sendGmailMessage(message: GmailMessage) {
-  const gmail = createGmailClient();
-  const settings = await getRuntimeSettings();
-  const senderName = settings.notifications.senderName.trim() || settings.business.businessName.trim() || DEFAULT_SENDER_NAME;
+/** Return only fixed diagnostics; SDK errors may contain credentials and full emails. */
+export function sanitizeGmailError(error: unknown) {
+  const detail = error as { code?: unknown; response?: { status?: unknown; data?: { error?: unknown } } } | null;
+  const rawStatus = detail?.response?.status;
+  const status = typeof rawStatus === "number" && Number.isInteger(rawStatus) && rawStatus >= 100 && rawStatus <= 599 ? rawStatus : undefined;
+  const providerError = detail?.response?.data?.error;
+  const oauthCode = typeof providerError === "string" ? providerError : detail?.code;
+  const reasons = providerError && typeof providerError === "object" && "errors" in providerError && Array.isArray(providerError.errors)
+    ? providerError.errors.map((item: unknown) => item && typeof item === "object" && "reason" in item ? item.reason : null)
+    : [];
+  let code = "gmail_delivery_failed";
+  let guidance = "Check Gmail service availability.";
+  if (oauthCode === "gmail_configuration_missing") {
+    code = "gmail_configuration_missing";
+    guidance = "Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN in the server environment.";
+  } else if (oauthCode === "invalid_grant") {
+    code = "invalid_grant";
+    guidance = "Google rejected the refresh grant. Check the OAuth client/token pairing; reauthorization may be required for an expired or revoked token.";
+  } else if (oauthCode === "invalid_client") {
+    code = "invalid_client";
+    guidance = "Check the configured Google OAuth client credentials.";
+  } else if (reasons.includes("accessNotConfigured")) {
+    code = "gmail_api_disabled";
+    guidance = "Enable the Gmail API in the OAuth client's Google Cloud project.";
+  } else if (status === 429 || reasons.some(reason => ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded", "quotaExceeded"].includes(String(reason)))) {
+    code = "gmail_rate_limited";
+    guidance = "Gmail quota or rate limit reached; do not automatically resend an ambiguously accepted message.";
+  } else if (status === 403) {
+    code = "gmail_permission_denied";
+    guidance = "Check gmail.send permission and Google account or Workspace restrictions.";
+  } else if (status === 401) {
+    code = "gmail_authentication_failed";
+    guidance = "Check Gmail OAuth credentials and granted permissions.";
+  }
+  return Object.assign(new Error(`Gmail message submission failed${status ? ` (HTTP ${status})` : ""}. ${guidance}`), { code, status });
+}
 
+export async function sendGmailMessage(message: GmailMessage) {
   try {
+    const gmail = createGmailClient();
+    const settings = await getRuntimeSettings();
+    const senderName = settings.notifications.senderName.trim() || settings.business.businessName.trim() || DEFAULT_SENDER_NAME;
     const response = await gmail.users.messages.send({
       userId: "me",
       requestBody: {
@@ -154,10 +190,10 @@ export async function sendGmailMessage(message: GmailMessage) {
     if (!response.data.id) throw new Error("Missing Gmail message ID.");
     return { providerMessageId: response.data.id };
   } catch (error) {
-    // Google request errors can contain OAuth credentials and the raw email.
-    // Only propagate a numeric status, never the original error or request.
-    const status = (error as { response?: { status?: unknown } })?.response?.status;
-    throw Object.assign(new Error(`Gmail message submission failed${typeof status === "number" ? ` (HTTP ${status})` : ""}.`), { status: typeof status === "number" ? status : undefined });
+    const failure = sanitizeGmailError(error);
+    // Fixed code/status only: never serialize the original SDK error or email.
+    console.error("GMAIL DELIVERY ERROR", safeLogDetails(failure));
+    throw failure;
   }
 }
 

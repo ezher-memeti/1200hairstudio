@@ -22,7 +22,9 @@ try {
   }
   console.log("Gmail OAuth validation passed: access-token refresh and gmail.send permission verified. Sender identity and inbox delivery are not verified. No email was sent and no credential was printed.");
 } catch (error) {
-  const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
+  // Never interpolate arbitrary SDK codes/messages; they can contain request data.
+  const providerCode = error?.response?.data?.error ?? error?.code;
+  const code = ["invalid_grant", "invalid_client", "access_denied"].includes(providerCode) ? providerCode : "oauth_validation_failed";
   console.error(`Gmail OAuth validation failed (code: ${code}). Credentials were not printed.`);
   process.exit(1);
 }

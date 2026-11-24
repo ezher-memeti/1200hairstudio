@@ -14,6 +14,7 @@ import {
   validatePassword,
 } from "@/lib/auth/shared";
 import { createClient } from "@/lib/supabase/client";
+import { cleanRecoveryUrl, observePasswordRecovery } from "@/lib/auth/recovery";
 
 export default function PublicResetPasswordForm() {
   const uiText = useUiText();
@@ -30,50 +31,10 @@ export default function PublicResetPasswordForm() {
 
   useEffect(() => {
     const supabase = createClient();
-    const hashParams = new URLSearchParams(window.location.hash.slice(1));
-    const queryParams = new URLSearchParams(window.location.search);
-    const recoveryType =
-      hashParams.get("type") === "recovery" ||
-      queryParams.get("type") === "recovery";
-
-    let isMounted = true;
-
-    async function resolveRecoveryState() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (recoveryType && session) {
-        setStatus("ready");
-        return;
-      }
-
-      setStatus("invalid");
-    }
-
-    resolveRecoveryState();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!isMounted) {
-        return;
-      }
-
-      if (event === "PASSWORD_RECOVERY" && session) {
-        setStatus("ready");
-        return;
-      }
+    const url = new URL(window.location.href);
+    return observePasswordRecovery(supabase.auth, url, setStatus, () => {
+      window.history.replaceState(window.history.state, "", cleanRecoveryUrl(url));
     });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
   }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

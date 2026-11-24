@@ -10,7 +10,7 @@ confirmation and password recovery templates are supported.
 | Flow | Existing implementation | Template and status |
 | --- | --- | --- |
 | Signup confirmation | `PublicRegisterForm` calls `auth.signUp` and displays a check-email message when no session is returned. Signup does not supply `emailRedirectTo`. | `confirm-signup.html`, newly added. Supabase verifies the link, then uses its Site URL. The message tells the customer to sign in afterward, matching the current UI. |
-| Password recovery | `PublicForgotPasswordForm` calls `auth.resetPasswordForEmail` with `getResetPasswordRedirectUrl()`. `PublicResetPasswordForm` handles recovery state, updates the password, signs out, and opens `/login?reset=success`. | `reset-password.html`, newly added. The required destination is `/reset-password` on the configured site origin. |
+| Password recovery | `PublicForgotPasswordForm` calls `auth.resetPasswordForEmail` with `getResetPasswordRedirectUrl()`. `PublicResetPasswordForm` handles recovery state, updates the password, signs out, and opens `/login?reset=success`. | `reset-password.html`, newly added. The required destination is `/de/reset-password` or `/en/reset-password` on the configured site origin. |
 | Password login, customer and admin | Both use `auth.signInWithPassword`. | Login itself sends no email; no separate login template is needed. |
 | Magic link / email OTP | No `signInWithOtp` or email OTP verification flow exists. The local SMS example is not an email-login implementation. | No unused template was added. |
 | Invite user | No invitation or accept-invitation flow exists. | No unused template was added. |
@@ -130,29 +130,86 @@ code exchange. See [Supabase PKCE documentation](https://supabase.com/docs/guide
 
 ## URLs and current application compatibility
 
-- Set the hosted **Authentication → URL Configuration → Site URL** to the canonical HTTPS
-  production origin, without a path or trailing slash. Signup currently relies on this setting.
-- Allow the exact production URL `<production-origin>/reset-password` under Redirect URLs.
-  The Vercel environment's `NEXT_PUBLIC_SITE_URL` must use the same origin, scheme, and hostname.
-  Confirm these hosted/Vercel values manually; they were not inferred from `.env.local`.
-- For a local/staging run, use one hostname consistently for the app, Site URL, and redirect.
-  Allow its exact `/reset-password` URL, such as `http://localhost:3000/reset-password`.
-  `localhost` and `127.0.0.1` do not share the browser's PKCE verifier cookies.
-- The repository's current local config uses Site URL `http://127.0.0.1:3000` and only
-  `https://127.0.0.1:3000` as an additional redirect, while `.env.local` currently uses
-  `http://localhost:3000`. Thus the checked-in local allowlist does **not** include the recovery
-  URL requested by the app. Correct the chosen local test environment's Site URL/allowlist before
-  expecting a real local recovery link to arrive at the reset form. This change deliberately
-  leaves those security-related settings untouched.
-- No `/auth/callback` or `/auth/confirm` route exists. `createBrowserClient` from the installed
-  `@supabase/ssr` package uses PKCE and URL-session detection. It exchanges the code automatically
-  on client initialization when the initiating browser still has the corresponding verifier.
-  The installed Auth client preserves recovery intent and emits `PASSWORD_RECOVERY`, which the
-  reset form listens for. An explicit server exchange route is not required for this existing
-  browser flow. The Google Gmail OAuth callback is unrelated and must not be used here.
-- Open recovery links in the same browser where they were requested. A different browser,
-  cleared cookies, or a consumed/expired link cannot complete this PKCE flow. The existing reset
-  form rejects missing recovery state; the templates do not relax that check.
+### Password recovery correction — 24 November 2026
+
+The earlier hosted inspection above is historical, not a current settings read. No Management API
+access token is available in this task, so the current hosted Site URL/allowlist/template could not
+be re-inspected or changed. The earlier observed allowlist omitted recovery URLs; Supabase can
+fall back to Site URL when the requested redirect is not allowed. Changing Vercel's
+`NEXT_PUBLIC_SITE_URL` alone does not update Supabase URL Configuration.
+
+The application already sends a localized `redirectTo` via `getResetPasswordRedirectUrl(locale)`.
+The checked-in reset template already uses `{{ .ConfirmationURL }}` correctly. There is no
+application Auth callback redirecting recovery to `/`: the browser SDK handles the PKCE callback
+on the reset page itself. The Gmail OAuth callback is unrelated. Middleware rewrites both reset
+routes to the same reset page in all three site modes, without a login/home/dashboard guard.
+
+A separate reset-form race was fixed: subscribe before session initialization and latch a verified
+`PASSWORD_RECOVERY` event so a later session read cannot overwrite it with `invalid`. A regular
+signed-in session or a user-supplied `?type=recovery` does not unlock the recovery form. Supabase
+still verifies the code and its PKCE verifier; the application does not bypass that verification or
+exchange the code a second time. Error callbacks remain invalid even with an existing session.
+Private callback parameters are removed from the address bar after initialization, without logging
+them or rendering provider error descriptions. The existing bilingual invalid/expired message and
+request-another-email action are reused. Password updates still use `auth.updateUser({password})`,
+then sign out and navigate to the localized login page with `reset=success`.
+
+### Required manual hosted configuration
+
+In **Supabase Dashboard → Authentication → URL Configuration**:
+
+- Set **Site URL** to `https://1200hairstudio.ch`.
+- Add both exact **Redirect URLs**:
+  - `https://1200hairstudio.ch/de/reset-password`
+  - `https://1200hairstudio.ch/en/reset-password`
+- Keep other legitimate existing redirects. Do not replace the allowlist with a broad wildcard.
+- Vercel `NEXT_PUBLIC_SITE_URL` must match `https://1200hairstudio.ch`. Requests must begin and
+  finish on that same origin: apex and www do not share host-only PKCE cookies. Confirm the
+  existing www-to-canonical redirect before initiating recovery from www.
+- In **Email Templates → Reset Password**, the CTA href must be exactly
+  `{{ .ConfirmationURL }}`. Do not use `{{ .SiteURL }}` or a bare reset-page URL as the CTA;
+  those skip verification. The local approved HTML already has the correct CTA and is unchanged.
+- Request a **new** email after correcting these settings. Previously issued links retain their
+  original redirect and may already be consumed or expired.
+
+For local development, the checked-in config now allows both localized reset paths on
+`http://127.0.0.1:3000` and `http://localhost:3000`. These CLI settings configure only a local
+Supabase instance; they do not change the hosted project. Add only the local origins/paths you
+actually use to a hosted project's allowlist when appropriate. Use one hostname consistently for
+the requesting page, configured app origin and callback. Keep production on canonical HTTPS.
+
+Open links in the same browser/profile where recovery was requested: `@supabase/ssr` uses PKCE
+and stores the verifier there. A different browser, cleared cookies, and expired or consumed
+links produce the invalid-link interface. No server OTP endpoint or alternative Auth delivery
+system has been introduced. There is no client-controlled redirect target in this flow.
+
+Run `node scripts/test-password-recovery.cjs` for mocked subscription/race/error/URL tests.
+The browser integration test is `scripts/test-password-recovery-browser.cjs`; it requires an
+isolated standard production build configured with
+`NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:3099`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=synthetic-anon-key`, and
+`NEXT_PUBLIC_SITE_URL=https://1200hairstudio.ch`. Run with `RECOVERY_BUILD_DIR` pointing to that
+build, plus `PLAYWRIGHT_MODULE_PATH`/`CHROME_EXECUTABLE_PATH` if needed. It starts its own
+synthetic Auth server and Next server (ports 3099/3059), verifies the installed SDK's S256
+exchange, both localized forms, mocked password update and invalid-link handling. It sends no
+email, creates no users and never updates production passwords. Mocked success does not prove
+that the hosted allowlist has been corrected; real-account testing was deliberately not performed.
+
+Verification for the 24 November correction: mocked recovery regressions passed, including
+both localized middleware rewrites in live/coming-soon/under-construction modes. The production
+Chrome browser test passed in German and English using the actual installed SDK against the
+synthetic API: S256 verification, exactly one successful code exchange, both password inputs,
+exactly one mocked password update, sign-out/localized login, and invalid/expired/used-link UI.
+TypeScript, ESLint (three existing image warnings), the standard production build, 18 localization
+groups, 10 site-mode groups and the two-template validator passed. The isolated build used only
+synthetic Supabase configuration; expected settings-query fallbacks occurred without a backend.
+Read-only production HTTP checks returned 200 for both canonical reset pages; www forgot-password
+redirected to the apex domain. These route checks did not verify a real recovery email or password
+change. No hosted settings, account records, SMTP, approved template HTML, or production data
+were changed, and no commit/deployment was performed.
+
+See [Supabase redirect allowlist documentation](https://supabase.com/docs/guides/auth/redirect-urls)
+for the distinction between Site URL and allowed post-verification destinations.
 
 ## Local configuration and preview
 
