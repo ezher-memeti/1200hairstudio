@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { getLocale } from "next-intl/server";
 import "server-only";
 
@@ -74,11 +75,7 @@ export async function cancelResolvedAppointment(
     .maybeSingle();
 
   if (error || !updatedAppointment) {
-    console.error("CUSTOMER BOOKING CANCELLATION ERROR", {
-      appointmentId: appointment.id,
-      code: error?.code ?? null,
-      message: error?.message ?? "Supabase returned no cancelled appointment row.",
-    });
+    console.error("CUSTOMER BOOKING CANCELLATION ERROR", safeLogDetails({ appointmentId: appointment.id, code: error?.code ?? null }));
     return { error: "Unable to cancel this booking right now. Please contact the studio.", emailWarning: null };
   }
 
@@ -100,7 +97,7 @@ export async function cancelResolvedAppointment(
       });
     } catch (emailError) {
       emailWarning = "The booking was cancelled, but the notification email could not be sent.";
-      console.error("CUSTOMER BOOKING CANCELLATION EMAIL ERROR", emailError);
+      console.error("CUSTOMER BOOKING CANCELLATION EMAIL ERROR", safeLogDetails(emailError));
     }
   }
 
@@ -149,11 +146,7 @@ export async function rescheduleResolvedAppointment(
     .maybeSingle();
 
   if (error || !updatedAppointment) {
-    console.error("CUSTOMER BOOKING RESCHEDULE ERROR", {
-      appointmentId: appointment.id,
-      code: error?.code ?? null,
-      message: error?.message ?? "Supabase returned no updated appointment row.",
-    });
+    console.error("CUSTOMER BOOKING RESCHEDULE ERROR", safeLogDetails({ appointmentId: appointment.id, code: error?.code ?? null }));
     return {
       error: isAppointmentTimeConflictError(error)
         ? APPOINTMENT_TIME_CONFLICT_MESSAGE
@@ -180,7 +173,7 @@ export async function rescheduleResolvedAppointment(
       });
     } catch (emailError) {
       emailWarning = "The booking was updated, but the notification email could not be sent.";
-      console.error("CUSTOMER BOOKING UPDATE EMAIL ERROR", emailError);
+      console.error("CUSTOMER BOOKING UPDATE EMAIL ERROR", safeLogDetails(emailError));
     }
   }
 

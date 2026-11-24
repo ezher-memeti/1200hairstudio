@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { getLocale } from "next-intl/server";
 import { localizeRow } from "@/i18n/content";
 import { cache } from "react";
@@ -6,29 +7,23 @@ import { createPublicClient } from "@/lib/supabase/public";
 import type { Announcement, AnnouncementDisplayType } from "@/lib/announcements/types";
 
 export const getActiveAnnouncements = cache(async (): Promise<Announcement[]> => {
-  const startedAt = performance.now();
+  const supabase = createPublicClient();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("announcements")
+    .select("*")
+    .eq("is_active", true)
+    .or(`starts_at.is.null,starts_at.lte.${now}`)
+    .or(`expires_at.is.null,expires_at.gte.${now}`)
+    .order("priority", { ascending: false })
+    .order("created_at", { ascending: false });
 
-  try {
-    const supabase = createPublicClient();
-    const now = new Date().toISOString();
-    const { data, error } = await supabase
-      .from("announcements")
-      .select("*")
-      .eq("is_active", true)
-      .or(`starts_at.is.null,starts_at.lte.${now}`)
-      .or(`expires_at.is.null,expires_at.gte.${now}`)
-      .order("priority", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Unable to load public announcements", error);
-      return [];
-    }
-    const locale = await getLocale();
-    return (data ?? []).map(row => localizeRow(row, ["title", "message", "cta_text"], locale)) as Announcement[];
-  } finally {
-    console.log(`getActiveAnnouncements: ${(performance.now() - startedAt).toFixed(3)}ms`);
+  if (error) {
+    console.error("Unable to load public announcements", safeLogDetails(error));
+    return [];
   }
+  const locale = await getLocale();
+  return (data ?? []).map(row => localizeRow(row, ["title", "message", "cta_text"], locale)) as Announcement[];
 });
 
 export function selectAnnouncement(announcements: Announcement[], displayType: AnnouncementDisplayType) {

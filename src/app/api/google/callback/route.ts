@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { timingSafeEqual } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
@@ -103,9 +104,7 @@ export async function GET(request: NextRequest) {
       200,
     );
   } catch (error) {
-    console.error("GOOGLE OAUTH CALLBACK ERROR", {
-      message: error instanceof Error ? error.message : "Unknown OAuth error",
-    });
+    console.error("GOOGLE OAUTH CALLBACK ERROR", safeLogDetails(error));
 
     return textResponse(
       "Unable to complete Google authorization. Confirm the redirect URI and OAuth environment variables, then try again.",

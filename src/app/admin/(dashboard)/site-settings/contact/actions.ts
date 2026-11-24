@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 import { persistContactSectionSettings } from "@/lib/contact-section/settings";
@@ -57,7 +58,7 @@ export async function saveContactSectionSettings(input: ContactSectionSettings, 
     revalidatePath("/admin/site-settings/contact");
     return { success: true, message: "Contact section settings saved." };
   } catch (error) {
-    console.error("CONTACT SETTINGS ACTION ERROR", error);
+    console.error("CONTACT SETTINGS ACTION ERROR", safeLogDetails(error));
     return { success: false, message: error instanceof Error && !/row-level|permission|postgres/i.test(error.message) ? error.message : "Unable to save contact settings." };
   }
 }

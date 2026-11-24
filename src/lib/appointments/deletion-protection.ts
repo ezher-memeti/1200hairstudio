@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -26,7 +27,7 @@ export async function getProtectedAppointmentIds(supabase: SupabaseClient, appoi
     ["loyalty visits", loyaltyVisitResult.error], ["loyalty rewards", loyaltyRewardResult.error],
   ].filter((entry) => entry[1]);
   if (failures.length) {
-    console.error("APPOINTMENT DELETION PROTECTION LOOKUP ERROR:", Object.fromEntries(failures));
+    console.error("APPOINTMENT DELETION PROTECTION LOOKUP ERROR:", safeLogDetails({ error: failures[0][1] }));
     throw new Error("Unable to verify whether this appointment has protected financial history.");
   }
 

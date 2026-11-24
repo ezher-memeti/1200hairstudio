@@ -21,19 +21,12 @@ import { getHomepageContent } from "@/lib/homepage-content";
 import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 
 export default async function Home() {
-  const homeDataStartedAt = performance.now();
-
   const [content, contactSettings, businessHours, locale] = await Promise.all([
-    timed("getHomepageContent", getHomepageContent),
-    timed(
-      "getPublicContactSectionSettings",
-      getPublicContactSectionSettings
-    ),
+    getHomepageContent(),
+    getPublicContactSectionSettings(),
     getBusinessHours(),
     getLocale(),
   ]);
-
-  console.log(`HOME_DATA: ${(performance.now() - homeDataStartedAt).toFixed(3)}ms`);
 
   return (
     <>
@@ -82,17 +75,4 @@ export default async function Home() {
       </Suspense>
     </>
   );
-}
-
-async function timed<T>(
-  name: string,
-  fn: () => Promise<T>
-): Promise<T> {
-  const startedAt = performance.now();
-
-  try {
-    return await fn();
-  } finally {
-    console.log(`${name}: ${(performance.now() - startedAt).toFixed(3)}ms`);
-  }
 }

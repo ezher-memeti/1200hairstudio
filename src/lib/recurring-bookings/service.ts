@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { publicBookingModeError } from "@/lib/site-mode-booking";
 import { getActiveBookingLocale } from "@/i18n/server";
 import "server-only";
@@ -45,7 +46,7 @@ async function sendRecurringNotification(event: "paused" | "resumed" | "removed"
     else if (event === "resumed") await sendRecurringBookingResumedEmail(details);
     else await sendRecurringBookingRemovedEmail(details);
   } catch (error) {
-    console.error("RECURRING BOOKING EMAIL ERROR", { event, error });
+    console.error("RECURRING BOOKING EMAIL ERROR", safeLogDetails({ event, error }));
   }
 }
 
@@ -190,7 +191,7 @@ export async function createRecurringBookingSeries(input: RecurringBookingInput 
       await sendRecurringBookingConfirmationEmail({ ...details, reservedCount: reserved.length, conflictCount: preview.occurrences.length - reserved.length, upcomingAppointments: reserved.map((occurrence) => ({ startAt: occurrence.startAt })) });
     }
   } catch (notificationError) {
-    console.error("RECURRING BOOKING SUMMARY EMAIL ERROR", { recurringBookingId: series.id, error: notificationError });
+    console.error("RECURRING BOOKING SUMMARY EMAIL ERROR", safeLogDetails({ recurringBookingId: series.id, error: notificationError }));
   }
   return { series: series as RecurringBookingRecord, ...preview };
 }
@@ -265,10 +266,10 @@ export async function removeRecurringAppointmentOccurrence(appointmentId: string
     .maybeSingle();
   if (deleteError) {
     if (isAppointmentForeignKeyError(deleteError)) {
-      console.error("RECURRING APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", deleteError);
+      console.error("RECURRING APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", safeLogDetails(deleteError));
       throw new Error(APPOINTMENT_FINANCIAL_HISTORY_MESSAGE);
     }
-    console.error("RECURRING APPOINTMENT DELETE ERROR:", deleteError);
+    console.error("RECURRING APPOINTMENT DELETE ERROR:", safeLogDetails(deleteError));
     throw new Error("Unable to remove this appointment.");
   }
   if (!deleted) throw new Error("Unable to remove this appointment.");

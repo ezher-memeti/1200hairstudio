@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 import { localizedServiceName } from "@/i18n/content";
 import { getNotificationLocale } from "@/i18n/notifications";
@@ -156,7 +157,7 @@ export async function sendGmailMessage(message: GmailMessage) {
     // Google request errors can contain OAuth credentials and the raw email.
     // Only propagate a numeric status, never the original error or request.
     const status = (error as { response?: { status?: unknown } })?.response?.status;
-    throw new Error(`Gmail message submission failed${typeof status === "number" ? ` (HTTP ${status})` : ""}.`);
+    throw Object.assign(new Error(`Gmail message submission failed${typeof status === "number" ? ` (HTTP ${status})` : ""}.`), { status: typeof status === "number" ? status : undefined });
   }
 }
 
@@ -166,20 +167,20 @@ export async function sendCustomerEmail(message: CustomerEmailMessage) {
   const metadata = { ...(message.metadata ?? {}), ...(message.customerName ? { customer_name: message.customerName } : {}) };
   const { data: log, error: logError } = await admin.from("customer_email_logs").insert({ customer_id: message.customerId ?? null, appointment_id: message.appointmentId ?? null, recipient_email: recipientEmail, email_type: message.emailType, subject: message.subject, status: "processing", metadata }).select("id").single();
   if (logError || !log) {
-    console.error("CUSTOMER EMAIL LOG CREATION ERROR", { emailType: message.emailType, customerId: message.customerId ?? null, appointmentId: message.appointmentId ?? null, error: logError });
+    console.error("CUSTOMER EMAIL LOG CREATION ERROR", safeLogDetails({ appointmentId: message.appointmentId ?? null, error: logError }));
     throw new Error("Unable to initialize customer email delivery.");
   }
   try {
     const delivery = await sendGmailMessage({ to: recipientEmail, subject: message.subject, html: message.html, text: message.text, attachments: message.attachments });
     const sentAt = new Date().toISOString();
     const { error } = await admin.from("customer_email_logs").update({ status: "sent", sent_at: sentAt, failed_at: null, error_message: null, provider_message_id: delivery.providerMessageId }).eq("id", log.id);
-    if (error) console.error("CRITICAL: CUSTOMER EMAIL SENT BUT LOG UPDATE FAILED", { emailLogId: log.id, providerMessageId: delivery.providerMessageId, error });
+    if (error) console.error("CRITICAL: CUSTOMER EMAIL SENT BUT LOG UPDATE FAILED", safeLogDetails({ emailLogId: log.id, error }));
     return { ...delivery, emailLogId: log.id };
   } catch (error) {
     const failedAt = new Date().toISOString();
     const errorMessage = error instanceof Error ? error.message.slice(0, 1000) : "Email delivery failed.";
     const { error: updateError } = await admin.from("customer_email_logs").update({ status: "failed", failed_at: failedAt, sent_at: null, error_message: errorMessage }).eq("id", log.id);
-    if (updateError) console.error("CRITICAL: CUSTOMER EMAIL FAILURE LOG UPDATE FAILED", { emailLogId: log.id, error: updateError, deliveryError: error });
+    if (updateError) console.error("CRITICAL: CUSTOMER EMAIL FAILURE LOG UPDATE FAILED", safeLogDetails({ emailLogId: log.id, error: updateError, deliveryError: error }));
     throw error;
   }
 }

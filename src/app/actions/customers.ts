@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { CustomerEmailLog } from "@/lib/customers/types";
@@ -75,7 +76,7 @@ export async function updateAdminCustomer(input: {
       .eq("id", customerId);
 
     if (error) {
-      console.error("ADMIN CUSTOMER UPDATE ERROR", error);
+      console.error("ADMIN CUSTOMER UPDATE ERROR", safeLogDetails(error));
       return {
         error:
           error.code === "23505"
@@ -111,7 +112,7 @@ export async function updateAdminCustomerNotes(input: {
       .eq("id", customerId);
 
     if (error) {
-      console.error("ADMIN CUSTOMER NOTES UPDATE ERROR", error);
+      console.error("ADMIN CUSTOMER NOTES UPDATE ERROR", safeLogDetails(error));
       return { error: "Unable to save customer notes right now." };
     }
 
@@ -144,7 +145,7 @@ export async function getAdminCustomerEmailLogs(input: {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error("ADMIN CUSTOMER EMAIL LOG QUERY ERROR", { customerId, error });
+      console.error("ADMIN CUSTOMER EMAIL LOG QUERY ERROR", safeLogDetails({ error }));
       return { error: "Unable to load email history.", logs: [] as CustomerEmailLog[], total: 0 };
     }
 

@@ -14,19 +14,6 @@ function formatDuration(duration: number) {
   return duration.toFixed(2);
 }
 
-function logTiming(
-  operation: string,
-  pathname: string,
-  duration: number,
-  authState?: "anonymous" | "authenticated" | "unknown",
-) {
-  const safePathname = pathname.replace(/^(\/(?:(?:de|en)\/)?(?:booking\/manage|unsubscribe))\/[^/]+/, "$1/[token]");
-  const auth = authState ? ` auth=${authState}` : "";
-  console.info(
-    `[PERF] ${operation} path=${safePathname} duration=${formatDuration(duration)}ms${auth}`,
-  );
-}
-
 function clearSupabaseAuthCookies(
   request: NextRequest,
   response: NextResponse,
@@ -73,7 +60,6 @@ export async function updateSession(request: NextRequest, initialResponse?: Next
           const cookies = request.cookies.getAll();
           const duration = elapsedMilliseconds(startedAt);
           cookieReadDuration += duration;
-          logTiming("SUPABASE_COOKIE_READ", pathname, duration);
           return cookies;
         },
         setAll(cookiesToSet) {
@@ -90,13 +76,11 @@ export async function updateSession(request: NextRequest, initialResponse?: Next
           cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
           const duration = elapsedMilliseconds(startedAt);
           cookieWriteDuration += duration;
-          logTiming("SUPABASE_COOKIE_WRITE", pathname, duration);
         },
       },
     },
   );
   const clientCreationDuration = elapsedMilliseconds(clientCreationStartedAt);
-  logTiming("SUPABASE_CLIENT_CREATION", pathname, clientCreationDuration);
 
   const authStartedAt = performance.now();
   const {
@@ -104,12 +88,6 @@ export async function updateSession(request: NextRequest, initialResponse?: Next
     error,
   } = await supabase.auth.getUser();
   const authDuration = elapsedMilliseconds(authStartedAt);
-  const authState = error
-    ? "unknown"
-    : user
-      ? "authenticated"
-      : "anonymous";
-  logTiming("SUPABASE_AUTH_GET_USER", pathname, authDuration, authState);
 
   // Only legacy, unprefixed UI requests need account-locale negotiation.
   if (user && !error && !request.cookies.get(localeCookie) && !/^\/(?:de|en|api|auth|_next)(?:\/|$)/.test(pathname) && !/\.[^/]+$/.test(pathname)) {
@@ -126,16 +104,9 @@ export async function updateSession(request: NextRequest, initialResponse?: Next
     const staleCookieClearStartedAt = performance.now();
     clearSupabaseAuthCookies(request, response);
     staleCookieClearDuration = elapsedMilliseconds(staleCookieClearStartedAt);
-    logTiming(
-      "SUPABASE_STALE_COOKIE_CLEAR",
-      pathname,
-      staleCookieClearDuration,
-      authState,
-    );
   }
 
   const middlewareDuration = elapsedMilliseconds(middlewareStartedAt);
-  logTiming("MIDDLEWARE_TOTAL", pathname, middlewareDuration, authState);
 
   response.headers.append(
     "Server-Timing",

@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { ensureCustomerRecord, requireCustomerUser } from "@/lib/auth/customer";
 import type { AppointmentRecord } from "@/lib/appointments/types";
@@ -148,7 +149,7 @@ export async function deleteCustomerAccount() {
     const { error } = await adminSupabase.auth.admin.deleteUser(user.id);
 
     if (error) {
-      console.error("Customer account deletion failed", error);
+      console.error("Customer account deletion failed", safeLogDetails(error));
       return { error: "Your account could not be deleted right now." };
     }
 

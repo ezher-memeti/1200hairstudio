@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { contentPayload } from "@/i18n/content-editing";
 import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
@@ -65,7 +66,7 @@ export async function saveAnnouncement(input: AnnouncementInput, announcementId?
     revalidateAnnouncements();
     return { success: true, id: data.id as string, message: announcementId ? "Announcement updated." : "Announcement created." };
   } catch (error) {
-    console.error("Announcement save failed", { operation: announcementId ? "update" : "create", announcementId, error });
+    console.error("Announcement save failed", safeLogDetails({ operation: announcementId ? "update" : "create", announcementId, error }));
     return { success: false, message: error instanceof Error && !/row-level|permission|postgres/i.test(error.message) ? error.message : "Unable to save this announcement." };
   }
 }
@@ -78,7 +79,7 @@ export async function deleteAnnouncement(announcementId: string): Promise<Result
     revalidateAnnouncements();
     return { success: true, message: "Announcement deleted." };
   } catch (error) {
-    console.error("Announcement delete failed", { announcementId, error });
+    console.error("Announcement delete failed", safeLogDetails({ announcementId, error }));
     return { success: false, message: "Unable to delete this announcement." };
   }
 }
@@ -92,7 +93,7 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
     revalidateAnnouncements();
     return { success: true, message: isActive ? "Announcement enabled." : "Announcement disabled." };
   } catch (error) {
-    console.error("Announcement status update failed", { announcementId, error });
+    console.error("Announcement status update failed", safeLogDetails({ announcementId, error }));
     return { success: false, message: "Unable to update announcement status." };
   }
 }

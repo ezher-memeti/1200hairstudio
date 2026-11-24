@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 import { contentPayload } from "@/i18n/content-editing";
 import { type Locale } from "@/i18n/config";
@@ -43,7 +44,7 @@ export const getPublicContactSectionSettings = cache(async (): Promise<ContactSe
   const supabase = createPublicClient();
   const { data, error } = await supabase.from("contact_section_settings").select(columns).order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) {
-    console.error("PUBLIC CONTACT SETTINGS QUERY ERROR", error);
+    console.error("PUBLIC CONTACT SETTINGS QUERY ERROR", safeLogDetails(error));
     return null;
   }
   return data ? normalizeContactSectionSettings(localizeRow(data, contentFields.contact_section_settings, await getLocale()) as ContactSectionSettingsRow) : null;
@@ -53,7 +54,7 @@ export async function getAdminContactSectionSettings(): Promise<ContactSectionSe
   const { supabase } = await requireAdminUser();
   const { data, error } = await supabase.from("contact_section_settings").select(columns).order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) {
-    console.error("ADMIN CONTACT SETTINGS QUERY ERROR", error);
+    console.error("ADMIN CONTACT SETTINGS QUERY ERROR", safeLogDetails(error));
     throw new Error("Unable to load contact settings.");
   }
   if (!data) {
@@ -92,7 +93,7 @@ export async function persistContactSectionSettings(settings: Omit<ContactSectio
     : supabase.from("contact_section_settings").insert(payload).select("id").single();
   const { data, error } = await query;
   if (error || !data) {
-    console.error("CONTACT SETTINGS SAVE ERROR", { operation: existing?.id ? "update" : "insert", error });
+    console.error("CONTACT SETTINGS SAVE ERROR", safeLogDetails({ operation: existing?.id ? "update" : "insert", error }));
     throw new Error("Unable to save contact settings.");
   }
   return data.id as string;

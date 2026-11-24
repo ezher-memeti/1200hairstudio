@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -63,7 +64,7 @@ export async function getAdminEmailHistory(
 
   const { data, error, count } = await query.order("created_at", { ascending: false }).range(from, from + pageSize - 1);
   if (error) {
-    console.error("ADMIN EMAIL HISTORY QUERY ERROR", { input, error });
+    console.error("ADMIN EMAIL HISTORY QUERY ERROR", safeLogDetails({ error }));
     throw new Error("Unable to load customer email history.");
   }
 

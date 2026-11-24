@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getEndOfDay } from "@/lib/finance/end-of-day";
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     const bytes = await pdf.save();
     return new NextResponse(Buffer.from(bytes), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="1200-end-of-day-${data.date}.pdf"`, "Cache-Control": "no-store" } });
   } catch (error) {
-    console.error("END OF DAY REPORT ERROR", error);
+    console.error("END OF DAY REPORT ERROR", safeLogDetails(error));
     return NextResponse.json({ error: "Report could not be generated." }, { status: 500 });
   }
 }

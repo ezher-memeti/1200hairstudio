@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { textFor } from "@/i18n/text";
 import { getLocale } from "next-intl/server";
 
@@ -30,7 +31,7 @@ export default async function AdminCustomerEmailHistoryPage({ searchParams }: { 
   try {
     result = await getAdminEmailHistory(supabase, filters);
   } catch (cause) {
-    console.error("ADMIN EMAIL HISTORY PAGE ERROR", cause);
+    console.error("ADMIN EMAIL HISTORY PAGE ERROR", safeLogDetails(cause));
     error = cause instanceof Error ? cause.message : "Unable to load customer email history.";
     result = { rows: [], total: 0, page: 1, pageSize: 25 };
   }

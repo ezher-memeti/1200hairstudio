@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { ContentEditor } from "@/components/admin/content/AdminContentLocale";
 import AnnouncementsManager from "@/components/admin/AnnouncementsManager";
 import { getAdminAnnouncements } from "@/lib/announcements/queries";
@@ -8,7 +9,7 @@ export default async function AdminAnnouncementsPage() {
   try {
     return <ContentEditor><AnnouncementsManager announcements={await getAdminAnnouncements()} /></ContentEditor>;
   } catch (error) {
-    console.error("Unable to load admin announcements", error);
+    console.error("Unable to load admin announcements", safeLogDetails(error));
     return <ContentEditor>{<AnnouncementsManager announcements={[]} loadError="Announcements could not be loaded." />}</ContentEditor>;
   }
 }

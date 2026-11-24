@@ -9,6 +9,7 @@ function load(relative, mocks) {
   const scoped = (name) => {
     if (Object.hasOwn(mocks, name)) return mocks[name];
     if (name === "server-only") return {};
+    if (name === "@/lib/logging") return load("src/lib/logging.ts", mocks);
     if (name.startsWith("@/")) return {}; // Unused dependencies of the isolated action.
     return require(name);
   };
@@ -182,7 +183,7 @@ async function test(name, fn) { await fn(); results.push(name); console.log(`PAS
       let handler, sends = 0;
       const source = ts.transpileModule(fs.readFileSync(path.join(root, "supabase/functions/process-appointment-reminders/index.ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
       const env = { APPOINTMENT_REMINDER_CRON_SECRET: "synthetic", SUPABASE_URL: "https://example.invalid", SUPABASE_SERVICE_ROLE_KEY: "synthetic", REMINDER_DELIVERY_URL: "https://example.invalid", REMINDER_DELIVERY_SECRET: "synthetic" };
-      new Function("require", "exports", "Deno", "fetch", source)(() => ({ createClient: () => db }), {}, { env: { get: (name) => env[name] }, serve: (fn) => { handler = fn; } }, async () => { sends++; return new Response(JSON.stringify({ ok: true }), { status: 200 }); });
+      new Function("require", "exports", "Deno", "fetch", source)((name) => name === "../_shared/logging.ts" ? load("src/lib/logging.ts", {}) : ({ createClient: () => db }), {}, { env: { get: (name) => env[name] }, serve: (fn) => { handler = fn; } }, async () => { sends++; return new Response(JSON.stringify({ ok: true }), { status: 200 }); });
       const request = () => new Request("https://example.invalid", { headers: { "x-cron-secret": "synthetic" } });
       assert.equal((await (await handler(request())).json()).sent, 1);
       assert.equal((await (await handler(request())).json()).sent, 0);

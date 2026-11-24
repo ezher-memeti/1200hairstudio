@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { contentPayload } from "@/i18n/content-editing";
 import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
@@ -82,7 +83,7 @@ export async function saveMarketingTemplate(input: MarketingTemplateInput, templ
         .eq("id", normalizedTemplateId)
         .maybeSingle();
       if (lookupError) {
-        console.error("Marketing template update lookup failed", { operation: "update", templateId: normalizedTemplateId, error: lookupError });
+        console.error("Marketing template update lookup failed", safeLogDetails({ operation: "update", templateId: normalizedTemplateId, error: lookupError }));
         return { success: false, message: "Template was not found or could not be updated." };
       }
       if (!existingTemplate) return { success: false, message: "Template was not found or could not be updated." };
@@ -94,7 +95,7 @@ export async function saveMarketingTemplate(input: MarketingTemplateInput, templ
         .select()
         .single();
       if (updateError || !updatedTemplate) {
-        console.error("Marketing template update failed", { operation: "update", templateId: normalizedTemplateId, error: updateError });
+        console.error("Marketing template update failed", safeLogDetails({ operation: "update", templateId: normalizedTemplateId, error: updateError }));
         return { success: false, message: "Template was not found or could not be updated." };
       }
 
@@ -108,14 +109,14 @@ export async function saveMarketingTemplate(input: MarketingTemplateInput, templ
       .select()
       .single();
     if (insertError || !createdTemplate) {
-      console.error("Marketing template creation failed", { operation: "create", error: insertError });
+      console.error("Marketing template creation failed", safeLogDetails({ operation: "create", error: insertError }));
       return { success: false, message: "Template could not be created." };
     }
 
     revalidatePath("/admin/marketing");
     return { success: true, templateId: createdTemplate.id as string, message: "Template created." };
   } catch (error) {
-    console.error("Marketing template validation or authorization failed", error);
+    console.error("Marketing template validation or authorization failed", safeLogDetails(error));
     return { success: false, message: error instanceof Error ? error.message : "Unable to save template." };
   }
 }
@@ -130,7 +131,7 @@ export async function deleteMarketingTemplate(templateId: string): Promise<Actio
     revalidatePath("/admin/marketing");
     return { success: true, message: "Template deleted. Existing campaigns were not changed." };
   } catch (error) {
-    console.error("Unable to delete marketing template", error);
+    console.error("Unable to delete marketing template", safeLogDetails(error));
     return { success: false, message: "Unable to delete this template. It may still be referenced by an existing campaign." };
   }
 }
@@ -186,7 +187,7 @@ export async function deleteMarketingDraft(campaignId: string): Promise<ActionRe
     revalidatePath("/admin/marketing");
     return { success: true, message: "Campaign draft deleted." };
   } catch (error) {
-    console.error("Unable to delete marketing draft", error);
+    console.error("Unable to delete marketing draft", safeLogDetails(error));
     return { success: false, message: "The campaign draft could not be deleted." };
   }
 }
@@ -199,7 +200,7 @@ export async function sendMarketingTest(input: MarketingEmailContent): Promise<A
     const email = buildMarketingCampaignEmail(resolveMarketingContent(content, await getLocale()));
     await sendGmailMessage({ to: user.email, subject: `[TEST] ${content.subject}`, html: email.html, text: email.text });
     return { success: true, message: `Test email sent to ${user.email}.` };
-  } catch (error) { console.error("Marketing test email failed", error); return { success: false, message: "The test email could not be sent." }; }
+  } catch (error) { console.error("Marketing test email failed", safeLogDetails(error)); return { success: false, message: "The test email could not be sent." }; }
 }
 
 export async function sendMarketingCampaign(input: MarketingEmailContent, filters: MarketingAudienceFilters, selectedCustomerIdsOrCampaignId: string[] | string | undefined, campaignIdArgument?: string): Promise<ActionResult> {
@@ -230,7 +231,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
       const { data: freshCustomer, error: customerError } = await supabase.from("customers").select("*").eq("id", customerId).maybeSingle();
       if (customerError || !freshCustomer || !isValidEmail(freshCustomer.email)) {
         skipped += 1;
-        console.error("Selected marketing recipient could not be loaded with a valid email", { campaignId: campaign.id, customerId, error: customerError });
+        console.error("Selected marketing recipient could not be loaded with a valid email", safeLogDetails({ campaignId: campaign.id, error: customerError }));
         continue;
       }
 
@@ -246,11 +247,11 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
         email_snapshot: emailSnapshot,
         status,
       }).select("id").single();
-      if (rowError || !row) { failed += 1; console.error("Unable to create campaign recipient", rowError); continue; }
+      if (rowError || !row) { failed += 1; console.error("Unable to create campaign recipient", safeLogDetails(rowError)); continue; }
       trackedRecipients += 1;
       if (!eligibleCustomerIds.has(customerId) || !canReceiveMarketingEmail(campaignCustomer)) {
         const { error: skippedUpdateError } = await supabase.from("marketing_campaign_recipients").update({ status: "skipped", sent_at: null, failure_reason: null }).eq("id", row.id);
-        if (skippedUpdateError) console.error("Unable to mark marketing recipient skipped", { recipientId: row.id, error: skippedUpdateError });
+        if (skippedUpdateError) console.error("Unable to mark marketing recipient skipped", safeLogDetails({ recipientId: row.id, error: skippedUpdateError }));
         skipped += 1;
         continue;
       }
@@ -261,13 +262,13 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
         const result = await sendMarketingEmail({ customer: campaignCustomer, subject: localized.subject, html: email.html, text: email.text });
         status = result.sent ? "sent" : "skipped";
         result.sent ? sent += 1 : skipped += 1;
-      } catch (emailError) { status = "failed"; failed += 1; console.error("Marketing recipient email failed", { campaignId: campaign.id, customerId, error: emailError }); }
+      } catch (emailError) { status = "failed"; failed += 1; console.error("Marketing recipient email failed", safeLogDetails({ campaignId: campaign.id, error: emailError })); }
       const { error: recipientUpdateError } = await supabase.from("marketing_campaign_recipients").update({
         status,
         sent_at: status === "sent" ? new Date().toISOString() : null,
         failure_reason: status === "failed" ? "Email provider could not deliver this message." : null,
       }).eq("id", row.id);
-      if (recipientUpdateError) console.error("Unable to persist marketing delivery status", { recipientId: row.id, status, error: recipientUpdateError });
+      if (recipientUpdateError) console.error("Unable to persist marketing delivery status", safeLogDetails({ recipientId: row.id, status, error: recipientUpdateError }));
     }
     if (trackedRecipients === 0) throw new Error("No campaign recipients could be tracked or processed.");
     const { error: completionError } = await supabase.from("marketing_campaigns").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", campaign.id);
@@ -275,13 +276,13 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
     revalidatePath("/admin/marketing");
     return { success: true, message: `Campaign complete: ${sent} sent, ${failed} failed, ${skipped} skipped.`, campaignId: campaign.id };
   } catch (error) {
-    console.error("Marketing campaign failed", error);
+    console.error("Marketing campaign failed", safeLogDetails(error));
     if (activeCampaignId) {
       try {
         const { supabase } = await requireAdminUser();
         await supabase.from("marketing_campaigns").update({ status: "failed" }).eq("id", activeCampaignId);
       } catch (statusError) {
-        console.error("Unable to mark marketing campaign failed", statusError);
+        console.error("Unable to mark marketing campaign failed", safeLogDetails(statusError));
       }
     }
     return { success: false, message: "The campaign could not be completed." };

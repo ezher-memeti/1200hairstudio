@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { ContentEditor } from "@/components/admin/content/AdminContentLocale";
 import ContactSettingsManager from "@/components/admin/ContactSettingsManager";
 import { getAdminContactSectionSettings } from "@/lib/contact-section/settings";
@@ -8,6 +9,6 @@ export const dynamic = "force-dynamic";
 export default async function AdminContactSettingsPage() {
   const result = await getAdminContactSectionSettings()
     .then((value) => ({ value, error: "" }))
-    .catch((error) => { console.error("Unable to load contact settings", error); return { value: DEFAULT_CONTACT_SECTION_SETTINGS, error: "Contact settings could not be loaded. Defaults are shown and have not been saved." }; });
+    .catch((error) => { console.error("Unable to load contact settings", safeLogDetails(error)); return { value: DEFAULT_CONTACT_SECTION_SETTINGS, error: "Contact settings could not be loaded. Defaults are shown and have not been saved." }; });
   return <ContentEditor>{<ContactSettingsManager initialSettings={result.value} initialError={result.error}/>}</ContentEditor>;
 }

@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import { requireAdminUser } from "@/lib/auth/customer";
@@ -75,7 +76,7 @@ export async function getLoyaltySettings(): Promise<LoyaltySettings> {
     .maybeSingle();
 
   if (error) {
-    console.error("Unable to load loyalty settings", error);
+    console.error("Unable to load loyalty settings", safeLogDetails(error));
     throw new Error("Unable to load loyalty settings.");
   }
 
@@ -91,7 +92,7 @@ export async function persistLoyaltySettings(settings: Omit<LoyaltySettings, "id
     .maybeSingle();
 
   if (loadError) {
-    console.error("Unable to identify loyalty settings row", loadError);
+    console.error("Unable to identify loyalty settings row", safeLogDetails(loadError));
     throw new Error("Unable to save loyalty settings.");
   }
 
@@ -110,7 +111,7 @@ export async function persistLoyaltySettings(settings: Omit<LoyaltySettings, "id
   const { data, error } = await query;
 
   if (error || !data) {
-    console.error("Unable to persist loyalty settings", { operation: existing?.id ? "update" : "insert", error });
+    console.error("Unable to persist loyalty settings", safeLogDetails({ operation: existing?.id ? "update" : "insert", error }));
     throw new Error("Unable to save loyalty settings.");
   }
 

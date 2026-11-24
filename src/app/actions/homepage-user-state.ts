@@ -1,4 +1,5 @@
 "use server";
+import { safeLogDetails } from "@/lib/logging";
 import { getLocale } from "next-intl/server";
 import { resolveLocale } from "@/i18n/config";
 
@@ -199,7 +200,7 @@ export async function getHomepageBookingUserState(): Promise<HomepageBookingUser
       servicePriceOverrides,
     };
   } catch (error) {
-    console.error("HOMEPAGE BOOKING USER STATE ERROR", error);
+    console.error("HOMEPAGE BOOKING USER STATE ERROR", safeLogDetails(error));
     return anonymousBookingState;
   }
 }

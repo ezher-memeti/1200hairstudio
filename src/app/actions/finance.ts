@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { getNotificationSettings } from "@/lib/admin/runtime-settings";
@@ -27,7 +28,7 @@ export async function resendAdminReceipt(receiptId: string) {
     revalidatePath("/admin/appointments");
     return { error: null, emailedAt };
   } catch (error) {
-    console.error("ADMIN RECEIPT RESEND ERROR", error);
+    console.error("ADMIN RECEIPT RESEND ERROR", safeLogDetails(error));
     return { error: "The receipt email could not be sent." };
   }
 }
@@ -41,7 +42,7 @@ export async function generateAdminReceiptForAppointment(appointmentId: string) 
     revalidatePath("/admin/appointments");
     return { error: null, receipt };
   } catch (error) {
-    console.error("ADMIN RECEIPT GENERATION ERROR", error);
+    console.error("ADMIN RECEIPT GENERATION ERROR", safeLogDetails(error));
     return { error: error instanceof Error ? error.message : "The receipt could not be generated.", receipt: null };
   }
 }

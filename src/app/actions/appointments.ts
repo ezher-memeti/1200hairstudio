@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import {
   createAppointment,
@@ -201,7 +202,7 @@ export async function updateAdminAppointment(
         } catch (error) {
           emailError = toErrorMessage(error);
           emailStatus = "failed";
-          console.error("ADMIN APPOINTMENT UPDATE EMAIL ERROR", error);
+          console.error("ADMIN APPOINTMENT UPDATE EMAIL ERROR", safeLogDetails(error));
         }
       }
 
@@ -243,7 +244,7 @@ export async function updateAdminAppointment(
         await processAppointmentStatusForLoyalty(updatedAppointment.id);
       } catch (loyaltyError) {
         loyaltyWarning = "Appointment updated, but loyalty progress could not be synchronized. Retrying this status change is safe.";
-        console.error("ADMIN APPOINTMENT LOYALTY PROCESSING ERROR", { appointmentId: updatedAppointment.id, status: updatedAppointment.status, error: loyaltyError });
+        console.error("ADMIN APPOINTMENT LOYALTY PROCESSING ERROR", safeLogDetails({ appointmentId: updatedAppointment.id, status: updatedAppointment.status, error: loyaltyError }));
       }
     }
 
@@ -303,10 +304,10 @@ export async function removeAdminAppointment(input: {
 
     if (error) {
       if (isAppointmentForeignKeyError(error)) {
-        console.error("ADMIN APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", error);
+        console.error("ADMIN APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", safeLogDetails(error));
         return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
       }
-      console.error("ADMIN APPOINTMENT DELETE ERROR:", error);
+      console.error("ADMIN APPOINTMENT DELETE ERROR:", safeLogDetails(error));
       return { error: "The appointment could not be deleted. Please try again.", emailError: null, emailStatus: "skipped" as const };
     }
 
@@ -342,7 +343,7 @@ export async function removeAdminAppointment(input: {
       } catch (cause) {
         emailError = toErrorMessage(cause);
         emailStatus = "failed";
-        console.error("ADMIN APPOINTMENT REMOVAL EMAIL ERROR", cause);
+        console.error("ADMIN APPOINTMENT REMOVAL EMAIL ERROR", safeLogDetails(cause));
       }
     }
 
@@ -412,7 +413,7 @@ export async function createAdminAppointment(input: {
       : { data: null, error: null };
 
     if (customerLookupError) {
-      console.error("ADMIN CUSTOMER LOOKUP ERROR", customerLookupError);
+      console.error("ADMIN CUSTOMER LOOKUP ERROR", safeLogDetails(customerLookupError));
       return { error: "Unable to load the selected customer.", emailError: null, emailStatus: "skipped" as const };
     }
 
@@ -466,10 +467,7 @@ export async function createAdminAppointment(input: {
 
     const servicePrice = Number(validation.service.price);
     if (!Number.isFinite(servicePrice) || servicePrice < 0) {
-      console.error("ADMIN APPOINTMENT SERVICE PRICE ERROR", {
-        serviceId: validation.service.id,
-        price: validation.service.price,
-      });
+      console.error("ADMIN APPOINTMENT SERVICE PRICE ERROR", safeLogDetails({ serviceId: validation.service.id }));
       return { error: "The selected service price could not be verified.", emailError: null, emailStatus: "skipped" as const };
     }
     const credentials = createBookingCredentials();
@@ -514,16 +512,9 @@ export async function createAdminAppointment(input: {
       Number(createdAppointment.discount_amount) !== 0 ||
       Number(createdAppointment.final_price) !== servicePrice
     ) {
-      console.error("ADMIN APPOINTMENT INSERT ERROR", insertError);
+      console.error("ADMIN APPOINTMENT INSERT ERROR", safeLogDetails(insertError));
       if (!insertError) {
-        console.error("ADMIN APPOINTMENT SNAPSHOT VERIFICATION ERROR", {
-          appointmentId: createdAppointment?.id ?? null,
-          hasBookingReference: Boolean(createdAppointment?.booking_reference),
-          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
-          originalPrice: createdAppointment?.original_price ?? null,
-          discountAmount: createdAppointment?.discount_amount ?? null,
-          finalPrice: createdAppointment?.final_price ?? null,
-        });
+        console.error("ADMIN APPOINTMENT SNAPSHOT VERIFICATION ERROR", safeLogDetails({ appointmentId: createdAppointment?.id ?? null, hasBookingReference: Boolean(createdAppointment?.booking_reference), hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash) }));
       }
       return {
         error: insertError
@@ -555,7 +546,7 @@ export async function createAdminAppointment(input: {
       } catch (error) {
         emailError = toErrorMessage(error);
         emailStatus = "failed";
-        console.error("ADMIN APPOINTMENT EMAIL ERROR", error);
+        console.error("ADMIN APPOINTMENT EMAIL ERROR", safeLogDetails(error));
       }
     }
 

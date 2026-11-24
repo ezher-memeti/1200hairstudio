@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { NextRequest, NextResponse } from "next/server";
 
 import { sendAppointmentReminderEmail } from "@/lib/email/reminder";
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     await sendAppointmentReminderEmail({ to: email, customerId: appointment.customer_id, appointmentId: appointment.id, customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name, serviceName: service?.name ?? "Appointment", serviceNameDe: service?.name_de, startAt: appointment.start_at, endAt: appointment.end_at, registeredCustomer: customer?.is_registered === true });
     return NextResponse.json({ ok: true });
   } catch (sendError) {
-    console.error("INTERNAL APPOINTMENT REMINDER EMAIL ERROR", { appointmentId: appointment.id, error: sendError });
+    console.error("INTERNAL APPOINTMENT REMINDER EMAIL ERROR", safeLogDetails({ appointmentId: appointment.id, error: sendError }));
     return NextResponse.json({ error: "Email delivery failed" }, { status: 502 });
   }
 }

@@ -1,4 +1,5 @@
 "use server";
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { getFinanceSettings } from "@/lib/admin/runtime-settings";
@@ -15,5 +16,5 @@ export async function refundSale(input:{saleId:string;amount:number;paymentMetho
     if(error||!data)return{error:error?.message??"Refund could not be recorded."};
     ["/admin/finance","/admin/finance/sales","/admin/finance/register","/admin/appointments","/admin"].forEach((path) => revalidatePath(path));
     return{error:null,refundId:String(data)};
-  }catch(error){console.error("SALE REFUND ERROR",error);return{error:"Refund could not be recorded."};}
+  }catch(error){console.error("SALE REFUND ERROR",safeLogDetails(error));return{error:"Refund could not be recorded."};}
 }

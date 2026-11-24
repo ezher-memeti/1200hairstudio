@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import { requireAdminUser } from "@/lib/auth/customer";
@@ -183,8 +184,8 @@ export async function getRegisterSessionDetail(
         .order("paid_at", { ascending: true }),
     ]);
 
-  if (movementResult.error) console.error("REGISTER MOVEMENT ERROR:", movementResult.error);
-  if (paymentResult.error) console.error("REGISTER PAYMENT ERROR:", paymentResult.error);
+  if (movementResult.error) console.error("REGISTER MOVEMENT ERROR:", safeLogDetails(movementResult.error));
+  if (paymentResult.error) console.error("REGISTER PAYMENT ERROR:", safeLogDetails(paymentResult.error));
 
   let paymentRows = paymentResult.data;
   let paymentError = paymentResult.error;
@@ -194,7 +195,7 @@ export async function getRegisterSessionDetail(
       .select("id,register_session_id,appointment_id,transaction_type,amount,payment_method,status,paid_at,notes")
       .eq("register_session_id", session.id)
       .order("paid_at", { ascending: true });
-    if (legacyPaymentResult.error) console.error("REGISTER PAYMENT LEGACY FALLBACK ERROR:", legacyPaymentResult.error);
+    if (legacyPaymentResult.error) console.error("REGISTER PAYMENT LEGACY FALLBACK ERROR:", safeLogDetails(legacyPaymentResult.error));
     paymentError = legacyPaymentResult.error;
     paymentRows = legacyPaymentResult.data?.map((payment) => ({ ...payment, tip_amount: 0 })) ?? null;
   }

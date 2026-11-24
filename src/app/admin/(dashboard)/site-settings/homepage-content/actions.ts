@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { isLocale, type Locale } from "@/i18n/config";
 import { isTextContent } from "@/i18n/content";
 import { revalidatePath } from "next/cache";
@@ -64,7 +65,7 @@ export async function saveHomepageContentSection(
     revalidatePath("/admin/site-settings/homepage-content");
     return { success: true, message: `${section} content saved.` };
   } catch (error) {
-    console.error("Homepage content save failed", { section, error });
+    console.error("Homepage content save failed", safeLogDetails({ error }));
     return {
       success: false,
       message: "Homepage content storage is not configured or could not be updated.",

@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { publicBookingModeError } from "@/lib/site-mode-booking";
 import { getLocale } from "next-intl/server";
 import { resolveLocale } from "@/i18n/config";
@@ -136,12 +137,7 @@ function logAppointmentInsertError(
     hint?: string;
   },
 ) {
-  console.error("APPOINTMENT INSERT ERROR", {
-    code: error.code,
-    message: error.message,
-    details: error.details,
-    hint: error.hint,
-  });
+  console.error("APPOINTMENT INSERT ERROR", safeLogDetails({ code: error.code }));
 
 }
 
@@ -161,10 +157,7 @@ export async function sendConfirmationEmailSafely(details: {
   try {
     await sendBookingConfirmationEmail(details);
   } catch (error) {
-    console.error("BOOKING CONFIRMATION EMAIL ERROR", {
-      message: error instanceof Error ? error.message : "Unknown error",
-      bookingReference: details.bookingReference,
-    });
+    console.error("BOOKING CONFIRMATION EMAIL ERROR", safeLogDetails({ error: error }));
   }
 }
 
@@ -284,11 +277,7 @@ export async function createAppointment(
       createdAppointment.manage_token_hash !== credentials.managementTokenHash
     ) {
       if (!insertError) {
-        console.error("CUSTOMER APPOINTMENT CREDENTIAL VERIFICATION ERROR", {
-          appointmentId: createdAppointment?.id ?? null,
-          hasBookingReference: Boolean(createdAppointment?.booking_reference),
-          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
-        });
+        console.error("CUSTOMER APPOINTMENT CREDENTIAL VERIFICATION ERROR", safeLogDetails({ appointmentId: createdAppointment?.id ?? null, hasBookingReference: Boolean(createdAppointment?.booking_reference), hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash) }));
       }
       return {
         error: insertError
@@ -303,10 +292,7 @@ export async function createAppointment(
       try {
         await recordMarketingEmailConsent(supabase, customer.id, "booking_form");
       } catch (error) {
-        console.error("BOOKING MARKETING CONSENT ERROR", {
-          message: error instanceof Error ? error.message : "Unknown error",
-          customerId: customer.id,
-        });
+        console.error("BOOKING MARKETING CONSENT ERROR", safeLogDetails({ error: error }));
       }
     }
 
@@ -373,10 +359,7 @@ export async function createAppointment(
     );
 
     if (guestCustomerError || typeof guestCustomerId !== "string" || !guestCustomerId) {
-      console.error("GUEST CUSTOMER RPC ERROR", {
-        code: guestCustomerError?.code,
-        message: guestCustomerError?.message,
-      });
+      console.error("GUEST CUSTOMER RPC ERROR", safeLogDetails({ code: guestCustomerError?.code }));
       return {
         error: guestCustomerError?.code === "42501"
           ? "Please sign in to book with an existing customer account."
@@ -426,11 +409,7 @@ export async function createAppointment(
       createdAppointment.manage_token_hash !== credentials.managementTokenHash
     ) {
       if (!guestAppointmentError) {
-        console.error("GUEST APPOINTMENT CREDENTIAL VERIFICATION ERROR", {
-          appointmentId: createdAppointment?.id ?? null,
-          hasBookingReference: Boolean(createdAppointment?.booking_reference),
-          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
-        });
+        console.error("GUEST APPOINTMENT CREDENTIAL VERIFICATION ERROR", safeLogDetails({ appointmentId: createdAppointment?.id ?? null, hasBookingReference: Boolean(createdAppointment?.booking_reference), hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash) }));
       }
       return {
         error: guestAppointmentError
@@ -464,10 +443,7 @@ export async function createAppointment(
     try {
       await sendAdminBookingNotificationEmail(adminNotificationDetails);
     } catch (error) {
-      console.error("ADMIN BOOKING NOTIFICATION EMAIL ERROR", {
-        message: error instanceof Error ? error.message : "Unknown error",
-        bookingReference: adminNotificationDetails.bookingReference,
-      });
+      console.error("ADMIN BOOKING NOTIFICATION EMAIL ERROR", safeLogDetails({ error: error }));
     }
   }
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
@@ -113,7 +114,7 @@ export async function completeCheckout(input: {
     ["/admin/appointments","/admin/finance","/admin/finance/sales","/admin/finance/register","/admin"].forEach((path) => revalidatePath(path));
     return { error: null, saleId: String(saleId), receiptId: receipt?.id ?? null, change: cashPayment ? amount(Number(cashPayment.cashReceived ?? cashPayment.amount) - cashPayment.amount) : 0 };
   } catch (error) {
-    console.error("CHECKOUT ERROR", error);
+    console.error("CHECKOUT ERROR", safeLogDetails(error));
     return { error: error instanceof Error ? error.message : "Checkout could not be completed." };
   }
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { getFinanceSettings } from "@/lib/admin/runtime-settings";
@@ -43,13 +44,13 @@ export async function openRegister(input: { openingCash: string; note?: string }
       if (error.code === "23505" || /unique|already.*open/i.test(error.message)) {
         return { error: "A register is already open." };
       }
-      console.error("REGISTER OPEN ERROR", error);
+      console.error("REGISTER OPEN ERROR", safeLogDetails(error));
       return { error: "The register could not be opened." };
     }
     revalidateRegister();
     return { error: null };
   } catch (error) {
-    console.error("REGISTER OPEN ACTION ERROR", error);
+    console.error("REGISTER OPEN ACTION ERROR", safeLogDetails(error));
     return { error: "The register could not be opened." };
   }
 }
@@ -80,13 +81,13 @@ export async function recordRegisterMovement(input: {
       created_by: user.id,
     });
     if (error) {
-      console.error("REGISTER MOVEMENT ERROR", error);
+      console.error("REGISTER MOVEMENT ERROR", safeLogDetails(error));
       return { error: "The register movement could not be recorded." };
     }
     revalidateRegister();
     return { error: null };
   } catch (error) {
-    console.error("REGISTER MOVEMENT ACTION ERROR", error);
+    console.error("REGISTER MOVEMENT ACTION ERROR", safeLogDetails(error));
     return { error: "The register movement could not be recorded." };
   }
 }
@@ -136,13 +137,13 @@ export async function closeRegister(input: {
       .select("id")
       .maybeSingle();
     if (error || !closed) {
-      console.error("REGISTER CLOSE ERROR", error);
+      console.error("REGISTER CLOSE ERROR", safeLogDetails(error));
       return { error: "The register was already closed or could not be reconciled." };
     }
     revalidateRegister();
     return { error: null, expectedCash, actualCash, difference };
   } catch (error) {
-    console.error("REGISTER CLOSE ACTION ERROR", error);
+    console.error("REGISTER CLOSE ACTION ERROR", safeLogDetails(error));
     return { error: "The register could not be closed." };
   }
 }

@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import { requestLocale } from "@/i18n/http";
 import { textFor } from "@/i18n/text";
 import { requireAdminUser } from "@/lib/auth/customer";
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     if (format === "csv") return new Response(generateFinancialReportCsv(report, locale), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${filename}.csv"`, "Cache-Control": "private, no-store" } });
     return new Response("Choose PDF or CSV format.", { status: 400 });
   } catch (error) {
-    console.error("TEMPORARY FINANCIAL REPORT EXPORT ERROR", error);
-    return new Response(error instanceof Error ? error.message : "The temporary report could not be generated.", { status: 400 });
+    console.error("TEMPORARY FINANCIAL REPORT EXPORT ERROR", safeLogDetails(error));
+    return new Response("The temporary report could not be generated.", { status: 400 });
   }
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { calculateFinancialReport, reportUtcBounds, validateFinancialReportInput } from "@/lib/finance/reports";
@@ -12,7 +13,7 @@ export async function previewFinancialReport(input: { periodType: string; startD
     const settings = await getRuntimeSettings();
     return { error: null, snapshot: await calculateFinancialReport(supabase, values, settings) };
   } catch (error) {
-    console.error("FINANCIAL REPORT PREVIEW ERROR", error);
+    console.error("FINANCIAL REPORT PREVIEW ERROR", safeLogDetails(error));
     return { error: error instanceof Error ? error.message : "The report preview could not be generated.", snapshot: null };
   }
 }
@@ -26,13 +27,13 @@ export async function generateFinancialReport(input: { periodType: string; start
     const bounds = reportUtcBounds(values.startDate, values.endDate);
     const { data, error } = await supabase.from("financial_reports").insert({ period_type: values.periodType, period_start: bounds.start, period_end: bounds.storedEnd, group_by: values.groupBy, currency: settings.finance.currency, snapshot, generated_by: user.id }).select("*").single();
     if (error || !data) {
-      console.error("FINANCIAL REPORT INSERT ERROR", error);
+      console.error("FINANCIAL REPORT INSERT ERROR", safeLogDetails(error));
       return { error: "The financial report could not be saved.", report: null };
     }
     revalidatePath("/admin/finance");
     return { error: null, report: data };
   } catch (error) {
-    console.error("FINANCIAL REPORT GENERATION ERROR", error);
+    console.error("FINANCIAL REPORT GENERATION ERROR", safeLogDetails(error));
     return { error: error instanceof Error ? error.message : "The financial report could not be generated.", report: null };
   }
 }
