@@ -1,4 +1,6 @@
 "use client";
+import { useTranslations } from "next-intl";
+
 
 import { useRef, useState } from "react";
 import { Eye } from "lucide-react";
@@ -8,6 +10,8 @@ import BookingAnnouncement from "@/components/announcements/BookingAnnouncement"
 import type { Announcement } from "@/lib/announcements/types";
 
 export default function AnnouncementPreview({ announcement }: { announcement: Announcement }) {
+  const ui = useTranslations("ui");
+
   const [modalPreviewKey, setModalPreviewKey] = useState<number | null>(null);
   const modalTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -27,8 +31,7 @@ export default function AnnouncementPreview({ announcement }: { announcement: An
         onClick={() => setModalPreviewKey(Date.now())}
         className="inline-flex min-h-11 items-center gap-2 border border-border px-5 text-[10px] font-semibold uppercase tracking-[.16em] text-foreground transition-colors hover:border-accent hover:text-accent focus:outline-none focus-visible:border-accent"
       >
-        <Eye size={14} /> Preview Modal
-      </button>
+        <Eye size={14} /> {ui("m14523cf11f41")}</button>
       {modalPreviewKey !== null ? (
         <AnnouncementModal
           key={modalPreviewKey}

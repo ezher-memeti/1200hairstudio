@@ -30,3 +30,13 @@ export function buildMarketingCampaignEmail(content: MarketingEmailContent) {
   };
 }
 
+
+export function resolveMarketingContent(content: MarketingEmailContent, locale: string): MarketingEmailContent {
+  const translated = locale === "de" ? content.translations?.de : undefined;
+  if (!translated) return content;
+  return { ...content, subject: translated.subject.trim() || content.subject,
+    preheader: translated.preheader.trim() || content.preheader,
+    headline: translated.headline.trim() || content.headline,
+    content: translated.content.trim() || content.content,
+    ctaText: translated.ctaText.trim() || content.ctaText };
+}

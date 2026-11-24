@@ -1,0 +1,64 @@
+.section { padding:22px 0; }
+.revealContent { opacity:calc(var(--reviews-reveal-opacity,1) * var(--reviews-section-two-opacity,1)); transform:translate3d(0,calc(var(--reviews-reveal-y,0px) + var(--reviews-section-two-y,0px)),0); transition:transform 500ms ease-out,opacity 500ms ease-out; }
+.revealContent:focus-within { opacity:1; transform:none; }
+.container { max-width:1120px; min-width:0; }
+.viewport {
+  --review-gap:16px;
+  --reviews-per-view:3;
+  container-type:inline-size;
+  --review-slot-width:calc((100cqw - (var(--reviews-per-view) - 1) * var(--review-gap)) / var(--reviews-per-view) + var(--review-gap));
+  overflow-x:auto;
+  min-width:0;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 52px,#000 calc(100% - 52px),transparent);
+  mask-image:linear-gradient(to right,transparent,#000 52px,#000 calc(100% - 52px),transparent);
+}
+.viewport::-webkit-scrollbar { display:none; }
+/* Same announcement keyframes; its optional distance is exactly one original
+   review sequence. Extra identical segments only fill the viewport and seam. */
+.section .track { --announcement-distance:calc(var(--review-slot-width) * var(--review-count)); animation-direction:reverse; animation-duration:var(--announcement-duration,var(--reviews-initial-duration,120s)); animation-delay:var(--reviews-delay,0s); }
+.track > .group { display:flex; min-width:0; }
+.review {
+  flex:0 0 auto;
+  width:var(--review-slot-width);
+  min-width:0;
+  padding-right:var(--review-gap);
+  white-space:normal;
+}
+.card { height:136px; padding:15px 16px; background:transparent; }
+.reviewHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; height:28px; }
+.author { display:flex; align-items:center; gap:8px; min-width:0; color:var(--foreground); font-size:12px; font-weight:500; }
+.authorName { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.avatar { position:relative; display:grid; place-items:center; width:28px; height:28px; flex-shrink:0; border-radius:50%; overflow:hidden; background:var(--surface-elevated); color:var(--accent-hover); font-size:9px; letter-spacing:.02em; }
+.avatar img { position:absolute; inset:0; width:28px; height:28px; object-fit:cover; }
+.stars { position:relative; display:inline-block; flex-shrink:0; color:var(--foreground-muted); font-size:10px; letter-spacing:1px; line-height:1.5; white-space:nowrap; }
+.starFill { position:absolute; top:0; left:0; overflow:hidden; color:var(--accent); }
+.quote { height:44px; margin:8px 0 0; overflow:hidden; overflow-wrap:anywhere; color:var(--foreground); font-family:var(--font-display); font-size:16px; line-height:22px; font-weight:400; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; }
+.quote a { text-decoration:none; }
+.section a:focus-visible { outline:1px solid var(--accent-hover); outline-offset:2px; }
+.viewport:focus-visible { outline:1px solid var(--accent-hover); outline-offset:-2px; }
+.footer { display:flex; align-items:center; gap:8px; min-height:33px; padding-top:4px; color:var(--foreground-secondary); font-size:10px; line-height:1.5; }
+.attribution { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; min-width:0; }
+.googleLogo { display:block; padding:10px 10px 5px; margin-left:-10px; flex-shrink:0; }
+.order { white-space:nowrap; font-size:10px; }
+.viewAll { margin-left:auto; flex-shrink:0; padding:6px 0; font-size:11px; color:var(--foreground-secondary); text-underline-offset:4px; }
+.viewAll:hover { color:var(--foreground); text-decoration:underline; }
+.section[data-touching="true"] .track { animation-play-state:paused; }
+.section[data-browsing] .track { animation:none; transform:none; }
+.section[data-browsing] article[aria-hidden="true"] { display:none; }
+.section[data-browsing] .viewport { -webkit-mask-image:none; mask-image:none; }
+@media (hover:hover) and (pointer:fine) { .viewport:hover .track { animation-play-state:paused; } }
+.loading { height:136px; }
+.loadingFooter { height:37px; }
+@media (max-width:1023px) {
+  .viewport { --reviews-per-view:2; --review-gap:14px; -webkit-mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent); mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent); }
+}
+@media (max-width:767px) {
+  .viewport { --reviews-per-view:1; --review-gap:12px; -webkit-mask-image:linear-gradient(to right,transparent,#000 16px,#000 calc(100% - 16px),transparent); mask-image:linear-gradient(to right,transparent,#000 16px,#000 calc(100% - 16px),transparent); }
+  .card { padding-inline:15px; }
+  .footer { gap:6px; }
+  .attribution { gap:4px; }
+  .order { font-size:9px; }
+  .viewAll { font-size:10px; }
+}

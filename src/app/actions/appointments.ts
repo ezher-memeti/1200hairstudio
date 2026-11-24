@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import {
   createAppointment,
@@ -7,12 +8,15 @@ import {
 } from "@/lib/appointments/mutations";
 import type { AppointmentStatus } from "@/lib/appointments/types";
 import { sendBookingConfirmationEmail } from "@/lib/email/transactional";
+import { getNotificationSettings } from "@/lib/admin/runtime-settings";
 import { resolveCustomerByEmail } from "@/lib/customers/mutations";
 import { getAvailableSlots, mapAvailableSlotsForDisplay } from "@/lib/public/available-slots";
 import { createClient } from "@/lib/supabase/server";
 import { clearGuestBookingCookie } from "@/lib/appointments/management";
 import { createBookingCredentials, getBookingManagementUrl } from "@/lib/appointments/management";
 import { processAppointmentStatusForLoyalty } from "@/lib/loyalty/process-completed-appointment";
+import { APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, getProtectedAppointmentIds, isAppointmentForeignKeyError } from "@/lib/appointments/deletion-protection";
+import { APPOINTMENT_TIME_CONFLICT_MESSAGE, getAppointmentWriteErrorMessage, isAppointmentTimeConflictError } from "@/lib/appointments/write-errors";
 
 function toErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -158,7 +162,13 @@ export async function updateAdminAppointment(
         .eq("id", input.appointmentId);
 
       if (updateError) {
-        return { error: updateError.message, emailError: null, emailStatus: "skipped" as const };
+        return {
+          error: isAppointmentTimeConflictError(updateError)
+            ? APPOINTMENT_TIME_CONFLICT_MESSAGE
+            : "Unable to update the appointment right now.",
+          emailError: null,
+          emailStatus: "skipped" as const,
+        };
       }
 
       const customerName =
@@ -174,11 +184,13 @@ export async function updateAdminAppointment(
       let emailError: string | null = null;
       let emailStatus: "sent" | "failed" | "skipped" = "skipped";
 
-      if (sendNotification && customerEmail) {
+      if (sendNotification && customerEmail && (await getNotificationSettings()).rescheduleEmail) {
         try {
           await import("@/lib/email/transactional").then(({ sendBookingUpdateEmail }) =>
             sendBookingUpdateEmail({
               to: customerEmail,
+              customerId: currentAppointment.customer_id,
+              appointmentId: currentAppointment.id,
               customerName,
               serviceName: validation.service.name,
               startAt: validation.startAt,
@@ -190,7 +202,7 @@ export async function updateAdminAppointment(
         } catch (error) {
           emailError = toErrorMessage(error);
           emailStatus = "failed";
-          console.error("ADMIN APPOINTMENT UPDATE EMAIL ERROR", error);
+          console.error("ADMIN APPOINTMENT UPDATE EMAIL ERROR", safeLogDetails(error));
         }
       }
 
@@ -232,7 +244,7 @@ export async function updateAdminAppointment(
         await processAppointmentStatusForLoyalty(updatedAppointment.id);
       } catch (loyaltyError) {
         loyaltyWarning = "Appointment updated, but loyalty progress could not be synchronized. Retrying this status change is safe.";
-        console.error("ADMIN APPOINTMENT LOYALTY PROCESSING ERROR", { appointmentId: updatedAppointment.id, status: updatedAppointment.status, error: loyaltyError });
+        console.error("ADMIN APPOINTMENT LOYALTY PROCESSING ERROR", safeLogDetails({ appointmentId: updatedAppointment.id, status: updatedAppointment.status, error: loyaltyError }));
       }
     }
 
@@ -269,6 +281,11 @@ export async function removeAdminAppointment(input: {
       return { error: "Appointment not found.", emailError: null, emailStatus: "skipped" as const };
     }
 
+    const protectedIds = await getProtectedAppointmentIds(supabase, [appointment.id]);
+    if (protectedIds.has(appointment.id)) {
+      return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
+    }
+
     const { data: appointmentCustomer } = appointment.customer_id
       ? await supabase
           .from("customers")
@@ -286,7 +303,12 @@ export async function removeAdminAppointment(input: {
     const { error } = await supabase.from("appointments").delete().eq("id", input.appointmentId);
 
     if (error) {
-      return { error: error.message, emailError: null, emailStatus: "skipped" as const };
+      if (isAppointmentForeignKeyError(error)) {
+        console.error("ADMIN APPOINTMENT DELETE BLOCKED BY FOREIGN KEY:", safeLogDetails(error));
+        return { error: APPOINTMENT_FINANCIAL_HISTORY_MESSAGE, emailError: null, emailStatus: "skipped" as const };
+      }
+      console.error("ADMIN APPOINTMENT DELETE ERROR:", safeLogDetails(error));
+      return { error: "The appointment could not be deleted. Please try again.", emailError: null, emailStatus: "skipped" as const };
     }
 
     const customerName =
@@ -302,11 +324,14 @@ export async function removeAdminAppointment(input: {
     let emailError: string | null = null;
     let emailStatus: "sent" | "failed" | "skipped" = "skipped";
 
-    if (sendNotification && customerEmail && service) {
+    if (sendNotification && customerEmail && service && (await getNotificationSettings()).cancellationEmail) {
       try {
         await import("@/lib/email/transactional").then(({ sendBookingCancellationEmail }) =>
           sendBookingCancellationEmail({
             to: customerEmail,
+            customerId: appointment.customer_id,
+            // The appointment has been deleted; retain its reference without an invalid FK.
+            bookingReference: appointment.booking_reference ?? undefined,
             customerName,
             serviceName: service.name,
             startAt: appointment.start_at,
@@ -318,7 +343,7 @@ export async function removeAdminAppointment(input: {
       } catch (cause) {
         emailError = toErrorMessage(cause);
         emailStatus = "failed";
-        console.error("ADMIN APPOINTMENT REMOVAL EMAIL ERROR", cause);
+        console.error("ADMIN APPOINTMENT REMOVAL EMAIL ERROR", safeLogDetails(cause));
       }
     }
 
@@ -388,7 +413,7 @@ export async function createAdminAppointment(input: {
       : { data: null, error: null };
 
     if (customerLookupError) {
-      console.error("ADMIN CUSTOMER LOOKUP ERROR", customerLookupError);
+      console.error("ADMIN CUSTOMER LOOKUP ERROR", safeLogDetails(customerLookupError));
       return { error: "Unable to load the selected customer.", emailError: null, emailStatus: "skipped" as const };
     }
 
@@ -442,10 +467,7 @@ export async function createAdminAppointment(input: {
 
     const servicePrice = Number(validation.service.price);
     if (!Number.isFinite(servicePrice) || servicePrice < 0) {
-      console.error("ADMIN APPOINTMENT SERVICE PRICE ERROR", {
-        serviceId: validation.service.id,
-        price: validation.service.price,
-      });
+      console.error("ADMIN APPOINTMENT SERVICE PRICE ERROR", safeLogDetails({ serviceId: validation.service.id }));
       return { error: "The selected service price could not be verified.", emailError: null, emailStatus: "skipped" as const };
     }
     const credentials = createBookingCredentials();
@@ -490,27 +512,28 @@ export async function createAdminAppointment(input: {
       Number(createdAppointment.discount_amount) !== 0 ||
       Number(createdAppointment.final_price) !== servicePrice
     ) {
-      console.error("ADMIN APPOINTMENT INSERT ERROR", insertError);
+      console.error("ADMIN APPOINTMENT INSERT ERROR", safeLogDetails(insertError));
       if (!insertError) {
-        console.error("ADMIN APPOINTMENT SNAPSHOT VERIFICATION ERROR", {
-          appointmentId: createdAppointment?.id ?? null,
-          hasBookingReference: Boolean(createdAppointment?.booking_reference),
-          hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash),
-          originalPrice: createdAppointment?.original_price ?? null,
-          discountAmount: createdAppointment?.discount_amount ?? null,
-          finalPrice: createdAppointment?.final_price ?? null,
-        });
+        console.error("ADMIN APPOINTMENT SNAPSHOT VERIFICATION ERROR", safeLogDetails({ appointmentId: createdAppointment?.id ?? null, hasBookingReference: Boolean(createdAppointment?.booking_reference), hasManagementTokenHash: Boolean(createdAppointment?.manage_token_hash) }));
       }
-      return { error: "Unable to create the appointment right now.", emailError: null, emailStatus: "skipped" as const };
+      return {
+        error: insertError
+          ? getAppointmentWriteErrorMessage(insertError)
+          : "Unable to create the appointment right now.",
+        emailError: null,
+        emailStatus: "skipped" as const,
+      };
     }
 
     let emailError: string | null = null;
     let emailStatus: "sent" | "failed" | "skipped" = "skipped";
 
-    if (sendConfirmation && customerEmail) {
+    if (sendConfirmation && customerEmail && (await getNotificationSettings()).bookingConfirmationEmail) {
       try {
         await sendBookingConfirmationEmail({
           to: customerEmail,
+          customerId: appointmentCustomerId,
+          appointmentId: createdAppointment.id,
           customerName,
           serviceName: validation.service.name,
           startAt: validation.startAt,
@@ -523,7 +546,7 @@ export async function createAdminAppointment(input: {
       } catch (error) {
         emailError = toErrorMessage(error);
         emailStatus = "failed";
-        console.error("ADMIN APPOINTMENT EMAIL ERROR", error);
+        console.error("ADMIN APPOINTMENT EMAIL ERROR", safeLogDetails(error));
       }
     }
 

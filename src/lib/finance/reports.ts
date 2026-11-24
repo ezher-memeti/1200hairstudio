@@ -1,3 +1,7 @@
+import { reportRowLabel } from "@/i18n/format";
+export { reportRowLabel } from "@/i18n/format";
+import { textFor } from "@/i18n/text";
+import { intlLocale } from "@/i18n/config";
 import "server-only";
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
@@ -10,7 +14,7 @@ const FINANCIAL_VALUE_KEYS: Array<keyof FinancialReportValues> = ["grossRevenue"
 const ZERO_VALUES: FinancialReportValues = FINANCIAL_VALUE_KEYS.reduce((values, key) => { values[key] = 0; return values; }, {} as FinancialReportValues);
 export function safeText(value: unknown): string { return value === null || value === undefined ? "" : String(value); }
 export function safeMoney(value: unknown): number { const numeric = Number(value ?? 0); return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : 0; }
-export function safeZurichDateTime(value: unknown): string { const date = new Date(safeText(value)); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(date) : ""; }
+export function safeZurichDateTime(value: unknown, locale = "de"): string { const date = new Date(safeText(value)); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(intlLocale(locale), { timeZone: "Europe/Zurich", dateStyle: "medium", timeStyle: "short" }).format(date) : ""; }
 const money = safeMoney;
 const dateKey = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
 const monthKey = (value: string) => dateKey(value).slice(0, 7);
@@ -95,15 +99,18 @@ export async function calculateFinancialReport(
   settings?: { business: BusinessSettings; finance: FinanceSettings },
 ): Promise<FinancialReportSnapshot> {
   const bounds = reportUtcBounds(input.startDate, input.endDate);
-  const [{ data: appointments, error: appointmentError }, { data: payments, error: paymentError }] = await Promise.all([
+  const [{ data: appointments, error: appointmentError }, { data: payments, error: paymentError }, { data: sales, error: salesError }] = await Promise.all([
     supabase.from("appointment_finance_summary").select("appointment_id,start_at,appointment_status,original_price,discount_amount,amount_due,net_paid").gte("start_at", bounds.start).lt("start_at", bounds.endExclusive).neq("appointment_status", "cancelled"),
-    supabase.from("payments").select("appointment_id,transaction_type,amount,payment_method,status,paid_at").eq("status", "completed").gte("paid_at", bounds.start).lt("paid_at", bounds.endExclusive),
+    supabase.from("payments").select("appointment_id,transaction_type,amount,tip_amount,payment_method,status,paid_at").eq("status", "completed").gte("paid_at", bounds.start).lt("paid_at", bounds.endExclusive),
+    supabase.from("sales").select("appointment_id,tax_amount"),
   ]);
   if (appointmentError) throw new Error(`Financial appointments could not be loaded: ${appointmentError.message}`);
   if (paymentError) throw new Error(`Financial payments could not be loaded: ${paymentError.message}`);
+  if (salesError) throw new Error(`Financial sales could not be loaded: ${salesError.message}`);
 
   const totals = { ...ZERO_VALUES };
   const rows = new Map<string, FinancialReportRow>();
+  const taxesByAppointment = new Map((sales ?? []).map((sale) => [sale.appointment_id, money(sale.tax_amount)]));
   for (const appointment of appointments ?? []) {
     const key = input.groupBy === "month" ? monthKey(appointment.start_at) : dateKey(appointment.start_at);
     const row = rowFor(rows, key, input.groupBy);
@@ -113,6 +120,8 @@ export async function calculateFinancialReport(
     const isPaid = money(appointment.net_paid) >= sale;
     totals.grossRevenue += gross; row.grossRevenue += gross;
     totals.discounts += discount; row.discounts += discount;
+    const tax = taxesByAppointment.get(appointment.appointment_id) ?? 0;
+    totals.taxes += tax; row.taxes += tax;
     if (isPaid) { totals.paidSales += sale; row.paidSales += sale; }
     else { totals.unpaidSales += sale; row.unpaidSales += sale; }
   }
@@ -124,8 +133,16 @@ export async function calculateFinancialReport(
     const key = input.groupBy === "month" ? monthKey(payment.paid_at) : dateKey(payment.paid_at);
     const row = rowFor(rows, key, input.groupBy);
     const amount = money(payment.amount);
-    if (payment.transaction_type === "refund") { totals.refunds += amount; row.refunds += amount; continue; }
+    if (payment.transaction_type === "refund") {
+      const refundedTip = money(payment.tip_amount);
+      const principalRefund = money(amount - refundedTip);
+      totals.refunds += principalRefund; row.refunds += principalRefund;
+      totals.tips -= refundedTip; row.tips -= refundedTip;
+      continue;
+    }
     const method = payment.payment_method === "bank_transfer" ? "bankTransfer" : (["twint", "cash", "card", "other"].includes(payment.payment_method) ? payment.payment_method : "other") as "twint" | "cash" | "card" | "bankTransfer" | "other";
+    const tip = money(payment.tip_amount);
+    totals.tips += tip; row.tips += tip;
     totals[method] += amount; row[method] += amount;
     const appointmentStart = appointmentStarts.get(payment.appointment_id);
     if (appointmentStart && appointmentStart >= bounds.start && appointmentStart < bounds.endExclusive) { totals.paymentsForSalesInPeriod += amount; row.paymentsForSalesInPeriod += amount; }
@@ -143,7 +160,8 @@ export async function calculateFinancialReport(
 const chf = (value: unknown) => `CHF ${safeMoney(value).toFixed(2)}`;
 function drawRight(page: PDFPage, font: PDFFont, text: unknown, x: number, y: number, size: number) { const value = safeText(text); page.drawText(value, { x: x - font.widthOfTextAtSize(value, size), y, size, font, color: rgb(.12, .12, .11) }); }
 
-export async function generateFinancialReportPdf(report: FinancialReportRecord) {
+export async function generateFinancialReportPdf(report: FinancialReportRecord, locale = "de") {
+  const t = (value: string) => textFor(locale, value.split(" / ")[0]);
   report = normalizeFinancialReportRecord(report);
   const document = await PDFDocument.create();
   const regular = await document.embedFont(StandardFonts.Helvetica);
@@ -152,8 +170,8 @@ export async function generateFinancialReportPdf(report: FinancialReportRecord) 
   const pageHeight = 842;
   const margin = 28;
   const periodWidth = 102;
-  const generated = safeZurichDateTime(report.generated_at);
-  const periodMeta = `From ${safeText(report.snapshot.periodStartDate)} to ${safeText(report.snapshot.periodEndDate)}  |  Grouped by: ${report.group_by === "month" ? "Month" : "Day"}  |  Generated: ${generated}`;
+  const generated = safeZurichDateTime(report.generated_at, locale);
+  const periodMeta = `${t("From")} ${safeText(report.snapshot.periodStartDate)} ${t("to")} ${safeText(report.snapshot.periodEndDate)}  |  ${t("Grouped by")}: ${t(report.group_by === "month" ? "Month" : "Day")}  |  ${t("Generated")}: ${generated}`;
   const reportRows = [{ key: "total", label: "TOTAL", ...report.snapshot.totals }, ...report.snapshot.rows];
 
   const wrap = (text: unknown, font: PDFFont, size: number, width: number) => {
@@ -174,15 +192,15 @@ export async function generateFinancialReportPdf(report: FinancialReportRecord) 
       page.drawText(safeText(report.snapshot.businessName), { x: margin, y: pageHeight - 31, size: 11, font: bold, color: rgb(.12, .12, .11) });
       page.drawText(report.snapshot.address.map(safeText).filter(Boolean).join(" · "), { x: margin, y: pageHeight - 47, size: 7, font: regular, color: rgb(.35, .34, .31) });
       drawRight(page, bold, report.report_number, pageWidth - margin, pageHeight - 31, 10);
-      page.drawText(section.title, { x: margin, y: pageHeight - 78, size: 13, font: bold, color: rgb(.43, .32, .17) });
+      page.drawText(t(section.title), { x: margin, y: pageHeight - 78, size: 13, font: bold, color: rgb(.43, .32, .17) });
       page.drawText(periodMeta, { x: margin, y: pageHeight - 96, size: 7, font: regular, color: rgb(.34, .33, .3) });
       page.drawLine({ start: { x: margin, y: pageHeight - 107 }, end: { x: pageWidth - margin, y: pageHeight - 107 }, thickness: .7, color: rgb(.62, .56, .46) });
       y = pageHeight - 128;
       page.drawRectangle({ x: margin, y: y - 42, width: pageWidth - margin * 2, height: 42, color: rgb(.92, .91, .87) });
-      page.drawText("Period / Datum", { x: margin + 4, y: y - 23, size: 6.2, font: bold });
+      page.drawText(t("Period"), { x: margin + 4, y: y - 23, size: 6.2, font: bold });
       section.columns.forEach((column, index) => {
         const right = margin + periodWidth + numericWidth * (index + 1) - 4;
-        wrap(column.label, bold, 5.2, numericWidth - 7).forEach((line, lineIndex) => drawRight(page, bold, line, right, y - 11 - lineIndex * 6.2, 5.2));
+        wrap(t(column.label), bold, 5.2, numericWidth - 7).forEach((line, lineIndex) => drawRight(page, bold, line, right, y - 11 - lineIndex * 6.2, 5.2));
       });
       y -= 42;
     };
@@ -192,7 +210,7 @@ export async function generateFinancialReportPdf(report: FinancialReportRecord) 
       const rowFont = rowIndex === 0 ? bold : regular;
       const fill = rowIndex === 0 ? rgb(.96, .94, .89) : rowIndex % 2 === 0 ? rgb(.975, .972, .96) : undefined;
       if (fill) page.drawRectangle({ x: margin, y: y - 18, width: pageWidth - margin * 2, height: 18, color: fill });
-      page.drawText(safeText(row.label), { x: margin + 4, y: y - 12, size: 6.3, font: rowFont });
+      page.drawText(reportRowLabel(row.key, row.label, locale), { x: margin + 4, y: y - 12, size: 6.3, font: rowFont });
       section.columns.forEach((column, index) => drawRight(page, rowFont, chf(row[column.key]), margin + periodWidth + numericWidth * (index + 1) - 4, y - 12, 6.1));
       page.drawLine({ start: { x: margin, y: y - 18 }, end: { x: pageWidth - margin, y: y - 18 }, thickness: .25, color: rgb(.78, .77, .73) });
       y -= 18;
@@ -201,11 +219,12 @@ export async function generateFinancialReportPdf(report: FinancialReportRecord) 
   return document.save();
 }
 
-export function generateFinancialReportCsv(report: FinancialReportRecord) {
+export function generateFinancialReportCsv(report: FinancialReportRecord, locale = "de") {
+  const t = (value: string) => textFor(locale, value.split(" / ")[0]);
   report = normalizeFinancialReportRecord(report);
   const columns = FINANCIAL_REPORT_SECTIONS.flatMap((section) => section.columns);
-  const headers = ["Period / Datum", ...columns.map((column) => column.label)];
+  const headers = [t("Period"), ...columns.map((column) => t(column.label))];
   const rows = [{ key: "TOTAL", ...report.snapshot.totals }, ...report.snapshot.rows.map(({ key, label: _label, ...values }) => ({ key, ...values }))];
-  const metadata = [["Business", report.snapshot.businessName], ["Address", report.snapshot.address.filter(Boolean).join(", ")], ["Currency", report.snapshot.currency], []];
+  const metadata = [[t("Business"), report.snapshot.businessName], [t("Address"), report.snapshot.address.filter(Boolean).join(", ")], [t("Currency"), report.snapshot.currency], []];
   return [...metadata, headers, ...rows.map((row) => [safeText(row.key), ...columns.map((column) => safeMoney(row[column.key]))])].map((row) => row.map((cell) => `"${safeText(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
 }

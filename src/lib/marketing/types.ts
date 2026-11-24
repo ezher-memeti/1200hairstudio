@@ -1,6 +1,14 @@
 import type { CustomerStatus } from "@/lib/customers/status";
 
 export type MarketingTemplate = {
+  name_de?: string | null;
+  description_de?: string | null;
+  default_subject_de?: string | null;
+  default_preheader_de?: string | null;
+  default_headline_de?: string | null;
+  default_content_de?: string | null;
+  default_cta_text_de?: string | null;
+
   id: string;
   name: string;
   description: string | null;
@@ -14,6 +22,7 @@ export type MarketingTemplate = {
 };
 
 export type MarketingTemplateInput = {
+  german?: Record<string, string>;
   name: string;
   description: string;
   subject: string;
@@ -45,6 +54,7 @@ export type MarketingCampaign = {
 };
 
 export type MarketingAudienceFilters = {
+  localized_content?: { de?: MarketingLocalizedCopy };
   statuses: CustomerStatus[];
   favoriteService: string | null;
   appointment: "all" | "upcoming" | "none";
@@ -58,7 +68,10 @@ export const DEFAULT_MARKETING_FILTERS: MarketingAudienceFilters = {
   lastVisit: "all",
 };
 
+export type MarketingLocalizedCopy = { subject: string; preheader: string; headline: string; content: string; ctaText: string };
+
 export type MarketingEmailContent = {
+  translations?: { de?: MarketingLocalizedCopy };
   campaignName: string;
   templateId: string | null;
   subject: string;

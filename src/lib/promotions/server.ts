@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -6,12 +7,6 @@ import { createClient } from "@/lib/supabase/server";
 
 function toCents(value: number) {
   return Math.round((Number.isFinite(value) ? value : 0) * 100);
-}
-
-const promotionDebugEnabled = process.env.NODE_ENV !== "production";
-
-function debugPromotion(message: string, details: Record<string, unknown>) {
-  if (promotionDebugEnabled) console.info(`[promotion] ${message}`, details);
 }
 
 export function calculatePromotionPrice(input: { originalPrice: number; discountType: "percentage" | "fixed"; discountValue: number }): PromotionPrice {
@@ -56,7 +51,7 @@ export async function getEffectiveServicePrice(input: { serviceId: string; custo
   if (serviceError || !service) return null;
   const originalPrice = Number(service.price);
   if (!Number.isFinite(originalPrice)) {
-    console.error("Service price is not numeric", { serviceId: input.serviceId, value: service.price });
+    console.error("Service price is not numeric", safeLogDetails({ serviceId: input.serviceId }));
     return null;
   }
   const base: EffectiveServicePrice = { originalPrice, finalPrice: originalPrice, discountAmount: 0, discountType: null, discountValue: null, promotionId: null, promotionName: null };
@@ -64,24 +59,22 @@ export async function getEffectiveServicePrice(input: { serviceId: string; custo
     ? await supabase.rpc("get_my_available_promotions", { p_service_id: input.serviceId })
     : await supabase.from("promotions").select("*").eq("is_active", true).eq("audience_type", "all_customers").or(`service_id.is.null,service_id.eq.${input.serviceId}`);
   if (error) {
-    console.error("Effective promotion lookup failed", { serviceId: input.serviceId, customerId: input.customerId, error });
+    console.error("Effective promotion lookup failed", safeLogDetails({ serviceId: input.serviceId, error }));
     return base;
   }
-  const { data: customer } = input.customerId ? await supabase.from("customers").select("id,is_registered").eq("id", input.customerId).maybeSingle() : { data: null };
-  debugPromotion("resolution started", { customerId: input.customerId, customerIsRegistered: customer?.is_registered ?? null, serviceId: input.serviceId, candidatePromotions: promotions?.length ?? 0, originalPrice });
+
   const eligible: Array<{ promotion: PromotionRecord; price: PromotionPrice }> = [];
   for (const promotion of (promotions ?? []) as PromotionRecord[]) {
     const result = input.authenticatedCustomer ? { valid: true as const, promotion } : await validatePromotion({ promotionId: promotion.id, serviceId: input.serviceId, supabase });
-    if (!result.valid) { debugPromotion("candidate rejected", { promotionId: promotion.id, promotionName: promotion.name, audienceType: promotion.audience_type, promotionServiceId: promotion.service_id, reason: result.reason }); continue; }
+    if (!result.valid) continue;
     const discountValue = Number(promotion.discount_value);
     if (!Number.isFinite(discountValue) || discountValue <= 0) {
-      debugPromotion("candidate rejected", { promotionId: promotion.id, promotionName: promotion.name, reason: "invalid_discount_value", discountValue: result.promotion.discount_value });
       continue;
     }
     eligible.push({ promotion, price: calculatePromotionPrice({ originalPrice, discountType: promotion.discount_type, discountValue }) });
   }
   eligible.sort((first, second) => first.price.finalPrice - second.price.finalPrice || (first.promotion.expires_at ? new Date(first.promotion.expires_at).getTime() : Number.MAX_SAFE_INTEGER) - (second.promotion.expires_at ? new Date(second.promotion.expires_at).getTime() : Number.MAX_SAFE_INTEGER) || first.promotion.id.localeCompare(second.promotion.id));
   const best = eligible[0];
-  debugPromotion("resolution completed", { customerId: input.customerId, serviceId: input.serviceId, winningPromotionId: best?.promotion.id ?? null, winningPromotionName: best?.promotion.name ?? null, originalPrice, finalPrice: best?.price.finalPrice ?? originalPrice });
+
   return best ? { ...best.price, discountType: best.promotion.discount_type, discountValue: best.promotion.discount_value, promotionId: best.promotion.id, promotionName: best.promotion.name } : base;
 }

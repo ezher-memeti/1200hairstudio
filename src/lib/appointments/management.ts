@@ -1,4 +1,5 @@
 import "server-only";
+import { localizedPath, type Locale } from "@/i18n/config";
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -42,8 +43,8 @@ export function createBookingCredentials() {
   };
 }
 
-export function getBookingManagementUrl(token: string) {
-  return `${getSiteUrl()}/booking/manage/${encodeURIComponent(token)}`;
+export function getBookingManagementUrl(token: string, locale: Locale = "de") {
+  return `${getSiteUrl()}${localizedPath(`/booking/manage/${encodeURIComponent(token)}`, locale)}`;
 }
 
 export async function getGuestBookingToken() {

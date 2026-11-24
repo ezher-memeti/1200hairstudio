@@ -1,7 +1,13 @@
 "use client";
+import { Link as LocaleLink } from "@/i18n/navigation";
 
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useLocale, useTranslations } from "next-intl";
+
+
+import { useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { useState } from "react";
 import {
   AUTH_GENERIC_SIGNUP_EXISTS_RESPONSE,
@@ -27,6 +33,11 @@ function mapRegisterError(message: string) {
 }
 
 export default function PublicRegisterForm() {
+  const uiText = useUiText();
+
+  const locale = useLocale();
+  const ui = useTranslations("ui");
+
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -71,7 +82,9 @@ export default function PublicRegisterForm() {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/${locale}/login`,
         data: {
+          preferred_locale: locale,
           full_name: fullName,
           phone,
           marketing_email_consent: marketingEmailConsent,
@@ -110,18 +123,15 @@ export default function PublicRegisterForm() {
     >
       <div className="space-y-2">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Register
-        </p>
+          {ui("md672995a1465")}</p>
         <h1 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-          Create Your Account
-        </h1>
+          {ui("mc586a432ecf9")}</h1>
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <label className="block space-y-3 sm:col-span-2">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Full Name
-          </span>
+            {ui("m64346b483c0a")}</span>
           <input
             type="text"
             value={fullName}
@@ -134,8 +144,7 @@ export default function PublicRegisterForm() {
 
         <label className="block space-y-3 sm:col-span-2">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Email
-          </span>
+            {ui("m84add5b29527")}</span>
           <input
             type="email"
             value={email}
@@ -148,8 +157,7 @@ export default function PublicRegisterForm() {
 
         <label className="block space-y-3 sm:col-span-2">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Phone
-          </span>
+            {ui("m77064d526523")}</span>
           <input
             type="tel"
             value={phone}
@@ -162,8 +170,7 @@ export default function PublicRegisterForm() {
 
         <label className="block space-y-3">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Password
-          </span>
+            {ui("m8be3c943b160")}</span>
           <input
             type="password"
             value={password}
@@ -176,8 +183,7 @@ export default function PublicRegisterForm() {
 
         <label className="block space-y-3">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Confirm Password
-          </span>
+            {ui("mc2d404cb7bad")}</span>
           <input
             type="password"
             value={confirmPassword}
@@ -189,24 +195,22 @@ export default function PublicRegisterForm() {
         </label>
       </div>
 
-      {error ? <p className="font-primary text-sm text-error">{error}</p> : null}
+      {error ? <p className="font-primary text-sm text-error">{uiText(error)}</p> : null}
       {info ? (
-        <p className="font-primary text-sm text-foreground-secondary">{info}</p>
+        <p className="font-primary text-sm text-foreground-secondary">{uiText(info)}</p>
       ) : null}
       {error === AUTH_GENERIC_SIGNUP_EXISTS_RESPONSE ? (
         <div className="flex flex-col gap-2">
-          <a
+          <LocaleLink
             href="/login"
             className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground"
           >
-            Go to login →
-          </a>
-          <a
+            {ui("m2f33c3111bd6")}</LocaleLink>
+          <LocaleLink
             href="/forgot-password"
             className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground"
           >
-            Reset your password →
-          </a>
+            {ui("m201cb71be006")}</LocaleLink>
         </div>
       ) : null}
 
@@ -219,14 +223,12 @@ export default function PublicRegisterForm() {
             className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
           />
           <span className="font-primary text-xs leading-5 text-foreground-muted sm:text-sm">
-            I would like to receive news, offers and promotions from 1200 Hairstudio by email.
-          </span>
+            {ui("mf9c4a06a9b98")}</span>
         </label>
         <p className="pl-7 font-primary text-[11px] leading-5 text-foreground-muted">
-          Optional and separate from account creation. Read our{" "}
+          {ui("m87b4afd90edc")}{" "}
           <Link href="/privacy" className="underline underline-offset-4 transition-colors hover:text-foreground">
-            Privacy Policy
-          </Link>
+            {ui("m9db108ba6b7f")}</Link>
           .
         </p>
       </div>
@@ -237,15 +239,14 @@ export default function PublicRegisterForm() {
           disabled={isSubmitting}
           className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
         >
-          {isSubmitting ? "Creating Account..." : "Register"}
+          {uiText(isSubmitting ? "Creating Account..." : "Create Account")}
         </button>
 
-        <a
+        <LocaleLink
           href="/login"
           className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground"
         >
-          Already have an account? Sign in →
-        </a>
+          {ui("m69eec2d91465")}</LocaleLink>
       </div>
     </form>
   );

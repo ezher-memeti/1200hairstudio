@@ -73,9 +73,10 @@ export function calculateCustomerLoyaltySummary(input: {
 }
 
 export async function getMyLoyaltySummary(customerId: string): Promise<CustomerLoyaltySummary> {
-  const { supabase, user } = await requireCustomerUser();
-  const { data: customer } = await supabase.from("customers").select("id").eq("id", customerId).eq("profile_id", user.id).maybeSingle();
-  if (!customer) throw new Error("Customer account not found.");
+  const { supabase } = await requireCustomerUser();
+  const response = await supabase.rpc("get_my_customer");
+  const customer = Array.isArray(response.data) ? response.data[0] : response.data;
+  if (response.error || !customer || customer.id !== customerId) throw new Error("Customer account not found.");
 
   const [{ data: settings, error: settingsError }, { data: visitRows, error: visitsError }, { data: rewardRows, error: rewardsError }] = await Promise.all([
     supabase.from("loyalty_settings").select("is_enabled,visits_required,reward_type,reward_value,reward_expiry_days,reward_visit_counts_toward_next").limit(1).maybeSingle(),

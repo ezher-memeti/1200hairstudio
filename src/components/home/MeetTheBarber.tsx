@@ -1,7 +1,11 @@
+
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 export default function MeetTheBarber({ content }: { content: HomepageContent }) {
+  const ui = useTranslations("ui");
+
   return (
     <section id="barber" className="bg-background-secondary">
       <div className="page-container page-grid-split-reverse items-center py-8 sm:py-10 lg:py-12">
@@ -17,11 +21,11 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
         <div className="relative w-full max-w-[24rem] self-center overflow-hidden bg-surface md:row-span-2 md:max-w-[22rem] md:justify-self-start lg:max-w-[25rem] xl:max-w-[28rem]">
           <div className="relative aspect-square w-full">
             <Image
-              src="/images/barber.jpeg"
-              alt="Portrait of the barber"
+              src="/images/barber.webp"
+              alt={ui("mdf6c85df66d3")}
               fill
               className="object-cover"
-              sizes="(min-width: 768px) 50vw, 100vw"
+              sizes="(min-width: 1280px) 448px, (min-width: 1024px) 400px, (min-width: 768px) 352px, 384px"
             />
           </div>
         </div>
@@ -33,12 +37,12 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
                 {content.barber_name}
               </h2>
 
-              <div className="space-y-2">
-                <p className="font-display text-3xl font-semibold uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
-                  {content.barber_experience_value}
-                </p>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <p className="font-primary text-sm uppercase tracking-[0.22em] text-foreground-secondary sm:text-base">
                   {content.barber_experience_label}
+                </p>
+                <p className="font-display text-3xl font-semibold uppercase tracking-[-0.04em] text-foreground sm:text-4xl">
+                  {content.barber_experience_value}
                 </p>
               </div>
 
@@ -49,7 +53,7 @@ export default function MeetTheBarber({ content }: { content: HomepageContent })
 
             <div className="pt-2">
               <a
-                href="#booking"
+                href="#booking" data-analytics="booking_cta"
                 className="inline-flex min-h-12 items-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
               >
                 {content.barber_cta}

@@ -1,3 +1,5 @@
+import { safeLogDetails } from "@/lib/logging";
+import { getLocale } from "next-intl/server";
 import "server-only";
 
 import { revalidatePath } from "next/cache";
@@ -10,6 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCustomerManagementCapabilities, validateCustomerBookingTime } from "@/lib/booking/policy";
 import { getBookingSettings } from "@/lib/booking/settings";
 import { getNotificationSettings } from "@/lib/admin/runtime-settings";
+import { APPOINTMENT_TIME_CONFLICT_MESSAGE, isAppointmentTimeConflictError } from "@/lib/appointments/write-errors";
 
 function revalidateAppointmentViews() {
   revalidatePath("/");
@@ -25,13 +28,14 @@ async function getEmailDetails(appointment: AppointmentRecord) {
     appointment.customer_id
       ? supabase.from("customers").select("full_name, email").eq("id", appointment.customer_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from("services").select("name, price").eq("id", appointment.service_id).maybeSingle(),
+    supabase.from("services").select("name, name_de, price").eq("id", appointment.service_id).maybeSingle(),
   ]);
 
   return {
     customerName: customer?.full_name ?? appointment.customer_name ?? appointment.guest_name ?? "Customer",
     customerEmail: customer?.email ?? appointment.customer_email ?? appointment.guest_email ?? "",
     serviceName: service?.name ?? "Service",
+    serviceNameDe: service?.name_de,
     price: Number(appointment.final_price ?? appointment.original_price ?? service?.price ?? 0),
   };
 }
@@ -71,11 +75,7 @@ export async function cancelResolvedAppointment(
     .maybeSingle();
 
   if (error || !updatedAppointment) {
-    console.error("CUSTOMER BOOKING CANCELLATION ERROR", {
-      appointmentId: appointment.id,
-      code: error?.code ?? null,
-      message: error?.message ?? "Supabase returned no cancelled appointment row.",
-    });
+    console.error("CUSTOMER BOOKING CANCELLATION ERROR", safeLogDetails({ appointmentId: appointment.id, code: error?.code ?? null }));
     return { error: "Unable to cancel this booking right now. Please contact the studio.", emailWarning: null };
   }
 
@@ -86,15 +86,18 @@ export async function cancelResolvedAppointment(
     try {
       await sendBookingCancellationEmail({
         to: details.customerEmail,
+        customerId: appointment.customer_id,
+        appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: details.serviceName,
+        serviceNameDe: details.serviceNameDe,
         startAt: appointment.start_at,
         endAt: appointment.end_at,
         price: details.price,
       });
     } catch (emailError) {
       emailWarning = "The booking was cancelled, but the notification email could not be sent.";
-      console.error("CUSTOMER BOOKING CANCELLATION EMAIL ERROR", emailError);
+      console.error("CUSTOMER BOOKING CANCELLATION EMAIL ERROR", safeLogDetails(emailError));
     }
   }
 
@@ -143,12 +146,13 @@ export async function rescheduleResolvedAppointment(
     .maybeSingle();
 
   if (error || !updatedAppointment) {
-    console.error("CUSTOMER BOOKING RESCHEDULE ERROR", {
-      appointmentId: appointment.id,
-      code: error?.code ?? null,
-      message: error?.message ?? "Supabase returned no updated appointment row.",
-    });
-    return { error: "Unable to change this booking right now. Please choose another time.", emailWarning: null };
+    console.error("CUSTOMER BOOKING RESCHEDULE ERROR", safeLogDetails({ appointmentId: appointment.id, code: error?.code ?? null }));
+    return {
+      error: isAppointmentTimeConflictError(error)
+        ? APPOINTMENT_TIME_CONFLICT_MESSAGE
+        : "Unable to change this booking right now. Please choose another time.",
+      emailWarning: null,
+    };
   }
 
   let emailWarning: string | null = null;
@@ -158,15 +162,18 @@ export async function rescheduleResolvedAppointment(
     try {
       await sendBookingUpdateEmail({
         to: details.customerEmail,
+        customerId: appointment.customer_id,
+        appointmentId: appointment.id,
         customerName: details.customerName,
         serviceName: validation.service.name,
+        serviceNameDe: validation.service.name_de,
         startAt: updatedAppointment.start_at,
         endAt: updatedAppointment.end_at,
         price: details.price,
       });
     } catch (emailError) {
       emailWarning = "The booking was updated, but the notification email could not be sent.";
-      console.error("CUSTOMER BOOKING UPDATE EMAIL ERROR", emailError);
+      console.error("CUSTOMER BOOKING UPDATE EMAIL ERROR", safeLogDetails(emailError));
     }
   }
 
@@ -176,7 +183,7 @@ export async function rescheduleResolvedAppointment(
     emailWarning,
     updatedAppointment: {
       ...updatedAppointment,
-      date: formatZurichDate(updatedAppointment.start_at),
+      date: formatZurichDate(updatedAppointment.start_at, await getLocale()),
       time: formatZurichTimeRange(updatedAppointment.start_at, updatedAppointment.end_at),
     },
   };

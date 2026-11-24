@@ -1,3 +1,5 @@
+import { weekdayLabel, monthLabel } from "@/i18n/format";
+import { textFor } from "@/i18n/text";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
 
 type BusinessHourFields = Pick<
@@ -5,59 +7,31 @@ type BusinessHourFields = Pick<
   "day_of_week" | "is_closed" | "open_time" | "close_time"
 >;
 
-const weekdayLong = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-] as const;
-
-const weekdayShort = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-const weekdayShortUpper = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
-const monthShortUpper = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"] as const;
-const monthLong = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
-
 export function formatBusinessHourTime(time: string | null) {
   return time ? time.slice(0, 5) : null;
 }
 
-export function formatBusinessHourRange(hour: Pick<BusinessHourFields, "is_closed" | "open_time" | "close_time">) {
+export function formatBusinessHourRange(hour: Pick<BusinessHourFields, "is_closed" | "open_time" | "close_time">, locale = "en") {
   if (hour.is_closed) {
-    return "CLOSED";
+    return textFor(locale, "CLOSED");
   }
 
   const open = formatBusinessHourTime(hour.open_time);
   const close = formatBusinessHourTime(hour.close_time);
 
   if (!open || !close) {
-    return "HOURS UNAVAILABLE";
+    return textFor(locale, "HOURS UNAVAILABLE");
   }
 
   return `${open}–${close}`;
 }
 
-export function getBusinessHourDayLabel(dayOfWeek: number) {
-  return weekdayShort[dayOfWeek - 1] ?? `Day ${dayOfWeek}`;
+export function getBusinessHourDayLabel(dayOfWeek: number, locale = "en") {
+  return weekdayLabel(dayOfWeek, locale, "short");
 }
 
-export function getBusinessHourDayLabelUpper(dayOfWeek: number) {
-  return weekdayShortUpper[dayOfWeek - 1] ?? `DAY ${dayOfWeek}`;
+export function getBusinessHourDayLabelUpper(dayOfWeek: number, locale = "en") {
+  return weekdayLabel(dayOfWeek, locale, "short").toLocaleUpperCase();
 }
 
 export function getOpenBusinessWeekdays(hours: BusinessHourFields[]) {
@@ -77,7 +51,7 @@ export type BookingDate = {
   businessHour: BusinessHourFields;
 };
 
-export function buildBookingDates(hours: BusinessHourRecord[], count = 6) {
+export function buildBookingDates(hours: BusinessHourRecord[], count = 6, locale = "en") {
   const openHoursByWeekday = new Map(
     hours
       .filter((hour) => !hour.is_closed && hour.open_time && hour.close_time)
@@ -104,10 +78,10 @@ export function buildBookingDates(hours: BusinessHourRecord[], count = 6) {
 
     dates.push({
       id: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-      day: getBusinessHourDayLabelUpper(dayOfWeek),
+      day: getBusinessHourDayLabelUpper(dayOfWeek, locale),
       date: String(day).padStart(2, "0"),
-      month: monthShortUpper[month],
-      fullDate: `${weekdayLong[dayOfWeek - 1].toUpperCase()}, ${String(day).padStart(2, "0")} ${monthLong[month].toUpperCase()} ${year}`,
+      month: monthLabel(month, locale, "short").toLocaleUpperCase(),
+      fullDate: `${weekdayLabel(dayOfWeek, locale).toLocaleUpperCase()}, ${String(day).padStart(2, "0")} ${monthLabel(month, locale).toLocaleUpperCase()} ${year}`,
       businessHour,
     });
   }

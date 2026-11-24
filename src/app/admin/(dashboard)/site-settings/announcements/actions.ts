@@ -1,11 +1,14 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
+import { contentPayload } from "@/i18n/content-editing";
+import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { getUtcIsoForZurichDateTime } from "@/lib/appointments/availability";
 import { ANNOUNCEMENT_DISPLAY_TYPES, type AnnouncementInput } from "@/lib/announcements/types";
 
-type Result = { success: boolean; message: string };
+type Result = { success: boolean; message: string; id?: string };
 
 function toInstant(value: string) {
   if (!value) return null;
@@ -46,10 +49,14 @@ function revalidateAnnouncements() {
   revalidatePath("/admin/site-settings/announcements");
 }
 
-export async function saveAnnouncement(input: AnnouncementInput, announcementId?: string): Promise<Result> {
+export async function saveAnnouncement(input: AnnouncementInput, announcementId?: string, locale: Locale = "en"): Promise<Result> {
   try {
     const { supabase } = await requireAdminUser();
-    const payload = validate(input);
+    if (!isLocale(locale)) throw new Error("Invalid content language.");
+    if (!announcementId && !input.message.trim()) throw new Error("Complete the required English source fields before creating this item.");
+    const active = locale === "de" ? { ...input, title: input.german?.title ?? "", message: input.german?.message ?? "", ctaText: input.german?.ctaText ?? "" } : input;
+    const validated = validate(active);
+    const payload = contentPayload({ ...validated, title: input.title.trim() || null, message: input.message.trim(), cta_text: input.ctaText.trim() || null }, ["title", "message", "cta_text"], locale, { title: input.german?.title ?? "", message: input.german?.message ?? "", cta_text: input.german?.ctaText ?? "" }, !announcementId);
     const query = announcementId
       ? supabase.from("announcements").update(payload).eq("id", announcementId).select("id").maybeSingle()
       : supabase.from("announcements").insert(payload).select("id").single();
@@ -57,9 +64,9 @@ export async function saveAnnouncement(input: AnnouncementInput, announcementId?
     if (error) throw error;
     if (!data) return { success: false, message: "Announcement was not found or could not be updated." };
     revalidateAnnouncements();
-    return { success: true, message: announcementId ? "Announcement updated." : "Announcement created." };
+    return { success: true, id: data.id as string, message: announcementId ? "Announcement updated." : "Announcement created." };
   } catch (error) {
-    console.error("Announcement save failed", { operation: announcementId ? "update" : "create", announcementId, error });
+    console.error("Announcement save failed", safeLogDetails({ operation: announcementId ? "update" : "create", announcementId, error }));
     return { success: false, message: error instanceof Error && !/row-level|permission|postgres/i.test(error.message) ? error.message : "Unable to save this announcement." };
   }
 }
@@ -72,7 +79,7 @@ export async function deleteAnnouncement(announcementId: string): Promise<Result
     revalidateAnnouncements();
     return { success: true, message: "Announcement deleted." };
   } catch (error) {
-    console.error("Announcement delete failed", { announcementId, error });
+    console.error("Announcement delete failed", safeLogDetails({ announcementId, error }));
     return { success: false, message: "Unable to delete this announcement." };
   }
 }
@@ -86,7 +93,7 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
     revalidateAnnouncements();
     return { success: true, message: isActive ? "Announcement enabled." : "Announcement disabled." };
   } catch (error) {
-    console.error("Announcement status update failed", { announcementId, error });
+    console.error("Announcement status update failed", safeLogDetails({ announcementId, error }));
     return { success: false, message: "Unable to update announcement status." };
   }
 }

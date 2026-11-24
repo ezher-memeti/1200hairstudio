@@ -1,5 +1,7 @@
+import type { DiscountSource, DiscountType } from "@/lib/discounts/types";
+
 export type TransactionType = "payment" | "refund";
-export type AppointmentDiscountMode = "none" | "promotion" | "custom";
+export type AppointmentDiscountMode = "none" | "promotion" | "manual" | "loyalty";
 export type PaymentMethod = "cash" | "twint" | "card" | "bank_transfer" | "other";
 export type PaymentStatus = "pending" | "completed" | "failed" | "voided";
 
@@ -50,9 +52,9 @@ export type FinanceAppointment = {
   amountDue: number;
   discountAmount: number;
   promotionId: string | null;
-  discountSource: "promotion" | "custom" | "loyalty" | null;
+  discountSource: DiscountSource | null;
   discountLabel: string | null;
-  discountType: "percentage" | "fixed" | "fixed_discount" | "free_service" | null;
+  discountType: DiscountType | null;
   discountValue: number | null;
   totalPaid: number;
   totalRefunded: number;

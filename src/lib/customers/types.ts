@@ -1,4 +1,5 @@
 export type CustomerRecord = {
+  preferred_locale?: "de" | "en" | null;
   id: string;
   profile_id: string | null;
   full_name: string;
@@ -58,4 +59,20 @@ export type AdminCustomerLoyaltySummary = {
     reward_type: "fixed_discount" | "percentage" | "free_service";
     reward_value: number | null;
   } | null;
+};
+
+export type CustomerEmailLog = {
+  id: string;
+  customer_id: string | null;
+  appointment_id: string | null;
+  recipient_email: string;
+  email_type: string;
+  subject: string;
+  status: "processing" | "sent" | "failed" | "skipped";
+  provider_message_id: string | null;
+  sent_at: string | null;
+  failed_at: string | null;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 };

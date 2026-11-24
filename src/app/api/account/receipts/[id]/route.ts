@@ -5,14 +5,12 @@ import type { ReceiptRecord } from "@/lib/receipts/types";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { supabase, user } = await requireCustomerUser();
-  const { data: customer } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("profile_id", user.id)
-    .maybeSingle();
+  const { id } = await params;
+  const { supabase } = await requireCustomerUser();
+  const response = await supabase.rpc("get_my_customer");
+  const customer = Array.isArray(response.data) ? response.data[0] : response.data;
 
   if (!customer) return new Response("Receipt not found.", { status: 404 });
 
@@ -20,7 +18,7 @@ export async function GET(
   const { data: receipt } = await adminSupabase
     .from("receipts")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
 
   if (!receipt) return new Response("Receipt not found.", { status: 404 });

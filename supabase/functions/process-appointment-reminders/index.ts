@@ -1,3 +1,4 @@
+import { safeLogDetails } from "../_shared/logging.ts";
 import { createClient } from "@supabase/supabase-js";
 
 type Channel = "email" | "whatsapp";
@@ -60,14 +61,14 @@ Deno.serve(async (request: Request) => {
     for (const candidate of candidates.values()) {
       if (!enabledChannels.has(candidate.channel)) { result.skipped += 1; continue; }
       const { data: appointment, error: appointmentError } = await supabase.from("appointments").select("id,start_at,status").eq("id", candidate.appointmentId).maybeSingle();
-      if (appointmentError) { console.error("REMINDER APPOINTMENT REVALIDATION ERROR", { appointmentId: candidate.appointmentId, error: appointmentError }); result.failed += 1; continue; }
+      if (appointmentError) { console.error("REMINDER APPOINTMENT REVALIDATION ERROR", safeLogDetails({ appointmentId: candidate.appointmentId, error: appointmentError })); result.failed += 1; continue; }
       if (!appointment || appointment.status !== "confirmed" || appointment.start_at !== candidate.appointmentStartAt || new Date(appointment.start_at).getTime() <= Date.now()) { result.skipped += 1; continue; }
 
       const identity = { appointment_id: appointment.id, appointment_start_at: appointment.start_at, channel: candidate.channel };
       let existing = candidate.reminder;
       if (!existing) {
         const { data, error } = await supabase.from("appointment_reminders").select("id,appointment_id,appointment_start_at,channel,scheduled_for,status,attempt_count,updated_at").match(identity).maybeSingle();
-        if (error) { console.error("REMINDER IDENTITY LOOKUP ERROR", { identity, error }); result.failed += 1; continue; }
+        if (error) { console.error("REMINDER IDENTITY LOOKUP ERROR", safeLogDetails({ identity, error })); result.failed += 1; continue; }
         existing = data as ReminderRow | undefined;
       }
       if (existing?.status === "sent" || Number(existing?.attempt_count ?? 0) >= MAX_ATTEMPTS) { result.skipped += 1; continue; }
@@ -81,20 +82,20 @@ Deno.serve(async (request: Request) => {
       let reminderId: string | undefined;
       if (existing) {
         const { data: claimed, error: claimError } = await supabase.from("appointment_reminders").update({ status: "processing", scheduled_for: scheduledFor, sent_at: null, error_message: null, attempt_count: attemptCount, updated_at: claimedAt }).eq("id", existing.id).eq("updated_at", existing.updated_at).select("id").maybeSingle();
-        if (claimError) { console.error("REMINDER RECLAIM ERROR", { reminderId: existing.id, error: claimError }); result.failed += 1; continue; }
+        if (claimError) { console.error("REMINDER RECLAIM ERROR", safeLogDetails({ reminderId: existing.id, error: claimError })); result.failed += 1; continue; }
         if (!claimed) { result.skipped += 1; continue; }
         reminderId = claimed.id;
       } else {
         const { data: inserted, error: insertError } = await supabase.from("appointment_reminders").insert({ ...identity, scheduled_for: scheduledFor, status: "processing", sent_at: null, error_message: null, attempt_count: attemptCount, updated_at: claimedAt }).select("id").single();
-        if (insertError) { if (insertError.code === "23505") result.skipped += 1; else { console.error("REMINDER CLAIM INSERT ERROR", { identity, error: insertError }); result.failed += 1; } continue; }
+        if (insertError) { if (insertError.code === "23505") result.skipped += 1; else { console.error("REMINDER CLAIM INSERT ERROR", safeLogDetails({ identity, error: insertError })); result.failed += 1; } continue; }
         reminderId = inserted?.id;
       }
-      if (!reminderId) { console.error("REMINDER CLAIM RETURNED NO ID", { identity }); result.failed += 1; continue; }
+      if (!reminderId) { console.error("REMINDER CLAIM RETURNED NO ID", safeLogDetails({ identity })); result.failed += 1; continue; }
       result.claimed += 1;
 
       if (candidate.channel === "whatsapp") {
         const { error: skippedError } = await supabase.from("appointment_reminders").update({ status: "skipped", sent_at: null, error_message: "WhatsApp delivery is not configured.", updated_at: new Date().toISOString() }).eq("id", reminderId);
-        if (skippedError) { console.error("REMINDER SKIPPED STATUS ERROR", { reminderId, error: skippedError }); result.failed += 1; } else result.skipped += 1;
+        if (skippedError) { console.error("REMINDER SKIPPED STATUS ERROR", safeLogDetails({ reminderId, error: skippedError })); result.failed += 1; } else result.skipped += 1;
         continue;
       }
 
@@ -108,18 +109,18 @@ Deno.serve(async (request: Request) => {
           sentStatusError = error;
           if (!error) break;
         }
-        if (sentStatusError) { console.error("CRITICAL: REMINDER DELIVERED BUT SENT STATUS COULD NOT BE SAVED", { reminderId, appointmentId: appointment.id, channel: candidate.channel, error: sentStatusError }); result.deliveryAcceptedButUnlogged += 1; }
+        if (sentStatusError) { console.error("CRITICAL: REMINDER DELIVERED BUT SENT STATUS COULD NOT BE SAVED", safeLogDetails({ reminderId, appointmentId: appointment.id, channel: candidate.channel, error: sentStatusError })); result.deliveryAcceptedButUnlogged += 1; }
         else result.sent += 1;
       } catch (deliveryError) {
         const { error: failedStatusError } = await supabase.from("appointment_reminders").update({ status: "failed", sent_at: null, error_message: safeMessage(deliveryError), attempt_count: attemptCount, updated_at: new Date().toISOString() }).eq("id", reminderId);
-        if (failedStatusError) console.error("CRITICAL: REMINDER FAILURE STATUS COULD NOT BE SAVED", { reminderId, appointmentId: appointment.id, error: failedStatusError, deliveryError });
-        else console.error("REMINDER DELIVERY FAILED", { reminderId, appointmentId: appointment.id, attemptCount, error: deliveryError });
+        if (failedStatusError) console.error("CRITICAL: REMINDER FAILURE STATUS COULD NOT BE SAVED", safeLogDetails({ reminderId, appointmentId: appointment.id, error: failedStatusError, deliveryError }));
+        else console.error("REMINDER DELIVERY FAILED", safeLogDetails({ reminderId, appointmentId: appointment.id, attemptCount, error: deliveryError }));
         result.failed += 1;
       }
     }
     return json({ ok: true, hoursBefore, appointmentWindowStart, appointmentWindowEnd, ...result });
   } catch (error) {
-    console.error("process-appointment-reminders failed", error);
-    return json({ ok: false, error: safeMessage(error), ...result }, 500);
+    console.error("process-appointment-reminders failed", safeLogDetails(error));
+    return json({ ok: false, error: "Reminder processing failed.", ...result }, 500);
   }
 });

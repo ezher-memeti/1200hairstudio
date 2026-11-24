@@ -1,3 +1,4 @@
+import { ContentEditor } from "@/components/admin/content/AdminContentLocale";
 import SiteSettingsServicesManager from "@/components/admin/SiteSettingsServicesManager";
 import type { ServiceRecord } from "@/lib/services/types";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ export default async function AdminSiteSettingsServicesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("services")
-    .select("*")
+    .select("id,name,name_de,price,duration_min,duration_max,image_url,is_active,sort_order,created_at,updated_at")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -35,10 +36,8 @@ export default async function AdminSiteSettingsServicesPage() {
       : `Services query failed: ${error.message}${error.code ? ` [${error.code}]` : ""}`
     : null;
 
-  return (
-    <SiteSettingsServicesManager
+  return <ContentEditor>{<SiteSettingsServicesManager
       initialServices={(data ?? []) as ServiceRecord[]}
       loadError={loadError}
-    />
-  );
+    />}</ContentEditor>;
 }

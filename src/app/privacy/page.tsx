@@ -1,3 +1,7 @@
+import { textFor } from "@/i18n/text";
+import { useLocale } from "next-intl";
+
+import { useTranslations } from "next-intl";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
@@ -49,24 +53,25 @@ const sections = [
 ] as const;
 
 export default function PrivacyPage() {
+  const uiLocale = useLocale();
+  const uiText = <T,>(value: T): T => typeof value === "string" ? textFor(uiLocale, value) as T : value;
+
+  const ui = useTranslations("ui");
+  const analytics = useTranslations("analytics");
+
   return (
     <>
       <Header />
-      <main className="bg-background">
+      <main className="bg-background [overflow-wrap:anywhere]">
         <section className="page-container py-12 sm:py-16 lg:py-20">
           <div className="max-w-4xl space-y-8">
             <div className="space-y-4">
               <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                Legal
-              </p>
+                {ui("m902c91d94e0f")}</p>
               <h1 className="font-display text-[clamp(2.4rem,6vw,4.75rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-                Privacy Policy
-              </h1>
+                {ui("m9db108ba6b7f")}</h1>
               <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                This page is structured to be updated as booking, data storage,
-                email, analytics, and other services are introduced into the
-                1200 Hairstudio website.
-              </p>
+                {analytics("privacyIntro")}</p>
             </div>
 
             <div className="space-y-8 border-t border-border pt-8">
@@ -76,21 +81,19 @@ export default function PrivacyPage() {
                   className="space-y-3 border-t border-border pt-6 first:border-t-0 first:pt-0"
                 >
                   <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                    {section.title}
+                    {uiText(section.title)}
                   </h2>
                   <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                    {section.body}
+                    {section.title === "Cookies / Analytics" ? <>{analytics("policyBody")}<br /><br />{analytics("cookiesBody")}<br /><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">{analytics("googlePolicy")}</a></> : section.title === "Third-Party Services" ? analytics("providersBody") : section.title === "Booking System" ? analytics("bookingSystemBody") : uiText(section.body)}
                   </p>
                 </section>
               ))}
 
               <div className="space-y-2 border-t border-border pt-6">
                 <p className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                  Last Updated
-                </p>
+                  {ui("m66f3e18075fb")}</p>
                 <p className="font-primary text-base leading-7 text-foreground-secondary">
-                  August 20, 2026
-                </p>
+                  {ui("m47094590495a")}</p>
               </div>
             </div>
           </div>

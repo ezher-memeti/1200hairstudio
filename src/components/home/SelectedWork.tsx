@@ -1,15 +1,19 @@
+
+import { getTranslations } from "next-intl/server";
 import SelectedWorkClient from "@/components/home/SelectedWorkClient";
+import SelectedWorkBackground from "@/components/home/SelectedWorkBackground";
 import { getActiveSelectedWork } from "@/lib/public/selected-work";
 import type { WorkItem } from "@/components/home/CircularGallery";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
 
 export default async function SelectedWork({ content }: { content: HomepageContent }) {
+  const ui = await getTranslations("ui");
+
   const selectedWork = await getActiveSelectedWork();
 
-  const works: WorkItem[] = selectedWork.map((item, index) => ({
+  const works: WorkItem[] = selectedWork.map((item) => ({
     id: item.id,
-    title: item.title?.trim() || `Work ${String(index + 1).padStart(2, "0")}`,
-    subtitle: item.description?.trim() || "Selected Work",
+    title: item.title?.trim() || null,
     meta: undefined,
     image: item.image_url.trim(),
   }));
@@ -18,12 +22,7 @@ export default async function SelectedWork({ content }: { content: HomepageConte
 
   return (
     <section id="work" className="relative overflow-hidden bg-background">
-      <div
-        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat opacity-55"
-        style={{
-          backgroundImage: "url('/images/background-work.PNG')",
-        }}
-      />
+      <SelectedWorkBackground />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(8,8,8,0.78)_0%,rgba(8,8,8,0.68)_42%,rgba(8,8,8,0.82)_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(8,8,8,0.22)_0%,rgba(8,8,8,0.5)_58%,rgba(8,8,8,0.74)_100%)]" />
 
@@ -35,9 +34,6 @@ export default async function SelectedWork({ content }: { content: HomepageConte
           <h2 className="whitespace-pre-line font-display max-w-lg text-[clamp(2.2rem,6vw,4.5rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
             {content.work_title}
           </h2>
-          <p className="font-primary max-w-md text-sm leading-7 text-foreground-secondary sm:text-base">
-            {content.work_description}
-          </p>
         </div>
 
         {hasWorks ? (
@@ -45,8 +41,7 @@ export default async function SelectedWork({ content }: { content: HomepageConte
         ) : (
           <div className="pt-8 sm:pt-10">
             <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-              Selected work is unavailable right now.
-            </p>
+              {ui("mff6afc7c1e8c")}</p>
           </div>
         )}
       </div>

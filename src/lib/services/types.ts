@@ -1,7 +1,9 @@
 export type ServiceRecord = {
+  name_de?: string | null;
+
   id: string;
   name: string;
-  description: string | null;
+  source_name?: string;
   price: number;
   duration_min: number;
   duration_max: number | null;

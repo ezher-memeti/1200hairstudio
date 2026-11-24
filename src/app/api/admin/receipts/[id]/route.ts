@@ -4,9 +4,10 @@ import { generateReceiptPdf, getAdminReceipt } from "@/lib/receipts/server";
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const money = (value: number) => `CHF ${value.toFixed(2)}`;
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { supabase } = await requireAdminUser();
-  const receipt = await getAdminReceipt(supabase, params.id);
+  const receipt = await getAdminReceipt(supabase, id);
   if (!receipt) return new Response("Receipt not found.", { status: 404 });
   const url = new URL(request.url);
   const format = url.searchParams.get("format") ?? "view";

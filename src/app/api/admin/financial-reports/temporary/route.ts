@@ -1,3 +1,6 @@
+import { safeLogDetails } from "@/lib/logging";
+import { requestLocale } from "@/i18n/http";
+import { textFor } from "@/i18n/text";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { calculateFinancialReport, generateFinancialReportCsv, generateFinancialReportPdf, reportUtcBounds, validateFinancialReportInput } from "@/lib/finance/reports";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
@@ -6,6 +9,8 @@ import type { FinancialReportRecord } from "@/lib/finance/report-types";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const locale = requestLocale(request);
+  const t = (value: string) => textFor(locale, value.split(" / ")[0]);
   try {
     const { supabase, user } = await requireAdminUser();
     const params = new URL(request.url).searchParams;
@@ -33,11 +38,11 @@ export async function GET(request: Request) {
     };
     const format = params.get("format");
     const filename = `1200-financial-summary-${input.startDate}-to-${input.endDate}`;
-    if (format === "pdf") return new Response(Buffer.from(await generateFinancialReportPdf(report)), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"`, "Cache-Control": "private, no-store" } });
-    if (format === "csv") return new Response(generateFinancialReportCsv(report), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${filename}.csv"`, "Cache-Control": "private, no-store" } });
+    if (format === "pdf") return new Response(Buffer.from(await generateFinancialReportPdf(report, locale)), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"`, "Cache-Control": "private, no-store" } });
+    if (format === "csv") return new Response(generateFinancialReportCsv(report, locale), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${filename}.csv"`, "Cache-Control": "private, no-store" } });
     return new Response("Choose PDF or CSV format.", { status: 400 });
   } catch (error) {
-    console.error("TEMPORARY FINANCIAL REPORT EXPORT ERROR", error);
-    return new Response(error instanceof Error ? error.message : "The temporary report could not be generated.", { status: 400 });
+    console.error("TEMPORARY FINANCIAL REPORT EXPORT ERROR", safeLogDetails(error));
+    return new Response("The temporary report could not be generated.", { status: 400 });
   }
 }

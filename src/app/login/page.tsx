@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect } from "@/i18n/server";
 import PublicLoginForm from "@/components/auth/PublicLoginForm";
 import Footer from "@/components/layout/Footer";
 import Header from "@/components/layout/Header";
@@ -7,14 +7,15 @@ import { getCurrentUserRole } from "@/lib/auth/customer";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: {
+  searchParams?: Promise<{
     reset?: string;
-  };
+  }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const { user, role } = await getCurrentUserRole();
 
   if (user) {
-    redirect(role === "admin" ? "/admin" : "/account");
+    return await redirect(role === "admin" ? "/admin" : "/account");
   }
 
   return (
@@ -24,7 +25,7 @@ export default async function LoginPage({
         <section className="page-container flex min-h-[calc(100vh-9rem)] items-center py-12 sm:py-16">
           <PublicLoginForm
             initialMessage={
-              searchParams?.reset === "success"
+              resolvedSearchParams?.reset === "success"
                 ? "Your password has been updated. Please sign in."
                 : ""
             }

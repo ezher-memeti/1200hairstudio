@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import type { CustomerRecord } from "@/lib/customers/types";
@@ -18,28 +19,21 @@ export async function recordMarketingEmailConsent(
   customerId: string,
   source: string,
 ) {
-  const { data, error } = await supabase
-    .from("customers")
-    .update({
-      marketing_email_consent: true,
-      marketing_email_consented_at: new Date().toISOString(),
-      marketing_email_consent_source: source,
-      marketing_email_unsubscribed_at: null,
-    })
-    .eq("id", customerId)
-    .select("*")
-    .single();
+  const { data, error } = await supabase.rpc("set_my_marketing_email_preference", {
+    p_subscribed: true,
+    p_source: source,
+  });
 
-  if (error || !data) {
-    console.error("MARKETING CONSENT UPDATE ERROR", {
-      code: error?.code,
-      message: error?.message,
-      customerId,
-    });
+  const preference = Array.isArray(data) ? data[0] : data;
+  const { data: customerData, error: customerError } = await supabase.rpc("get_my_customer");
+  const customer = Array.isArray(customerData) ? customerData[0] : customerData;
+
+  if (error || !preference || customerError || !customer || customer.id !== customerId) {
+    console.error("MARKETING CONSENT UPDATE ERROR", safeLogDetails({ code: error?.code }));
     throw new Error("Unable to save email preferences right now.");
   }
 
-  return data as CustomerRecord;
+  return customer as CustomerRecord;
 }
 
 export function normalizeCustomerEmail(email: string) {
@@ -93,11 +87,7 @@ async function updateExistingCustomer(
     .single();
 
   if (error || !data) {
-    console.error("CUSTOMER UPDATE ERROR", {
-      code: error?.code,
-      message: error?.message,
-      customerId: customer.id,
-    });
+    console.error("CUSTOMER UPDATE ERROR", safeLogDetails({ code: error?.code }));
     throw new Error("Unable to update customer details right now.");
   }
 
@@ -122,10 +112,7 @@ export async function resolveCustomerByEmail(
     .maybeSingle();
 
   if (lookupError) {
-    console.error("CUSTOMER LOOKUP ERROR", {
-      code: lookupError.code,
-      message: lookupError.message,
-    });
+    console.error("CUSTOMER LOOKUP ERROR", safeLogDetails({ code: lookupError.code }));
     throw new Error("Unable to prepare customer details right now.");
   }
 
@@ -169,9 +156,6 @@ export async function resolveCustomerByEmail(
     }
   }
 
-  console.error("CUSTOMER INSERT ERROR", {
-    code: insertError?.code,
-    message: insertError?.message,
-  });
+  console.error("CUSTOMER INSERT ERROR", safeLogDetails({ code: insertError?.code }));
   throw new Error("Unable to prepare customer details right now.");
 }

@@ -8,7 +8,7 @@ import { DEFAULT_MARKETING_FILTERS, type MarketingCampaign, type MarketingCampai
 export async function getMarketingDashboardData() {
   const { supabase } = await requireAdminUser();
   const [templatesResult, campaignsResult, recipientsResult, customers] = await Promise.all([
-    supabase.from("marketing_templates").select("id,name,description,default_subject,default_preheader,default_headline,default_content,default_cta_text,default_cta_url,is_active").order("created_at"),
+    supabase.from("marketing_templates").select("id,name,description,default_subject,default_preheader,default_headline,default_content,default_cta_text,default_cta_url,name_de,description_de,default_subject_de,default_preheader_de,default_headline_de,default_content_de,default_cta_text_de,is_active").order("created_at"),
     supabase.from("marketing_campaigns").select("id,name,template_id,status,subject,preheader,headline,content,cta_text,cta_url,audience_filters,recipient_count,sent_at,created_at,updated_at").order("created_at", { ascending: false }),
     supabase.from("marketing_campaign_recipients").select("status"),
     getAdminCustomerDirectory(),

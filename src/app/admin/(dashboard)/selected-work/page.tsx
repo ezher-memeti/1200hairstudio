@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from "@/i18n/server";
 
-export default function AdminSelectedWorkPage() {
-  redirect("/admin/site-settings/selected-work");
+export default async function AdminSelectedWorkPage() {
+  return await redirect("/admin/site-settings/selected-work");
 }

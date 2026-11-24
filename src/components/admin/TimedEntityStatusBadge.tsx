@@ -1,3 +1,8 @@
+import { intlLocale } from "@/i18n/config";
+import { textFor } from "@/i18n/text";
+import { useLocale } from "next-intl";
+
+import { useTranslations } from "next-intl";
 import { getTimedEntityStatus, isTimedEntityExpired } from "@/lib/timed-entity-status";
 
 type Props = {
@@ -8,8 +13,8 @@ type Props = {
   };
 };
 
-function formatExpiry(value: string) {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatExpiry(value: string, locale: string) {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: "Europe/Zurich",
     day: "2-digit",
     month: "short",
@@ -21,6 +26,11 @@ function formatExpiry(value: string) {
 }
 
 export default function TimedEntityStatusBadge({ entity }: Props) {
+  const uiLocale = useLocale();
+  const uiText = <T,>(value: T): T => typeof value === "string" ? textFor(uiLocale, value) as T : value;
+
+  const ui = useTranslations("ui");
+
   const status = getTimedEntityStatus(entity);
   const expired = isTimedEntityExpired(entity);
   const classes = status === "active"
@@ -29,5 +39,5 @@ export default function TimedEntityStatusBadge({ entity }: Props) {
       ? "border-accent/35 text-accent"
       : "border-border text-foreground-muted";
 
-  return <div className="shrink-0 text-right"><span className={`inline-flex border px-2 py-1 text-[9px] uppercase tracking-[.14em] ${classes}`}>{status}</span>{expired && entity.expires_at ? <p className="mt-1 max-w-40 text-[9px] leading-4 text-foreground-muted">Expired {formatExpiry(entity.expires_at)}</p> : null}</div>;
+  return <div className="shrink-0 text-right"><span className={`inline-flex border px-2 py-1 text-[9px] uppercase tracking-[.14em] ${classes}`}>{uiText(status)}</span>{expired && entity.expires_at ? <p className="mt-1 max-w-40 text-[9px] leading-4 text-foreground-muted">{ui("ma689a999a5e6")}{" "}{formatExpiry(entity.expires_at, uiLocale)}</p> : null}</div>;
 }

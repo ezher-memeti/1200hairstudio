@@ -1,4 +1,10 @@
 "use client";
+import { Link as LocaleLink } from "@/i18n/navigation";
+
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useLocale, useTranslations } from "next-intl";
+
 
 import { useEffect, useState } from "react";
 import {
@@ -13,6 +19,12 @@ import { createClient } from "@/lib/supabase/client";
 const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function PublicForgotPasswordForm() {
+  const uiText = useUiText();
+
+  const locale = useLocale();
+  const ui = useTranslations("ui");
+  const audit = useTranslations("audit");
+
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -58,7 +70,7 @@ export default function PublicForgotPasswordForm() {
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        redirectTo: getResetPasswordRedirectUrl(),
+        redirectTo: getResetPasswordRedirectUrl(locale),
       },
     );
 
@@ -80,17 +92,14 @@ export default function PublicForgotPasswordForm() {
     >
       <div className="space-y-2">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Password Reset
-        </p>
+          {ui("m79167df1dd0b")}</p>
         <h1 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-          Forgot Password
-        </h1>
+          {ui("mf99d98e85f90")}</h1>
       </div>
 
       <label className="block space-y-3">
         <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-          Email
-        </span>
+          {ui("m84add5b29527")}</span>
         <input
           type="email"
           value={email}
@@ -103,10 +112,10 @@ export default function PublicForgotPasswordForm() {
 
       {message ? (
         <p className="font-primary text-sm text-foreground-secondary">
-          {message}
+          {uiText(message)}
         </p>
       ) : null}
-      {error ? <p className="font-primary text-sm text-error">{error}</p> : null}
+      {error ? <p className="font-primary text-sm text-error">{uiText(error)}</p> : null}
 
       <div className="flex flex-col gap-4">
         <button
@@ -114,19 +123,18 @@ export default function PublicForgotPasswordForm() {
           disabled={isSubmitting || secondsRemaining > 0}
           className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
         >
-          {isSubmitting
+          {uiText(isSubmitting
             ? "Sending..."
             : secondsRemaining > 0
-              ? `Try Again In ${secondsRemaining}s`
-              : "Send Reset Link"}
+              ? audit("retrySeconds", { seconds: secondsRemaining })
+              : "Send Reset Link")}
         </button>
 
-        <a
+        <LocaleLink
           href="/login"
           className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground"
         >
-          Back to login →
-        </a>
+          {ui("mea292a673db6")}</LocaleLink>
       </div>
     </form>
   );

@@ -13,6 +13,28 @@ import { normalizeFinancialReportRecord } from "@/lib/finance/reports";
 
 const numberValue = (value: number | string | null | undefined) => Number(value ?? 0);
 
+export async function getAdminReceipts() {
+  const { supabase } = await requireAdminUser();
+  const { data, error } = await supabase.from("receipts").select("*").order("issued_at", { ascending: false });
+  if (error) throw new Error(`Unable to load receipts: ${error.message}`);
+  return ((data ?? []) as ReceiptRecord[]).map((receipt) => ({
+    ...receipt,
+    receipt_number: Number(receipt.receipt_number),
+    subtotal: numberValue(receipt.subtotal),
+    discount_amount: numberValue(receipt.discount_amount),
+    total: numberValue(receipt.total),
+    amount_paid: numberValue(receipt.amount_paid),
+    balance: numberValue(receipt.balance),
+  }));
+}
+
+export async function getAdminFinancialReports() {
+  const { supabase } = await requireAdminUser();
+  const { data, error } = await supabase.from("financial_reports").select("*").order("generated_at", { ascending: false });
+  if (error) throw new Error(`Unable to load financial reports: ${error.message}`);
+  return ((data ?? []) as FinancialReportRecord[]).map(normalizeFinancialReportRecord);
+}
+
 export async function getAdminFinanceData() {
   const { supabase } = await requireAdminUser();
   const [{ data: summaries, error: summaryError }, { data: payments, error: paymentError }, { data: promotions, error: promotionError }, { data: receipts, error: receiptError }, { data: reports, error: reportError }] =

@@ -1,0 +1,45 @@
+import { createTranslator } from "next-intl";
+import de from "../../messages/de.json";
+import en from "../../messages/en.json";
+import type { Locale } from "./config";
+// Build each dictionary once; spreading the full German dictionary inside every
+// entry previously made homepage bundle initialization quadratic.
+const germanLabels: Record<string, string> = { ...de.ui, ...de.labels };
+const pairs = new Map(Object.entries({ ...en.ui, ...en.labels }).map(([key, source]) => [source, germanLabels[key]]));
+const foldedPairs = new Map([...pairs].map(([source, translated]) => [source.toLowerCase(), translated]));
+export function textFor(locale: string, value: string): string {
+  if (locale !== "de") return value;
+  const known = pairs.get(value);
+  if (known) return known;
+  const uppercase = value === value.toUpperCase();
+  const folded = foldedPairs.get(value.toLowerCase());
+  if (folded) return uppercase ? folded.toLocaleUpperCase("de-CH") : folded;
+  const feedback = createTranslator({ locale: "de", messages: de.feedback });
+  const settingsSaved = /^(.+) settings saved\.$/.exec(value);
+  if (settingsSaved) return feedback("settingsSaved", { section: textFor(locale, settingsSaved[1]) });
+  const contentSaved = /^(.+) content saved\.$/.exec(value);
+  if (contentSaved) return feedback("contentSaved", { section: textFor(locale, contentSaved[1]) });
+  const testSent = /^Test email sent to (.+)\.$/.exec(value);
+  if (testSent) return feedback("testEmailSent", { email: testSent[1] });
+  const campaign = /^Campaign complete: (\d+) sent, (\d+) failed, (\d+) skipped\.$/.exec(value);
+  if (campaign) return feedback("campaignComplete", { sent: campaign[1], failed: campaign[2], skipped: campaign[3] });
+  const urlError = /^(.+) must be a valid HTTP\(S\) URL\.$/.exec(value);
+  if (urlError) return feedback("urlError", { label: textFor(locale, urlError[1]) });
+  const validation = createTranslator({ locale: "de", messages: de.validation });
+  const openToday = /^OPEN TODAY · UNTIL (.+)$/.exec(value);
+  if (openToday) return validation("openToday", { time: openToday[1] });
+  const opensTomorrow = /^OPENS TOMORROW · (.+)$/.exec(value);
+  if (opensTomorrow) return validation("opensTomorrow", { time: opensTomorrow[1] });
+  const openUntil = /^OPEN · UNTIL (.+)$/.exec(value);
+  if (openUntil) return validation("openUntil", { time: openUntil[1] });
+  const notice = /^Bookings require at least ([0-9.]+) hours notice\.$/.exec(value);
+  if (notice) return validation("minimumNotice", { hours: Number(notice[1]) });
+  const horizon = /^Bookings are available up to ([0-9.]+) days in advance\.$/.exec(value);
+  if (horizon) return validation("maximumHorizon", { days: Number(horizon[1]) });
+  const percentage = /^([0-9.]+)% OFF$/i.exec(value);
+  if (percentage) return `${percentage[1]}% RABATT`;
+  const fixed = /^CHF ([0-9.]+) OFF$/i.exec(value);
+  if (fixed) return `CHF ${fixed[1]} RABATT`;
+  return value;
+}
+export function textTranslator(locale: Locale) { return (value: string) => textFor(locale, value); }

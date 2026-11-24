@@ -4,6 +4,10 @@ export type AnnouncementDisplayType = (typeof ANNOUNCEMENT_DISPLAY_TYPES)[number
 export type AnnouncementRenderMode = "public" | "preview";
 
 export type Announcement = {
+  title_de?: string | null;
+  message_de?: string | null;
+  cta_text_de?: string | null;
+
   id: string;
   title: string | null;
   message: string;
@@ -20,6 +24,7 @@ export type Announcement = {
 };
 
 export type AnnouncementInput = {
+  german?: Record<string, string>;
   title: string;
   message: string;
   displayType: AnnouncementDisplayType;

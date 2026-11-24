@@ -1,7 +1,12 @@
 "use client";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 import AnnouncementLink from "@/components/announcements/AnnouncementLink";
 import { useAnnouncementDismissal } from "@/components/announcements/useAnnouncementDismissal";
 import type { Announcement, AnnouncementRenderMode } from "@/lib/announcements/types";
@@ -9,6 +14,10 @@ import type { Announcement, AnnouncementRenderMode } from "@/lib/announcements/t
 const TRANSITION_MS = 220;
 
 export default function AnnouncementModal({ announcement, mode = "public", onClose }: { announcement: Announcement | null; mode?: AnnouncementRenderMode; onClose?: () => void }) {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const { visible, dismiss } = useAnnouncementDismissal(
     announcement?.id ?? "",
     announcement?.is_dismissible ?? false,
@@ -62,7 +71,7 @@ export default function AnnouncementModal({ announcement, mode = "public", onClo
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={messageId}
-      aria-label={titleId ? undefined : "Announcement"}
+      aria-label={uiText(titleId ? undefined : "Announcement")}
       onKeyDown={(event) => {
         if (mode === "preview" && event.key === "Escape") {
           event.stopPropagation();
@@ -83,7 +92,7 @@ export default function AnnouncementModal({ announcement, mode = "public", onClo
             ref={closeButtonRef}
             type="button"
             onClick={() => closeModal()}
-            aria-label="Dismiss announcement"
+            aria-label={ui("m9c53340bed2e")}
             className="absolute right-3 top-3 inline-flex size-10 items-center justify-center text-foreground-muted transition-colors hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent sm:right-5 sm:top-5"
           >
             <X size={17} strokeWidth={1.5} />
@@ -92,8 +101,7 @@ export default function AnnouncementModal({ announcement, mode = "public", onClo
 
         <div className="px-6 py-8 sm:px-10 sm:py-10 md:px-12 md:py-12">
           <p className="pr-10 font-primary text-[10px] font-medium uppercase tracking-[0.32em] text-accent">
-            Announcement
-          </p>
+            {ui("mcf84a98d6cf7")}</p>
           <div className="mt-5 h-px w-10 bg-accent/55" />
 
           {announcement.title ? (
@@ -124,9 +132,8 @@ export default function AnnouncementModal({ announcement, mode = "public", onClo
           ) : null}
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/[0.07] px-6 py-4 sm:px-10 md:px-12">
-          <span className="font-display text-xs font-semibold uppercase tracking-[0.28em] text-foreground-muted">1200</span>
-          <span className="font-primary text-[8px] uppercase tracking-[0.28em] text-foreground-muted/70">Hairstudio</span>
+        <div className="flex items-center border-t border-white/[0.07] px-6 py-4 sm:px-10 md:px-12">
+          <BrandLogo className="h-4 w-24 opacity-60" />
         </div>
       </article>
     </div>

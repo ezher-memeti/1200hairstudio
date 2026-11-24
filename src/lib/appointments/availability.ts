@@ -1,3 +1,4 @@
+import { intlLocale } from "@/i18n/config";
 import type { AppointmentRecord, AppointmentStatus } from "@/lib/appointments/types";
 
 const ZURICH_TIME_ZONE = "Europe/Zurich";
@@ -85,8 +86,8 @@ export function getUtcIsoForZurichDateTime(dateKey: string, time: string) {
   return getUtcDateForZurichDateTime(dateKey, time).toISOString();
 }
 
-export function formatZurichDate(isoString: string) {
-  return new Intl.DateTimeFormat("en-GB", {
+export function formatZurichDate(isoString: string, locale: string = "en") {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: ZURICH_TIME_ZONE,
     weekday: "long",
     day: "2-digit",

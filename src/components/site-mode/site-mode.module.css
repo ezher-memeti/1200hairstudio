@@ -1,0 +1,45 @@
+.frame{position:relative;isolation:isolate;display:grid;grid-template-rows:auto 1fr auto;min-height:100svh;overflow:hidden;background:var(--background);color:var(--foreground);padding:clamp(20px,4vw,64px) clamp(24px,5.5vw,110px)}
+.header{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:44px}
+.localeSwitch button{min-height:44px;min-width:44px;cursor:pointer;font-size:11px}
+.frame a:focus-visible,.frame button:focus-visible{outline:1px solid var(--accent-hover);outline-offset:4px}
+.eyebrow{display:flex;align-items:center;gap:18px;font:400 10px/1.5 var(--font-primary);letter-spacing:.25em;text-transform:uppercase;color:var(--accent-hover)}
+.goldRule{display:block;width:38px;height:1px;background:var(--accent);flex-shrink:0}
+.motto{font:400 10px/1.7 var(--font-primary);letter-spacing:.24em;color:var(--foreground);text-transform:uppercase}
+.description{font:400 clamp(14px,1.1vw,16px)/1.9 var(--font-primary);color:var(--foreground-secondary);text-wrap:pretty}
+.contacts{display:flex;flex-wrap:wrap;gap:8px 30px;margin-top:24px}
+.contacts a,.appointmentNote a{display:inline-flex;align-items:center;gap:16px;min-height:44px;font:400 10px/1.6 var(--font-primary);letter-spacing:.14em;text-transform:uppercase;color:var(--foreground);text-decoration:none;white-space:nowrap;transition:color .2s}
+.contacts a:hover,.appointmentNote a:hover{color:var(--accent-hover)}
+.arrow{display:block;width:16px;height:16px;flex:0 0 16px;color:var(--accent-hover)}
+.footer{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 24px;padding-top:24px;border-top:1px solid var(--border);font:400 9px/1.8 var(--font-primary);letter-spacing:.12em;text-transform:uppercase;color:var(--foreground-secondary)}
+.footerNote{text-transform:none;letter-spacing:.02em}
+.photograph{position:absolute;z-index:-1;right:5.5%;top:17%;bottom:17%;width:43%;overflow:hidden;background:var(--background-secondary)}
+.photo{object-fit:cover;object-position:62% 50%;opacity:.72}
+.comingMain{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:64px 0 60px;min-width:0}
+.comingTitle{display:flex;flex-direction:column;margin:34px 0 40px;max-width:100%;font:500 clamp(68px,12.7vw,200px)/.79 var(--font-display);letter-spacing:-.055em}
+.comingTitle em{font-weight:400;color:var(--accent-hover);padding-bottom:.07em}
+.comingCopy{max-width:350px}
+.comingCopy .description{margin-top:14px;max-width:32ch}
+.imageCaption{position:absolute;right:5.5%;bottom:calc(17% - 27px);font:400 8px/1.5 var(--font-primary);color:var(--foreground-secondary);text-transform:uppercase;letter-spacing:.18em}
+.maintenance{background:var(--background-secondary)}
+.maintenance .header{padding-bottom:28px;border-bottom:1px solid var(--border)}
+.architecture{position:absolute;z-index:-1;inset:0;overflow:hidden;pointer-events:none}
+.architecture:before{content:"";position:absolute;top:0;bottom:0;left:61%;width:1px;background:var(--border);opacity:.55}
+.architecture:after{content:"";position:absolute;left:0;right:0;top:36%;height:1px;background:var(--border);opacity:.4}
+.architecture span:first-child{position:absolute;width:65vw;height:65vw;right:-29vw;bottom:-39vw;border:1px solid var(--accent);border-radius:50%;opacity:.2}
+.architecture span:last-child{position:absolute;width:49vw;height:49vw;right:-21vw;bottom:-31vw;border:1px solid var(--accent);border-radius:50%;opacity:.15}
+.maintenanceMain{position:relative;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);align-items:center;gap:clamp(40px,9vw,160px);padding:80px 0}
+.maintenanceTitle{max-width:10ch;margin:36px 0 40px;font:500 clamp(60px,8.1vw,130px)/.95 var(--font-display);letter-spacing:-.04em;text-wrap:balance}
+.maintenanceCopy{max-width:360px;padding-top:72px}
+.maintenanceCopy>.goldRule{margin-bottom:28px;width:64px}
+.reassurance{margin-top:18px;font:400 13px/1.9 var(--font-primary);color:var(--foreground-secondary)}
+.appointmentNote{margin-top:32px;border-top:1px solid var(--border);padding-top:22px}
+.appointmentNote p{font:400 11px/1.9 var(--font-primary);color:var(--foreground-secondary)}
+.reveal{animation:mode-reveal 1s cubic-bezier(.2,.65,.3,1) both}
+@keyframes mode-reveal{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:1600px){.comingCopy{margin-left:4px}.comingTitle{margin-top:42px;margin-bottom:46px}}
+@media(max-width:1023px){.photograph{right:0;top:0;bottom:0;width:54%;opacity:.34}.photo{object-position:65% center}.comingCopy{max-width:36ch}.imageCaption{display:none}.maintenanceMain{gap:40px}.maintenanceCopy{padding-top:44px}.maintenanceTitle{font-size:clamp(60px,9vw,100px)}}
+@media(max-width:767px){.frame{padding:22px 24px}.header{gap:16px}.photograph{width:100%;opacity:.2}.comingMain{padding:70px 0 54px}.comingTitle{font-size:clamp(68px,17vw,120px);margin:32px 0 38px}.comingCopy{max-width:34ch}.comingCopy .description{max-width:32ch}.footer{font-size:8px;padding-top:18px;gap:6px 20px}.footerNote{flex-basis:100%}.maintenanceMain{display:flex;flex-direction:column;align-items:stretch;gap:36px;padding:58px 0 40px}.maintenance .header{padding-bottom:20px}.maintenanceTitle{font-size:clamp(58px,13.5vw,90px);max-width:11ch;margin:26px 0}.maintenanceCopy{padding-top:0;max-width:36ch}.maintenanceCopy>.goldRule{margin-bottom:22px}.architecture:before{left:auto;right:24px;opacity:.35}.architecture:after{top:46%;opacity:.2}.architecture span:first-child{height:150vw;width:150vw;right:-90vw;bottom:-90vw}.architecture span:last-child{height:120vw;width:120vw;right:-75vw;bottom:-75vw}.eyebrow{font-size:9px;letter-spacing:.2em}.motto{font-size:9px;letter-spacing:.19em}}
+@media(prefers-reduced-motion:reduce){.reveal{animation:none}.contacts a,.appointmentNote a{transition:none}}
+
+.developerCredit{justify-content:flex-end}
+@media(max-width:767px){.developerCredit{justify-content:flex-start}}

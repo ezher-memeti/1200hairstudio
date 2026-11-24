@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect } from "@/i18n/server";
 import { DM_Sans, Manrope } from "next/font/google";
 import LoginForm from "@/components/admin/LoginForm";
 import Footer from "@/components/layout/Footer";
@@ -21,7 +21,7 @@ export default async function AdminLoginPage() {
   const { user, role } = await getCurrentUserRole();
 
   if (user) {
-    redirect(role === "admin" ? "/admin" : "/account");
+    return await redirect(role === "admin" ? "/admin" : "/account");
   }
 
   return (

@@ -17,8 +17,8 @@ export async function saveLoyaltySettings(input: LoyaltySettings): Promise<Setti
 
     if (!Number.isInteger(visitsRequired) || visitsRequired < 1) return { success: false, message: "Visits required must be a whole number of at least 1." };
     if (!LOYALTY_REWARD_TYPES.includes(input.rewardType)) return { success: false, message: "Select a supported reward type." };
-    if (input.rewardType === "fixed_discount" && (!Number.isFinite(rewardValue) || rewardValue === null || rewardValue < 0)) return { success: false, message: "Fixed discount must be CHF 0 or more." };
-    if (input.rewardType === "percentage" && (!Number.isFinite(rewardValue) || rewardValue === null || rewardValue < 0 || rewardValue > 100)) return { success: false, message: "Percentage reward must be between 0 and 100." };
+    if (input.rewardType === "fixed_discount" && (!Number.isFinite(rewardValue) || rewardValue === null || rewardValue <= 0)) return { success: false, message: "Fixed discount must be greater than CHF 0." };
+    if (input.rewardType === "percentage" && (!Number.isFinite(rewardValue) || rewardValue === null || rewardValue <= 0 || rewardValue > 100)) return { success: false, message: "Percentage reward must be greater than 0 and no more than 100." };
     if (rewardExpiryDays !== null && (!Number.isInteger(rewardExpiryDays) || rewardExpiryDays < 1)) return { success: false, message: "Reward expiry must be at least 1 day." };
 
     await persistLoyaltySettings({

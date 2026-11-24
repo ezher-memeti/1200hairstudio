@@ -1,7 +1,13 @@
 "use client";
+import { Link as LocaleLink } from "@/i18n/navigation";
+
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import {
   AUTH_RATE_LIMIT_RESPONSE,
   isRateLimitError,
@@ -10,6 +16,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 export default function PublicResetPasswordForm() {
+  const uiText = useUiText();
+
+  const ui = useTranslations("ui");
+
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -106,11 +116,9 @@ export default function PublicResetPasswordForm() {
     return (
       <div className="w-full max-w-md space-y-4 border border-border bg-surface px-5 py-6 sm:px-7 sm:py-8">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Password Reset
-        </p>
+          {ui("m79167df1dd0b")}</p>
         <p className="font-primary text-sm text-foreground-secondary">
-          Verifying your reset link...
-        </p>
+          {ui("m9139acbe09ab")}</p>
       </div>
     );
   }
@@ -120,21 +128,17 @@ export default function PublicResetPasswordForm() {
       <div className="w-full max-w-md space-y-6 border border-border bg-surface px-5 py-6 sm:px-7 sm:py-8">
         <div className="space-y-2">
           <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-            Password Reset
-          </p>
+            {ui("m79167df1dd0b")}</p>
           <h1 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-            Invalid Or Expired Link
-          </h1>
+            {ui("m5a40d0546d2d")}</h1>
         </div>
         <p className="font-primary text-sm leading-7 text-foreground-secondary">
-          This password reset link is no longer valid. Request a new reset email to continue.
-        </p>
-        <a
+          {ui("m7d1e596bfc26")}</p>
+        <LocaleLink
           href="/forgot-password"
           className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
         >
-          Request New Link
-        </a>
+          {ui("m7e33bf6bb1fb")}</LocaleLink>
       </div>
     );
   }
@@ -146,18 +150,15 @@ export default function PublicResetPasswordForm() {
     >
       <div className="space-y-2">
         <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-          Password Reset
-        </p>
+          {ui("m79167df1dd0b")}</p>
         <h1 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold uppercase leading-[0.95] tracking-[-0.04em] text-foreground">
-          Set New Password
-        </h1>
+          {ui("m208bb0d762ab")}</h1>
       </div>
 
       <div className="space-y-5">
         <label className="block space-y-3">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            New Password
-          </span>
+            {ui("m4894cb39ee41")}</span>
           <input
             type="password"
             value={password}
@@ -170,8 +171,7 @@ export default function PublicResetPasswordForm() {
 
         <label className="block space-y-3">
           <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-            Confirm New Password
-          </span>
+            {ui("m68dcd71ce6ba")}</span>
           <input
             type="password"
             value={confirmPassword}
@@ -184,17 +184,16 @@ export default function PublicResetPasswordForm() {
       </div>
 
       <p className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-        Use at least 8 characters.
-      </p>
+        {ui("md76968a1ecc0")}</p>
 
-      {error ? <p className="font-primary text-sm text-error">{error}</p> : null}
+      {error ? <p className="font-primary text-sm text-error">{uiText(error)}</p> : null}
 
       <button
         type="submit"
         disabled={status === "submitting"}
         className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
       >
-        {status === "submitting" ? "Updating..." : "Update Password"}
+        {uiText(status === "submitting" ? "Updating..." : "Update Password")}
       </button>
     </form>
   );

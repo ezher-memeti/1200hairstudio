@@ -1,9 +1,13 @@
+import { safeLogDetails } from "@/lib/logging";
+import { getLocale } from "next-intl/server";
+import { localizeRow } from "@/i18n/content";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import type { Announcement, AnnouncementDisplayType } from "@/lib/announcements/types";
 
 export const getActiveAnnouncements = cache(async (): Promise<Announcement[]> => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("announcements")
@@ -15,10 +19,11 @@ export const getActiveAnnouncements = cache(async (): Promise<Announcement[]> =>
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Unable to load public announcements", error);
+    console.error("Unable to load public announcements", safeLogDetails(error));
     return [];
   }
-  return (data ?? []) as Announcement[];
+  const locale = await getLocale();
+  return (data ?? []).map(row => localizeRow(row, ["title", "message", "cta_text"], locale)) as Announcement[];
 });
 
 export function selectAnnouncement(announcements: Announcement[], displayType: AnnouncementDisplayType) {

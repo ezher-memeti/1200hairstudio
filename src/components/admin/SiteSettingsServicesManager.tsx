@@ -1,4 +1,10 @@
 "use client";
+import { ContentLanguageSwitcher, useAdminContentLocale } from "./content/AdminContentLocale";
+import { draftText, draftChange, type ContentDraft } from "@/i18n/content-editing";
+import { useUiText } from "@/i18n/use-ui-text";
+
+import { useTranslations } from "next-intl";
+
 
 import {
   useEffect,
@@ -7,7 +13,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import {
   acceptedServiceImageTypes,
   serviceImageClass,
@@ -28,10 +34,9 @@ type SiteSettingsServicesManagerProps = {
   loadError?: string | null;
 };
 
-type FormState = {
+type FormState = ContentDraft & {
   id?: string;
   name: string;
-  description: string;
   price: string;
   durationMin: string;
   durationMax: string;
@@ -42,7 +47,6 @@ type FormState = {
 
 const blankForm: FormState = {
   name: "",
-  description: "",
   price: "",
   durationMin: "",
   durationMax: "",
@@ -54,8 +58,8 @@ const blankForm: FormState = {
 function toFormState(service: ServiceRecord): FormState {
   return {
     id: service.id,
+    german: { name: service.name_de ?? "" },
     name: service.name,
-    description: service.description ?? "",
     price: String(service.price),
     durationMin: String(service.duration_min),
     durationMax: service.duration_max
@@ -71,6 +75,12 @@ export default function SiteSettingsServicesManager({
   initialServices,
   loadError,
 }: SiteSettingsServicesManagerProps) {
+  const uiText = useUiText();
+  const { locale: contentLocale } = useAdminContentLocale();
+  const copy = useTranslations("contentEditor");
+
+  const ui = useTranslations("ui");
+
   const router = useRouter();
   const [formState, setFormState] = useState<FormState | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -196,7 +206,8 @@ export default function SiteSettingsServicesManager({
         payload.set("id", formState.id);
       }
       payload.set("name", formState.name);
-      payload.set("description", formState.description);
+      payload.set("contentLocale", contentLocale);
+      payload.set("name_de", formState.german?.name ?? "");
       payload.set("price", formState.price);
       payload.set("durationMin", formState.durationMin);
       payload.set("durationMax", formState.durationMax);
@@ -210,11 +221,12 @@ export default function SiteSettingsServicesManager({
       const result = await upsertService(payload);
 
       if (result.error) {
-        setFeedback(result.error);
+        setFeedback(`${copy("failed", { language: contentLocale.toUpperCase() })} ${uiText(result.error)}`);
         return;
       }
 
-      closeForm();
+      setFormState(current => current ? { ...current, id: "id" in result ? result.id : current.id } : current);
+      setFeedback(copy("saved", { language: contentLocale.toUpperCase() }));
       router.refresh();
     });
   }
@@ -238,7 +250,7 @@ export default function SiteSettingsServicesManager({
   }
 
   function handleDelete(id: string) {
-    if (!window.confirm("Delete this service?")) {
+    if (!window.confirm(uiText("Delete this service?"))) {
       return;
     }
 
@@ -355,17 +367,17 @@ export default function SiteSettingsServicesManager({
 
     return (
       <div className="space-y-6">
+        <ContentLanguageSwitcher />
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground">
-            {mode === "edit" ? "Edit Service" : "Add Service"}
+            {uiText(mode === "edit" ? "Edit Service" : "Add Service")}
           </h2>
           <button
             type="button"
             onClick={closeForm}
             className="font-primary text-xs uppercase tracking-[0.22em] text-foreground-muted transition-colors hover:text-foreground-secondary"
           >
-            Cancel
-          </button>
+            {ui("m77dfd2135f4d")}</button>
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] xl:items-start">
@@ -378,56 +390,32 @@ export default function SiteSettingsServicesManager({
             ].map(([field, label, type]) => (
               <label key={field} className="space-y-3">
                 <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                  {label}
+                  {uiText(label)}
                 </span>
                 <input
                   type={type}
                   value={
-                    formState[
-                      field as keyof Omit<FormState, "imageFile">
-                    ] as string
+                    field === "name" ? draftText(formState, "name", formState.name, contentLocale) : formState[field as "price" | "durationMin" | "durationMax"]
                   }
                   onChange={(event) =>
                     setFormState((current) =>
                       current
                         ? {
                             ...current,
-                            [field]: event.target.value,
+                            ...(field === "name" ? draftChange("name", event.target.value, contentLocale, current) : { [field]: event.target.value }),
                           }
                         : current,
                     )
                   }
                   className="w-full border-0 border-b border-border bg-transparent pb-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
                   placeholder={
-                    field === "durationMax"
+                    uiText(field === "durationMax"
                       ? "Maximum duration (Optional)"
-                      : undefined
+                      : undefined)
                   }
                 />
               </label>
             ))}
-
-            <label className="space-y-3 sm:col-span-2">
-              <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                Description
-              </span>
-              <textarea
-                rows={4}
-                value={formState.description}
-                onChange={(event) =>
-                  setFormState((current) =>
-                    current
-                      ? {
-                          ...current,
-                          description: event.target.value,
-                        }
-                      : current,
-                  )
-                }
-                className="w-full resize-none border border-border bg-transparent px-4 py-3 font-primary text-base text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground-secondary"
-                placeholder="Description (Optional)"
-              />
-            </label>
 
             <label className="flex items-center gap-3 sm:col-span-2">
               <input
@@ -446,15 +434,13 @@ export default function SiteSettingsServicesManager({
                 className="h-4 w-4 accent-[var(--accent)]"
               />
               <span className="font-primary text-sm uppercase tracking-[0.2em] text-foreground-secondary">
-                Active / Visible
-              </span>
+                {ui("m0a96a7771088")}</span>
             </label>
           </div>
 
           <div className="space-y-3">
             <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-              Service Image
-            </span>
+              {ui("mfa3598a3e47f")}</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -469,7 +455,7 @@ export default function SiteSettingsServicesManager({
             <div
               role="button"
               tabIndex={0}
-              aria-label="Upload service image"
+              aria-label={ui("mb7d019af25ec")}
               onClick={openFilePicker}
               onKeyDown={(event) => {
                 if (
@@ -518,11 +504,9 @@ export default function SiteSettingsServicesManager({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <p className="font-primary text-sm uppercase tracking-[0.18em] text-foreground">
-                    Drop image here or click to upload
-                  </p>
+                    {ui("m823088babd91")}</p>
                   <p className="font-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
-                    JPG, JPEG, PNG, or WebP
-                  </p>
+                    {ui("mee01469716df")}</p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -534,9 +518,9 @@ export default function SiteSettingsServicesManager({
                     }}
                     className="inline-flex min-h-10 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
                   >
-                    {previewUrl
+                    {uiText(previewUrl
                       ? "Change image"
-                      : "Select image"}
+                      : "Select image")}
                   </button>
                   {formState.imageFile ? (
                     <button
@@ -547,16 +531,14 @@ export default function SiteSettingsServicesManager({
                       }}
                       className="inline-flex min-h-10 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-muted transition-colors hover:text-foreground"
                     >
-                      Clear new image
-                    </button>
+                      {ui("m8ec33438bc38")}</button>
                   ) : null}
                 </div>
               </div>
 
               <div className="space-y-3">
                 <span className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-secondary">
-                  Preview
-                </span>
+                  {ui("mf1fbb2b43dca")}</span>
                 <div className={serviceImageContainerClass}>
                   <div className={serviceImageFrameClass}>
                     {previewUrl ? (
@@ -569,8 +551,7 @@ export default function SiteSettingsServicesManager({
                     ) : (
                       <div className="flex h-full items-center justify-center px-6 text-center">
                         <p className="font-primary text-sm uppercase tracking-[0.18em] text-foreground-muted">
-                          No image selected yet
-                        </p>
+                          {ui("m6054d0365222")}</p>
                       </div>
                     )}
                     <div className={serviceImageOverlayClass} />
@@ -579,8 +560,7 @@ export default function SiteSettingsServicesManager({
                 {formState.currentImageUrl &&
                 !formState.imageFile ? (
                   <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    Current website image preview
-                  </p>
+                    {ui("mb1c0219045db")}</p>
                 ) : null}
               </div>
             </div>
@@ -593,19 +573,18 @@ export default function SiteSettingsServicesManager({
             onClick={closeForm}
             className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
           >
-            Cancel
-          </button>
+            {ui("m77dfd2135f4d")}</button>
           <button
             type="button"
             disabled={isPending}
             onClick={saveForm}
             className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface disabled:text-foreground-muted"
           >
-            {isPending
+            {uiText(isPending
               ? "Saving..."
               : mode === "edit"
                 ? "Save Changes"
-                : "Create Service"}
+                : "Create Service")}
           </button>
         </div>
       </div>
@@ -617,11 +596,9 @@ export default function SiteSettingsServicesManager({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <h2 className="font-admin-display text-2xl font-semibold text-foreground">
-            Services
-          </h2>
+            {ui("m5cbd58404686")}</h2>
           <p className="max-w-2xl font-admin-primary text-sm leading-6 text-foreground-secondary">
-            Manage pricing, duration, visibility, and ordering.
-          </p>
+            {ui("maaa4594ef0fc")}</p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -630,22 +607,20 @@ export default function SiteSettingsServicesManager({
             onClick={openOrderModal}
             className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-surface hover:text-foreground"
           >
-            Edit Order
-          </button>
+            {ui("m13fcf49e46d9")}</button>
           <button
             type="button"
             onClick={openCreateForm}
             className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover"
           >
-            + Add Service
-          </button>
+            {ui("m3b4db27c7286")}</button>
         </div>
       </div>
 
       {loadError ? (
         <div className="border border-border bg-surface px-5 py-5">
           <p className="font-primary text-sm leading-7 text-foreground-secondary">
-            {loadError}
+            {uiText(loadError)}
           </p>
         </div>
       ) : null}
@@ -653,7 +628,7 @@ export default function SiteSettingsServicesManager({
       {feedback ? (
         <div className="border border-border bg-surface px-5 py-4">
           <p className="font-primary text-sm text-foreground-secondary">
-            {feedback}
+            {uiText(feedback)}
           </p>
         </div>
       ) : null}
@@ -684,19 +659,15 @@ export default function SiteSettingsServicesManager({
                   </span>
                 </div>
 
-                <p className="max-w-2xl font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
-                  {service.description || "No description set."}
-                </p>
-
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                   <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    Duration: {formatServiceDuration(service)}
+                    {ui("m9693aeaaf68e")}{formatServiceDuration(service)}
                   </p>
                   <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    Order: {service.sort_order}
+                    {ui("m3c124cca4354")}{service.sort_order}
                   </p>
                   <p className="font-primary text-xs uppercase tracking-[0.2em] text-foreground-muted">
-                    {service.image_url ? "Image uploaded" : "No image"}
+                    {uiText(service.image_url ? "Image uploaded" : "No image")}
                   </p>
                 </div>
               </div>
@@ -713,24 +684,23 @@ export default function SiteSettingsServicesManager({
                       : "border-border bg-transparent text-foreground-secondary hover:text-foreground"
                   }`}
                 >
-                  {service.is_active ? "Visible" : "Hidden"}
+                  {uiText(service.is_active ? "Visible" : "Hidden")}
                 </button>
                 <button
                   type="button"
                   onClick={() => openEditForm(service)}
                   className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
                 >
-                  {formState?.id === service.id
+                  {uiText(formState?.id === service.id
                     ? "Editing"
-                    : "Edit"}
+                    : "Edit")}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDelete(service.id)}
                   className="inline-flex min-h-11 items-center justify-center border border-border px-4 py-2 font-primary text-xs uppercase tracking-[0.18em] text-foreground-muted transition-colors hover:text-error"
                 >
-                  Delete
-                </button>
+                  {ui("mf6fdbe48dc54")}</button>
               </div>
             </div>
 
@@ -740,7 +710,7 @@ export default function SiteSettingsServicesManager({
                   <button
                     type="button"
                     onClick={closeForm}
-                    aria-label="Collapse service editor"
+                    aria-label={ui("mee752c01a3f2")}
                     className="inline-flex h-11 w-11 items-center justify-center border border-border text-lg text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
                   >
                     ↑
@@ -759,23 +729,18 @@ export default function SiteSettingsServicesManager({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="font-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
-                  Services
-                </p>
+                  {ui("m5cbd58404686")}</p>
                 <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                  Edit Order
-                </h2>
+                  {ui("m13fcf49e46d9")}</h2>
                 <p className="font-primary text-sm leading-7 text-foreground-secondary">
-                  Reorder services, then save to apply sequential
-                  sort values.
-                </p>
+                  {ui("m112baf2c1a70")}</p>
               </div>
               <button
                 type="button"
                 onClick={closeOrderModal}
                 className="font-primary text-xs uppercase tracking-[0.22em] text-foreground-muted transition-colors hover:text-foreground-secondary"
               >
-                Close
-              </button>
+                {ui("mbbfa773e5a63")}</button>
             </div>
 
             <div className="mt-6 space-y-3">
@@ -807,8 +772,7 @@ export default function SiteSettingsServicesManager({
                         disabled={isFirst || isPending}
                         className="inline-flex min-h-11 min-w-11 items-center justify-center border border-border px-3 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:text-foreground-muted"
                       >
-                        Up
-                      </button>
+                        {ui("m2038bdec9210")}</button>
                       <button
                         type="button"
                         onClick={() =>
@@ -817,8 +781,7 @@ export default function SiteSettingsServicesManager({
                         disabled={isLast || isPending}
                         className="inline-flex min-h-11 min-w-11 items-center justify-center border border-border px-3 font-primary text-xs uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:text-foreground-muted"
                       >
-                        Down
-                      </button>
+                        {ui("mbf93e5ce8bc1")}</button>
                     </div>
                   </div>
                 );
@@ -831,15 +794,14 @@ export default function SiteSettingsServicesManager({
                 onClick={closeOrderModal}
                 className="inline-flex min-h-12 items-center justify-center border border-border px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-foreground-secondary transition-colors hover:bg-background hover:text-foreground"
               >
-                Cancel
-              </button>
+                {ui("m77dfd2135f4d")}</button>
               <button
                 type="button"
                 disabled={isPending}
                 onClick={saveOrder}
                 className="inline-flex min-h-12 items-center justify-center border border-border bg-accent px-5 py-3 font-primary text-sm uppercase tracking-[0.18em] text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
               >
-                {isPending ? "Saving..." : "Save Order"}
+                {uiText(isPending ? "Saving..." : "Save Order")}
               </button>
             </div>
           </div>

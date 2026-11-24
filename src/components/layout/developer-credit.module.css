@@ -1,0 +1,5 @@
+.credit{display:flex;align-items:center;flex-wrap:wrap;column-gap:.35em;max-width:100%;font:400 11px/1.6 var(--font-primary);letter-spacing:.035em;text-transform:none;color:var(--foreground-muted)}
+.link{display:inline-flex;align-items:center;min-height:44px;color:var(--foreground-secondary);white-space:nowrap;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:4px;transition:color .2s,text-decoration-color .2s}
+.link:hover{color:var(--accent-hover);text-decoration-color:currentColor}
+.link:focus-visible{color:var(--accent-hover);outline:1px solid var(--accent-hover);outline-offset:4px}
+@media(prefers-reduced-motion:reduce){.link{transition:none}}

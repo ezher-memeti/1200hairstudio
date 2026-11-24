@@ -1,4 +1,6 @@
 "use client";
+import { useTranslations } from "next-intl";
+
 
 import Image from "next/image";
 import {
@@ -12,7 +14,7 @@ import {
 
 export type WorkItem = {
   id: string;
-  title: string;
+  title: string | null;
   subtitle?: string;
   meta?: string;
   image: string;
@@ -33,18 +35,6 @@ type RepeatedSlide = WorkItem & {
 
 const TRACK_COPY_COUNT = 3;
 const MIDDLE_COPY_INDEX = Math.floor(TRACK_COPY_COUNT / 2);
-
-function isSupabaseStorageImageUrl(src: string) {
-  try {
-    const url = new URL(src);
-    return (
-      url.hostname === "rqavijckrxkecaxnyiex.supabase.co" &&
-      url.pathname.startsWith("/storage/v1/object/public/")
-    );
-  } catch {
-    return false;
-  }
-}
 
 const round = (value: number) => Number(value.toFixed(3));
 const clamp = (value: number, min: number, max: number) =>
@@ -111,6 +101,9 @@ export default function CircularGallery({
   onActiveIndexChange,
   onInteracted,
 }: CircularGalleryProps) {
+  const ui = useTranslations("ui");
+  const labels = useTranslations("labels");
+
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const scrollFrameRef = useRef<number | null>(null);
@@ -122,6 +115,7 @@ export default function CircularGallery({
   const isInternalScrollUpdateRef = useRef(false);
   const isPointerDownRef = useRef(false);
   const sequenceWidthRef = useRef(0);
+  const galleryRef = useRef<HTMLDivElement | null>(null);
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
@@ -135,6 +129,7 @@ export default function CircularGallery({
     "visible" | "exiting" | "entering"
   >("visible");
   const [isScrolling, setIsScrolling] = useState(false);
+  const [isNearViewport, setIsNearViewport] = useState(false);
 
   const totalItems = items.length;
 
@@ -183,6 +178,28 @@ export default function CircularGallery({
     return () => {
       mediaQuery.removeEventListener("change", updateLayout);
     };
+  }, []);
+
+  useEffect(() => {
+    const gallery = galleryRef.current;
+    if (!gallery) return;
+
+    if (!("IntersectionObserver" in window)) {
+      setIsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setIsNearViewport(true);
+        observer.disconnect();
+      },
+      { rootMargin: "500px 0px" },
+    );
+
+    observer.observe(gallery);
+    return () => observer.disconnect();
   }, []);
 
   const getRenderedIndexForOriginal = useCallback(
@@ -592,12 +609,12 @@ export default function CircularGallery({
   ]);
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div ref={galleryRef} className="space-y-6 sm:space-y-8">
       <div
         className="relative mx-auto overflow-hidden [perspective:900px] [perspective-origin:center_center] md:[perspective:1200px] xl:[perspective:1400px]"
         tabIndex={0}
         role="region"
-        aria-label="Selected Work gallery"
+        aria-label={ui("m84dab7bf8c77")}
         onKeyDown={handleKeyDown}
       >
         <div
@@ -635,24 +652,34 @@ export default function CircularGallery({
               }}
               className="snap-center flex-none px-2 text-left [transform-style:preserve-3d] [will-change:transform,opacity,filter] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:px-3 lg:px-4"
               aria-pressed={item.originalIndex === activeIndex}
-              aria-label={` `}
+              aria-label={item.title?.trim() || labels("selectedWorkImage")}
               style={item.style}
             >
               <div className="w-[82vw] min-w-[82vw] max-w-[420px] overflow-hidden rounded-[0.35rem] bg-surface sm:w-[380px] sm:min-w-[380px] lg:w-[420px] lg:min-w-[420px]">
                 <div className="relative aspect-[4/5] w-full">
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    fill
-                    sizes="(min-width: 1024px) 420px, (min-width: 640px) 380px, 82vw"
-                    className="pointer-events-none object-cover [-webkit-user-drag:none]"
-                    priority={
-                      item.copyIndex === MIDDLE_COPY_INDEX &&
-                      item.originalIndex === activeIndex
-                    }
-                    draggable={false}
-                    unoptimized={isSupabaseStorageImageUrl(item.image)}
-                  />
+                  {isNearViewport &&
+                  Math.min(
+                    Math.abs(item.originalIndex - activeVisualIndex),
+                    totalItems - Math.abs(item.originalIndex - activeVisualIndex),
+                  ) <= 1 ? (
+                    <Image
+                      src={item.image}
+                      alt={item.title?.trim() || labels("selectedWorkImage")}
+                      fill
+                      sizes="(min-width: 1024px) 420px, (min-width: 640px) 380px, 82vw"
+                      className="pointer-events-none object-cover [-webkit-user-drag:none]"
+                      loading="eager"
+                      quality={88}
+                      draggable={false}
+                      onError={(event) => {
+                        const image = event.currentTarget;
+                        if (image.dataset.fallbackApplied) return;
+                        image.dataset.fallbackApplied = "true";
+                        image.srcset = "";
+                        image.src = item.image;
+                      }}
+                    />
+                  ) : null}
                   <div
                     className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-150"
                     style={{ opacity: item.overlayOpacity }}
@@ -682,9 +709,11 @@ export default function CircularGallery({
             {String(displayedIndex + 1).padStart(2, "0")} / {" "}
             {String(items.length).padStart(2, "0")}
           </p>
-          <h3 className="font-display text-[clamp(1.8rem,4vw,2.5rem)] uppercase leading-none tracking-[-0.04em] text-foreground">
-            {items[displayedIndex].title}
-          </h3>
+          {items[displayedIndex].title ? (
+            <h3 className="font-display text-[clamp(1.8rem,4vw,2.5rem)] uppercase leading-none tracking-[-0.04em] text-foreground">
+              {items[displayedIndex].title}
+            </h3>
+          ) : null}
           {items[displayedIndex].subtitle ? (
             <p className="font-primary text-xs uppercase tracking-[0.28em] text-foreground-muted sm:text-sm">
               {items[displayedIndex].subtitle}
@@ -702,7 +731,7 @@ export default function CircularGallery({
             type="button"
             onClick={goToPrevious}
             className="inline-flex min-h-12 min-w-12 touch-manipulation items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-foreground-secondary"
-            aria-label="Previous work"
+            aria-label={ui("me54f85078ffb")}
           >
             ←
           </button>
@@ -710,7 +739,7 @@ export default function CircularGallery({
             type="button"
             onClick={goToNext}
             className="inline-flex min-h-12 min-w-12 touch-manipulation items-center justify-center font-primary text-sm uppercase tracking-[0.26em] text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-foreground-secondary"
-            aria-label="Next work"
+            aria-label={ui("m690b6a1e9dea")}
           >
             →
           </button>

@@ -1,3 +1,4 @@
+import { intlLocale } from "@/i18n/config";
 export const ZURICH_TIME_ZONE = "Europe/Zurich";
 
 export function isValidDateKey(value: string) {
@@ -13,14 +14,14 @@ export function parseDateKeyToUtcDate(dateKey: string) {
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 }
 
-export function formatDateKey(dateKey: string, options: Intl.DateTimeFormatOptions) {
+export function formatDateKey(dateKey: string, options: Intl.DateTimeFormatOptions, locale = "en") {
   const date = parseDateKeyToUtcDate(dateKey);
 
   if (!date) {
     return dateKey;
   }
 
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: ZURICH_TIME_ZONE,
     ...options,
   }).format(date);

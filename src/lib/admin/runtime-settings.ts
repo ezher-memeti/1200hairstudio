@@ -1,3 +1,4 @@
+import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 
 import { cache } from "react";
@@ -28,8 +29,19 @@ const loadRuntimeSettings = cache(async (): Promise<AdminSettings> => {
       finance: normalizeAdminSetting("finance", rows.get("finance")),
     };
   } catch (error) {
-    console.error("RUNTIME SETTINGS LOAD ERROR", error);
-    return DEFAULT_ADMIN_SETTINGS;
+    console.error("RUNTIME SETTINGS LOAD ERROR", safeLogDetails(error));
+    return {
+      ...DEFAULT_ADMIN_SETTINGS,
+      // A failed settings read must not turn disabled email channels back on.
+      notifications: {
+        ...DEFAULT_ADMIN_SETTINGS.notifications,
+        bookingConfirmationEmail: false,
+        rescheduleEmail: false,
+        cancellationEmail: false,
+        receiptEmailEnabled: false,
+        adminBookingNotification: false,
+      },
+    };
   }
 });
 

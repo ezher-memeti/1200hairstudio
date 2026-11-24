@@ -1,4 +1,5 @@
 "use server";
+import { publicBookingModeError } from "@/lib/site-mode-booking";
 
 import { revalidatePath } from "next/cache";
 import { requireAdminUser, requireCustomerUser } from "@/lib/auth/customer";
@@ -20,9 +21,10 @@ export async function getRecurringWorkingDays() {
 }
 
 async function currentCustomerId() {
-  const { supabase, user } = await requireCustomerUser();
-  const { data } = await supabase.from("customers").select("id").eq("profile_id", user.id).maybeSingle();
-  if (!data) throw new Error("Customer account not found.");
+  const { supabase } = await requireCustomerUser();
+  const response = await supabase.rpc("get_my_customer");
+  const data = Array.isArray(response.data) ? response.data[0] : response.data;
+  if (response.error || !data) throw new Error("Customer account not found.");
   return data.id as string;
 }
 
@@ -63,6 +65,8 @@ export async function previewCustomerRecurringBooking(input: RecurringBookingInp
 }
 
 export async function createCustomerRecurringBooking(input: RecurringBookingInput) {
+  const modeError = await publicBookingModeError();
+  if (modeError) return { error: modeError, result: null };
   try { const customerId = await currentCustomerId(); const result = await createRecurringBookingSeries({ ...input, customerId }, "customer"); refresh(); return { error: null, result }; } catch (error) { return { error: message(error), result: null }; }
 }
 

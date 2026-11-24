@@ -1,3 +1,5 @@
+import { requestLocale } from "@/i18n/http";
+import { textFor } from "@/i18n/text";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminUser } from "@/lib/auth/customer";
 import {
@@ -15,6 +17,8 @@ function safeFilename(value: string) {
 }
 
 export async function GET(request: NextRequest) {
+  const locale = requestLocale(request);
+  const t = (value: string) => textFor(locale, value.split(" / ")[0]);
   await requireAdminUser();
 
   const format = request.nextUrl.searchParams.get("format");
@@ -35,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   const filename = customer ? safeFilename(customer.full_name) : "all-customers";
   if (format === "csv") {
-    const csv = customer ? createCustomerCsv(customer) : createAllCustomersCsv(customers);
+    const csv = customer ? createCustomerCsv(customer, new Date(), locale) : createAllCustomersCsv(customers, new Date(), locale);
     return new NextResponse(`\uFEFF${csv}`, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
@@ -45,7 +49,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const pdf = customer ? await createCustomerPdf(customer) : await createAllCustomersPdf(customers);
+  const pdf = customer ? await createCustomerPdf(customer, new Date(), locale) : await createAllCustomersPdf(customers, new Date(), locale);
   return new NextResponse(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",

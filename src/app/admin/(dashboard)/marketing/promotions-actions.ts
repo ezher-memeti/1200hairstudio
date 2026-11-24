@@ -1,5 +1,6 @@
 "use server";
 
+import { safeLogDetails } from "@/lib/logging";
 import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/customer";
 import { getUtcIsoForZurichDateTime } from "@/lib/appointments/availability";
@@ -82,7 +83,7 @@ export async function savePromotion(input: PromotionInput, promotionId?: string)
     revalidatePath("/admin/marketing");
     return { success: true, message: promotionId ? "Promotion updated." : "Promotion created." };
   } catch (error) {
-    console.error("Promotion save failed", { operation: promotionId ? "update" : "create", promotionId, error });
+    console.error("Promotion save failed", safeLogDetails({ operation: promotionId ? "update" : "create", promotionId, error }));
     return { success: false, message: error instanceof Error && !/row-level|permission|postgres/i.test(error.message) ? error.message : "Unable to save this promotion." };
   }
 }
@@ -96,7 +97,7 @@ export async function deletePromotion(promotionId: string): Promise<Result> {
     revalidatePath("/admin/marketing");
     return { success: true, message: "Promotion deleted." };
   } catch (error) {
-    console.error("Promotion delete failed", { promotionId, error });
+    console.error("Promotion delete failed", safeLogDetails({ promotionId, error }));
     return { success: false, message: "Unable to delete this promotion." };
   }
 }
