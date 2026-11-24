@@ -1,5 +1,6 @@
 "use server";
 
+import { assertEditableCalendarDates } from "@/lib/calendar/date-policy";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
@@ -86,6 +87,7 @@ export async function saveAvailabilityException(
 ) {
   try {
     const supabase = await requireAdminClient();
+    assertEditableCalendarDates([input.date]);
 
     if (!input.date) {
       return { error: "Select a date first.", exception: null };
@@ -156,6 +158,7 @@ export async function closeAvailabilityDateRange(
 ) {
   try {
     const supabase = await requireAdminClient();
+    assertEditableCalendarDates([input.start_date,input.end_date]);
 
     if (!input.start_date || !input.end_date) {
       return {
@@ -233,6 +236,7 @@ export async function closeAvailabilityDateRange(
 export async function openAvailabilityDateRange(input: OpenAvailabilityRangeInput) {
   try {
     const supabase = await requireAdminClient();
+    assertEditableCalendarDates([input.start_date,input.end_date]);
     const startDate = parseDateString(input.start_date);
     const endDate = parseDateString(input.end_date);
     if (!startDate || !endDate || endDate < startDate) {

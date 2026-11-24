@@ -1,3 +1,4 @@
+import { calendarTodayInZurich } from "@/lib/calendar/date-policy";
 import AdminAvailabilityCalendar from "@/components/admin/AdminAvailabilityCalendar";
 import type { AvailabilityExceptionRecord } from "@/lib/availability-exceptions/types";
 import type { BusinessHourRecord } from "@/lib/business-hours/types";
@@ -32,6 +33,7 @@ export default async function AdminCalendarPage() {
 
   return (
     <AdminAvailabilityCalendar
+      initialTodayDateKey={calendarTodayInZurich()}
       initialBusinessHours={(hours ?? []) as BusinessHourRecord[]}
       initialExceptions={(exceptions ?? []) as AvailabilityExceptionRecord[]}
       appointments={appointments}

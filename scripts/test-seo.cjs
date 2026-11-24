@@ -29,7 +29,10 @@ test('Every public route has unique localized metadata and reciprocal absolute a
       assert.equal(meta.alternates.languages.en,origin+'/en'+(route==='/'?'':route));
       assert.equal(meta.alternates.languages['de-CH'],origin+'/de'+(route==='/'?'':route));
       assert.equal(meta.openGraph.url,origin+url);assert.equal(meta.openGraph.type,'website');
-      assert.equal(meta.openGraph.images[0].url,origin+'/brand/logo.png');assert.equal(meta.twitter.card,'summary');
+      assert.equal(meta.openGraph.images[0].url,origin+'/brand/open-graph.webp');assert.equal(meta.twitter.card,'summary_large_image');
+      assert.equal(meta.openGraph.images.length,1); assert.equal(meta.twitter.images.length,1);
+      assert.equal(meta.openGraph.images[0].type,'image/webp');assert.equal(meta.openGraph.images[0].width,1731);assert.equal(meta.openGraph.images[0].height,909);
+      assert.equal(meta.icons.apple[0].url,'/apple-touch-icon.png');assert.equal(meta.icons.icon.length,4);
       titles.add(meta.title);descriptions.add(meta.description);
     }
     assert.equal(titles.size,4);assert.equal(descriptions.size,4);

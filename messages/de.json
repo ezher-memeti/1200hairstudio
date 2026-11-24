@@ -1887,7 +1887,9 @@
     "noShowLabel": "Nicht erschienen",
     "bankTransferLabel": "Banküberweisung",
     "removing": "Wird entfernt…",
-    "banknotes": "Banknoten"
+    "banknotes": "Banknoten",
+    "calendarPastReadOnly": "Vergangene Kalendertage können nur angesehen werden.",
+    "calendarInvalidDate": "Bitte ein gültiges Kalenderdatum wählen."
   },
   "audit": {
     "appointmentCount": "{count, plural, one {# Termin} other {# Termine}}",
@@ -1987,5 +1989,10 @@
   },
   "developerCredit": {
     "linkLabel": "{name} auf LinkedIn (öffnet in einem neuen Tab)"
+  },
+  "calendarHistory": {
+    "readOnly": "Vergangener Tag – nur zur Ansicht. Planungsänderungen sind nicht möglich.",
+    "details": "Tagesdetails – nur zur Ansicht",
+    "percentage": "Auslastung"
   }
 }

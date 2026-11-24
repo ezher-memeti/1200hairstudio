@@ -29,12 +29,10 @@ export function languageAlternates(origin: string, path: string) {
   return { "de-CH": origin + localizedPath(path, "de"), en: origin + localizedPath(path, "en"), "x-default": origin + localizedPath(path, "de") };
 }
 export function socialMetadata(origin: string, locale: Locale, title: string, description: string, path: string): Pick<Metadata, "openGraph" | "twitter"> {
-  // The repository contains the approved logo, but no 1200×630 OG artwork.
-  // Reuse the real brand asset rather than inventing a replacement design.
-  const image = { url: `${origin}/brand/logo.png`, width: 1562, height: 1562, alt: "1200 HAIRSTUDIO — MORE THAN A HAIRCUT." };
+  const image = { url: new URL("/brand/open-graph.webp", origin).href, width: 1731, height: 909, type: "image/webp", alt: locale === "de" ? "1200 HAIRSTUDIO – Barbershop in Salmsach, Thurgau" : "1200 HAIRSTUDIO — Barbershop in Salmsach, Switzerland" };
   return {
     openGraph: { type: "website", title, description, siteName: "1200 HAIRSTUDIO", url: origin + path, locale: locale === "de" ? "de_CH" : "en_GB", alternateLocale: locale === "de" ? "en_GB" : "de_CH", images: [image] },
-    twitter: { card: "summary", title, description, images: [image] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 export function publicMetadata(origin: string, locale: Locale, path: string): Metadata {
@@ -44,6 +42,15 @@ export function publicMetadata(origin: string, locale: Locale, path: string): Me
   const canonicalPath = localizedPath(route, locale);
   return {
     metadataBase: new URL(origin), title, description,
+    icons: {
+      icon: [
+        { url: "/favicon.ico", type: "image/x-icon", sizes: "16x16 32x32 48x48" },
+        { url: "/icons/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+        { url: "/icons/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+        { url: "/icons/favicon-192x192.png", type: "image/png", sizes: "192x192" },
+      ],
+      apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    },
     robots: { index: Boolean(entry), follow: Boolean(entry) },
     alternates: entry ? { canonical: origin + canonicalPath, languages: languageAlternates(origin, route) } : undefined,
     ...socialMetadata(origin, locale, title, description, entry ? canonicalPath : `/${locale}`),

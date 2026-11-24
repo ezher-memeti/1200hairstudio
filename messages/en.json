@@ -1887,7 +1887,9 @@
     "deleteTemplate": "Delete this template? Campaigns previously created from it will not be deleted.",
     "deletePromotion": "Delete this promotion? Assigned customer links will also be removed.",
     "removing": "Removing…",
-    "banknotes": "Banknotes"
+    "banknotes": "Banknotes",
+    "calendarPastReadOnly": "Past calendar dates are read-only.",
+    "calendarInvalidDate": "Choose a valid calendar date."
   },
   "audit": {
     "appointmentCount": "{count, plural, one {# appointment} other {# appointments}}",
@@ -1987,5 +1989,10 @@
   },
   "developerCredit": {
     "linkLabel": "{name} on LinkedIn (opens in a new tab)"
+  },
+  "calendarHistory": {
+    "readOnly": "Historical day — read-only. Scheduling changes are unavailable.",
+    "details": "Read-only day details",
+    "percentage": "Booking percentage"
   }
 }

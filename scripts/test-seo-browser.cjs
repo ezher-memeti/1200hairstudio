@@ -32,10 +32,25 @@ async function start(mode,port){
           for(const [lang,prefix]of [['de-CH','de'],['en','en'],['x-default','de']])assert.equal(await page.locator(`link[rel=alternate][hreflang="${lang}"]`).getAttribute('href'),origin+`/${prefix}`+suffix);
           const robots=await page.locator('meta[name=robots]').evaluateAll(nodes=>nodes.map(n=>n.content));
           assert(robots.every(v=>mode==='live'?!v.includes('noindex'):v.includes('noindex')));
-          const image=await page.locator('meta[property="og:image"]').getAttribute('content');assert.equal(image,origin+'/brand/logo.png');
+          const image=await page.locator('meta[property="og:image"]').getAttribute('content');assert.equal(image,origin+'/brand/open-graph.webp');
           assert.equal((await page.request.get(base+new URL(image).pathname)).status(),200);
           assert.equal(await page.locator('meta[property="og:locale"]').getAttribute('content'),locale==='de'?'de_CH':'en_GB');
-          assert.equal(await page.locator('meta[name="twitter:card"]').getAttribute('content'),'summary');
+          for(const property of ['og:image','og:title','og:description','og:image:width','og:image:height','og:image:type','og:image:alt'])assert.equal(await page.locator(`meta[property="${property}"]`).count(),1,'No duplicate '+property);
+          assert.equal(await page.locator('meta[property="og:image:width"]').getAttribute('content'),'1731');
+          assert.equal(await page.locator('meta[property="og:image:height"]').getAttribute('content'),'909');
+          assert.equal(await page.locator('meta[property="og:image:type"]').getAttribute('content'),'image/webp');
+          assert.equal(await page.locator('meta[name="twitter:image"]').count(),1);
+          assert.equal(await page.locator('meta[name="twitter:image"]').getAttribute('content'),image);
+          const icons=await page.locator('link[rel="icon"]').evaluateAll(nodes=>nodes.map(n=>({href:n.getAttribute('href'),sizes:n.getAttribute('sizes')})));
+          assert.equal(icons.length,4);assert.equal(new Set(icons.map(n=>n.href)).size,4);
+          assert(icons.some(n=>n.sizes==='16x16'));assert(icons.some(n=>n.sizes==='32x32'));
+          assert.equal(await page.locator('link[rel="apple-touch-icon"]').count(),1);
+          assert.equal(await page.locator('link[rel="apple-touch-icon"]').getAttribute('sizes'),'180x180');
+          for(const path of ['/brand/open-graph.webp','/brand/profile.png','/favicon.ico','/icons/favicon-16x16.png','/icons/favicon-32x32.png','/icons/favicon-192x192.png','/apple-touch-icon.png']){const asset=await page.request.get(base+path);assert.equal(asset.status(),200,mode+' asset '+path);assert(asset.headers()['content-type'].startsWith(path.endsWith('.webp')?'image/webp':path.endsWith('.png')?'image/png':'image/'));}
+          const socialHtml=await (await page.request.get(`${base}/${locale}${route}`,{headers:{'user-agent':'facebookexternalhit/1.1'}})).text();
+          const crawlerHead=socialHtml.split('</head>')[0];assert(crawlerHead.includes('<meta property="og:image" content="'+image+'"'));assert(crawlerHead.includes('summary_large_image'));
+
+          assert.equal(await page.locator('meta[name="twitter:card"]').getAttribute('content'),'summary_large_image');
           const scripts=await page.locator('script[type="application/ld+json"]').allTextContents();
           if(mode==='live'&&route===''){
             assert.equal(scripts.length,1);const data=JSON.parse(scripts[0]);assert.equal(data['@type'],'HairSalon');
