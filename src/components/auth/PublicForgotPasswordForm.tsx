@@ -10,11 +10,10 @@ import { useEffect, useState } from "react";
 import {
   AUTH_GENERIC_FORGOT_PASSWORD_RESPONSE,
   AUTH_RATE_LIMIT_RESPONSE,
-  isRateLimitError,
+  normalizeAuthEmail,
   isValidEmail,
 } from "@/lib/auth/shared";
-import { getResetPasswordRedirectUrl } from "@/lib/auth/url";
-import { createClient } from "@/lib/supabase/client";
+import { submitAuthForm } from "@/lib/auth/form-client";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -66,23 +65,16 @@ export default function PublicForgotPasswordForm() {
     }
 
     setIsSubmitting(true);
-    const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: getResetPasswordRedirectUrl(locale),
-      },
-    );
-
-    if (resetError && isRateLimitError(resetError)) {
-      setError(AUTH_RATE_LIMIT_RESPONSE);
-      setIsSubmitting(false);
-      return;
-    }
-
-    setMessage(AUTH_GENERIC_FORGOT_PASSWORD_RESPONSE);
-    setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
-    setIsSubmitting(false);
+    try {
+      const result = await submitAuthForm("forgot-password", { email: normalizeAuthEmail(email), locale });
+      if (!result.success) {
+        setError(result.code === "rate_limited" ? AUTH_RATE_LIMIT_RESPONSE : "Unable to process your request right now. Please try again.");
+        return;
+      }
+      setMessage(AUTH_GENERIC_FORGOT_PASSWORD_RESPONSE);
+      setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+    } catch { setError("Unable to process your request right now. Please try again."); }
+    finally { setIsSubmitting(false); }
   }
 
   return (
@@ -111,11 +103,11 @@ export default function PublicForgotPasswordForm() {
       </label>
 
       {message ? (
-        <p className="font-primary text-sm text-foreground-secondary">
+        <p role="status" className="font-primary text-sm text-foreground-secondary">
           {uiText(message)}
         </p>
       ) : null}
-      {error ? <p className="font-primary text-sm text-error">{uiText(error)}</p> : null}
+      {error ? <p role="alert" className="font-primary text-sm text-error">{uiText(error)}</p> : null}
 
       <div className="flex flex-col gap-4">
         <button

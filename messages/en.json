@@ -1099,8 +1099,8 @@
     "m2d04f6d97e1f": "Unable to save email preferences right now.",
     "mbd4ee2f95e02": "Unable to load customer account.",
     "m01126f54afac": "Invalid email or password.",
-    "m67fdc69a6dad": "If an account exists for this email, a password reset link has been sent.",
-    "mdd1e4aa4dbc3": "An account may already exist with this email. Try logging in or reset your password.",
+    "m67fdc69a6dad": "If an account exists with this email address, a password reset link has been sent.",
+    "mdd1e4aa4dbc3": "An account with this email already exists. Please sign in or reset your password.",
     "ma9aad3e8bcd2": "Too many attempts. Please wait a moment and try again.",
     "m85f49c3ef997": "This booking is past or no longer active.",
     "m09d8e558601f": "Choose a valid appointment time.",
@@ -1541,7 +1541,8 @@
     "m916b679562b5": "Complete the required English source fields before creating this item.",
     "m694f71046af7": "Invalid content language.",
     "m21d0332379ec": "This field and subsequent fields could not be saved.",
-    "mdb7bfc91720b": "Content could not be loaded. No later fields were saved."
+    "mdb7bfc91720b": "Content could not be loaded. No later fields were saved.",
+    "authFormUnavailable": "Unable to process your request right now. Please try again."
   },
   "communication": {
     "reserved": "{count, plural, one {# appointment reserved} other {# appointments reserved}}",
@@ -2055,5 +2056,34 @@
     "appointment_completed_body": "An appointment has been marked completed.",
     "test_title": "1200 HAIRSTUDIO",
     "test_body": "Push notifications are enabled on this device."
+  },
+  "notifications": {
+    "heading": "Notifications",
+    "bell": "Notifications: {count, plural, =0 {none unread} one {# unread} other {# unread}}",
+    "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}",
+    "close": "Close notifications",
+    "filter": "Notification filter",
+    "all": "All",
+    "unread": "Unread",
+    "markRead": "Mark as read",
+    "markUnread": "Mark as unread",
+    "markAll": "Mark all as read",
+    "loadMore": "Load more",
+    "empty": "Your studio activity will appear here.",
+    "emptyUnread": "You’re all caught up. No unread notifications.",
+    "loading": "Loading notifications…",
+    "error": "Notifications could not be updated. Please try again.",
+    "retry": "Try again",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "earlier": "Earlier",
+    "missing": "This record is no longer available. The relevant list has been opened.",
+    "customer_registered_title": "New Customer Registered",
+    "customer_registered_body": "A new customer created an account.",
+    "appointment_confirmed_title": "New Appointment",
+    "appointment_confirmed_body": "A new appointment was confirmed.",
+    "appointmentTime": "A new appointment was booked for {time} (Zurich).",
+    "appointment_completed_title": "Appointment Completed",
+    "appointment_completed_body": "An appointment was completed."
   }
 }

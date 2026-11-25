@@ -25,7 +25,9 @@
     "test:site-mode": "node scripts/test-site-mode.cjs",
     "test:seo": "node scripts/test-seo.cjs",
     "test:analytics": "node scripts/test-analytics.cjs",
-    "test:admin-push": "node scripts/test-admin-push.cjs"
+    "test:admin-push": "node scripts/test-admin-push.cjs",
+    "test:admin-notifications": "node scripts/test-admin-notifications.cjs",
+    "test:auth-forms": "node scripts/test-auth-form-validation.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

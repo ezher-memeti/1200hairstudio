@@ -12,26 +12,11 @@ import { useState } from "react";
 import {
   AUTH_GENERIC_SIGNUP_EXISTS_RESPONSE,
   AUTH_RATE_LIMIT_RESPONSE,
-  isRateLimitError,
+  normalizeAuthEmail,
   isValidEmail,
   validatePassword,
 } from "@/lib/auth/shared";
-import { createClient } from "@/lib/supabase/client";
-import { getLocalizedSiteUrl } from "@/lib/auth/url";
-
-function mapRegisterError(message: string) {
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("already registered") ||
-    normalized.includes("already been registered") ||
-    normalized.includes("user already registered")
-  ) {
-    return AUTH_GENERIC_SIGNUP_EXISTS_RESPONSE;
-  }
-
-  return "Unable to create your account right now.";
-}
+import { submitAuthForm } from "@/lib/auth/form-client";
 
 export default function PublicRegisterForm() {
   const uiText = useUiText();
@@ -78,43 +63,18 @@ export default function PublicRegisterForm() {
 
     setIsSubmitting(true);
 
-    const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: getLocalizedSiteUrl("/login", locale),
-        data: {
-          preferred_locale: locale,
-          full_name: fullName,
-          phone,
-          marketing_email_consent: marketingEmailConsent,
-        },
-      },
-    });
-
-    if (signUpError) {
-      setError(
-        isRateLimitError(signUpError)
-          ? AUTH_RATE_LIMIT_RESPONSE
-          : mapRegisterError(signUpError.message),
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
-    const hasSession = Boolean(data.session);
-
-    if (hasSession) {
-      router.push("/account");
-      router.refresh();
-      return;
-    }
-
-    setInfo(
-      "Check your email to confirm your account, then sign in to access your profile.",
-    );
-    setIsSubmitting(false);
+    try {
+      const result = await submitAuthForm("register", {
+        email: normalizeAuthEmail(email), password, locale, fullName, phone, marketingEmailConsent,
+      });
+      if (!result.success) {
+        setError(result.code === "account_exists" ? AUTH_GENERIC_SIGNUP_EXISTS_RESPONSE : result.code === "rate_limited" ? AUTH_RATE_LIMIT_RESPONSE : "Unable to create your account right now.");
+        return;
+      }
+      if (result.hasSession) { router.push("/account");router.refresh();return; }
+      setInfo("Check your email to confirm your account, then sign in to access your profile.");
+    } catch { setError("Unable to create your account right now."); }
+    finally { setIsSubmitting(false); }
   }
 
   return (
@@ -196,7 +156,7 @@ export default function PublicRegisterForm() {
         </label>
       </div>
 
-      {error ? <p className="font-primary text-sm text-error">{uiText(error)}</p> : null}
+      {error ? <p role="alert" className="font-primary text-sm text-error">{uiText(error)}</p> : null}
       {info ? (
         <p className="font-primary text-sm text-foreground-secondary">{uiText(info)}</p>
       ) : null}

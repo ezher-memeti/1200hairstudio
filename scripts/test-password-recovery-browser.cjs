@@ -12,7 +12,7 @@ const origin='http://127.0.0.1:3059';
 const user={id:'00000000-0000-4000-8000-000000000123',aud:'authenticated',role:'authenticated',email:'synthetic@example.invalid',email_confirmed_at:new Date().toISOString(),app_metadata:{provider:'email',providers:['email']},user_metadata:{},created_at:new Date().toISOString()};
 const jwt=()=>[ {alg:'HS256',typ:'JWT'}, {sub:user.id,aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)} ].map(v=>Buffer.from(JSON.stringify(v)).toString('base64url')).join('.')+'.c3ludGhldGlj';
 const requests=[];
-let recovery, signupRedirect, apiError, updates=0, exchanges=0;
+let recovery, signupRedirect, apiError, updates=0, exchanges=0, recoverRequests=0, accountExists=false;
 const api=http.createServer(async(req,res)=>{
  try {
   const url=new URL(req.url,'http://127.0.0.1:3099');
@@ -21,14 +21,17 @@ const api=http.createServer(async(req,res)=>{
   const chunks=[];for await(const chunk of req)chunks.push(chunk);
   const body=chunks.length?JSON.parse(Buffer.concat(chunks).toString()):{};
   requests.push({path:url.pathname,method:req.method});
+  if(url.pathname==='/rest/v1/rpc/consume_auth_form_budget'){res.end('0');return;}
+  if(url.pathname==='/rest/v1/rpc/auth_form_account_exists'){res.end(JSON.stringify(accountExists&&body.p_email===user.email));return;}
   if(url.pathname==='/auth/v1/signup'){
+    accountExists=true;
     signupRedirect=url.searchParams.get('redirect_to');
     assert.equal(body.data.preferred_locale,signupRedirect.includes('/en/')?'en':'de');
     assert.equal(body.code_challenge_method,'s256');
     res.end(JSON.stringify(user));return;
   }
   if(url.pathname==='/auth/v1/recover'){
-    recovery={redirect:url.searchParams.get('redirect_to'),challenge:body.code_challenge};
+    recoverRequests++;recovery={redirect:url.searchParams.get('redirect_to'),challenge:body.code_challenge};
     assert.equal(body.code_challenge_method,'s256');res.end('{}');return;
   }
   if(url.pathname==='/auth/v1/token'){
@@ -51,10 +54,10 @@ let browser, child;
  await new Promise(resolve=>api.listen(3099,'127.0.0.1',resolve));
  browser=await chromium.launch({executablePath:process.env.CHROME_EXECUTABLE_PATH,headless:true});
  for(const mode of ['live','coming_soon','under_construction']){
- child=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'start','-p','3059'],{cwd:buildDir,env:{...process.env,APP_SITE_MODE:mode,NEXT_PUBLIC_SITE_URL:'https://1200hairstudio.ch',NEXT_PUBLIC_SUPABASE_URL:'http://127.0.0.1:3099',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'synthetic-anon-key'},stdio:'ignore'});
+ child=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'start','-p','3059'],{cwd:buildDir,env:{...process.env,APP_SITE_MODE:mode,NEXT_PUBLIC_SITE_URL:'https://1200hairstudio.ch',NEXT_PUBLIC_SUPABASE_URL:'http://127.0.0.1:3099',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'synthetic-anon-key',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service-role-key'},stdio:'ignore'});
  for(let i=0;i<180;i++){try{await fetch(origin+'/en/reset-password');break;}catch{await delay(500);}}
  for(const locale of ['de','en']){
-  const context=await browser.newContext();const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const context=await browser.newContext();const page=await context.newPage();const errors=[];const formResponses=[];page.on('response',async response=>{if(new URL(response.url()).pathname.startsWith('/api/auth/')){try{const data=await response.json();formResponses.push({status:response.status(),code:data.code})}catch{}}});page.on('pageerror',error=>errors.push(error.message));
   await context.addCookies([{name:'1200_locale',value:locale==='de'?'en':'de',url:origin,httpOnly:true,sameSite:'Lax'}]);
   // No browser traffic can reach a real Supabase project or send real notifications.
   await context.route('**/*',route=>{
@@ -62,6 +65,7 @@ let browser, child;
     if(url.origin===origin || url.origin==='http://127.0.0.1:3099')return route.continue();
     return route.abort();
   });
+  accountExists=false;
   await page.goto(`${origin}/${locale}/register`);
   await page.locator('input[type=text]').fill('Synthetic User');
   await page.locator('input[type=email]').fill(user.email);
@@ -69,13 +73,35 @@ let browser, child;
   for(const field of await page.locator('input[type=password]').all())await field.fill('SyntheticPassword123!');
   await page.locator('form button[type=submit]').click();
   for(let i=0;!signupRedirect&&i<100;i++)await delay(50);
-  assert.equal(signupRedirect,`https://1200hairstudio.ch/${locale}/login`);
+  assert.equal(signupRedirect,`https://1200hairstudio.ch/${locale}/login`,JSON.stringify({formResponses,paths:requests.map(x=>x.path)}));
   signupRedirect=null;
+  // A second full registration request is blocked server-side; no second provider signup.
+  await page.goto(`${origin}/${locale}/register`);
+  await page.locator('input[type=text]').fill('Synthetic User');
+  await page.locator('input[type=email]').fill('  '+user.email.toUpperCase()+'  ');
+  await page.locator('input[type=tel]').fill('+41000000000');
+  for(const field of await page.locator('input[type=password]').all())await field.fill('SyntheticPassword123!');
+  const signupCount=requests.filter(req=>req.path==='/auth/v1/signup').length;
+  await page.locator('form button[type=submit]').click();
+  await page.locator('form').getByRole('alert').waitFor();
+  assert.equal(await page.locator('form').getByRole('alert').textContent(),require('../messages/'+locale+'.json').ui.mdd1e4aa4dbc3);
+  assert.equal(requests.filter(req=>req.path==='/auth/v1/signup').length,signupCount);
+  assert(await page.locator(`form a[href="/${locale}/login"]`).count());assert(await page.locator(`form a[href="/${locale}/forgot-password"]`).count());
   await page.goto(`${origin}/${locale}/forgot-password`);
   await page.locator('input[type=email]').fill(user.email);await page.locator('form button[type=submit]').click();
   await page.waitForFunction(()=>!!document.querySelector('form button[disabled]'));
   for(let i=0;!recovery&&i<100;i++)await delay(50);
   assert.equal(recovery.redirect,`https://1200hairstudio.ch/${locale}/reset-password`);
+  // Nonexistent account gets the identical UI response without a recover request.
+  const beforeUnknown=recoverRequests;
+  await page.goto(`${origin}/${locale}/forgot-password`);
+  await page.locator('input[type=email]').fill('missing@example.invalid');await page.locator('form button[type=submit]').click();
+  await page.getByRole('status').filter({hasText:require('../messages/'+locale+'.json').ui.m67fdc69a6dad}).waitFor();
+  assert.equal(recoverRequests,beforeUnknown);
+  await page.goto(`${origin}/${locale}/forgot-password`);
+  await page.locator('input[type=email]').fill('invalid');
+  await page.locator('form').evaluate(form=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await page.locator('form').getByRole('alert').waitFor();assert.equal(recoverRequests,beforeUnknown);
   const before=exchanges, beforeUpdates=updates;
   await page.goto(`${origin}/${locale}/reset-password?code=synthetic-success`);
   await page.locator('input[type=password]').first().waitFor();
@@ -105,7 +131,7 @@ let browser, child;
     assert.equal(new URL(page.url()).hash,'');assert.equal(new URL(page.url()).search,'');
   }
   assert.deepEqual(errors,[]);await context.close();recovery=null;
-  console.log(`PASS ${mode}/${locale}: canonical redirect, real SDK S256 exchange, form, mocked updateUser, sign-out/login, invalid/expired/used links; no real accounts or emails`);
+  console.log(`PASS ${mode}/${locale}: new/duplicate registration, private known/unknown recovery, invalid email, canonical redirect, real SDK S256 exchange, form, mocked updateUser, sign-out/login, invalid/expired/used links; no real accounts or emails`);
  }
  child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));child=null;
  }

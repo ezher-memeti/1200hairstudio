@@ -85,7 +85,8 @@ async function test(name, run) { await run(); passed++; console.log('PASS ' + na
           assert(!ts.isDebuggerStatement(node), file + ': debugger statement');
           if (ts.isCallExpression(node) && /^console\./.test(node.expression.getText(source))) {
             const method = node.expression.getText(source);
-            assert(['console.error', 'console.warn'].includes(method), file + ': ' + method);
+            const authAudit = file === 'src/lib/auth/form-handler.ts' && method === 'console.info' && node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0]) && ['[AUTH] Registration attempt: Account already exists','[AUTH] Password reset: Email is sent','[AUTH] Password reset: Account not found'].includes(node.arguments[0].text);
+            assert(authAudit || ['console.error', 'console.warn'].includes(method), file + ': ' + method);
             logs++;
             assert(ts.isStringLiteral(node.arguments[0]), file + ': dynamic log label');
             for (const arg of [...node.arguments].slice(1)) {

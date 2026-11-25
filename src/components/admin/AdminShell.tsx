@@ -8,6 +8,7 @@ import { usePathname } from "@/i18n/navigation";
 import Link from "@/components/admin/AdminNavLink";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import NotificationCenter from "@/components/admin/notifications/NotificationCenter";
 import LogoutButton from "@/components/admin/LogoutButton";
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import BrandLogo from "@/components/brand/BrandLogo";
@@ -103,26 +104,27 @@ export default function AdminShell({
         </aside>
 
         <div className="min-w-0">
-          <header className="sticky top-0 z-50 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:hidden">
+          <header className="sticky top-0 z-50 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur-sm">
             <div className="page-container flex min-h-16 items-center justify-between py-2">
               <Link
                 href="/admin"
-                className="inline-flex min-h-11 items-center"
+                className="inline-flex min-h-11 items-center lg:invisible"
                 aria-label={ui("m62d5151269cb")}
               >
                 <BrandLogo className="h-5 w-28 sm:h-6 sm:w-32" priority />
               </Link>
 
+              <div className="flex items-center gap-2"><NotificationCenter />
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((current) => !current)}
                 aria-expanded={isMenuOpen}
                 aria-controls="admin-mobile-menu"
-                className="inline-flex size-11 items-center justify-center border border-border bg-surface text-foreground"
+                className="inline-flex size-11 items-center justify-center border border-border bg-surface text-foreground lg:hidden"
               >
                 <span className="sr-only">{ui("m24eeb6e9cdfa")}</span>
                 {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
+              </button></div>
             </div>
           </header>
 

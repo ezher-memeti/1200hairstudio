@@ -1,4 +1,6 @@
 "use client";
+import { isPushId } from "@/lib/push/preferences";
+import { getZurichDateKeyFromIso } from "@/lib/appointments/date-utils";
 import { weekdayLabel } from "@/i18n/format";
 import { formatDateForLocale } from "@/i18n/config";
 
@@ -11,7 +13,7 @@ import { useUiText } from "@/i18n/use-ui-text";
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
@@ -318,6 +320,7 @@ export default function AdminAppointmentsView({
 
   const uiText = useUiText();
 
+  const history = useTranslations("calendarHistory");
   const ui = useTranslations("ui");
   const audit = useTranslations("audit");
 
@@ -377,6 +380,7 @@ export default function AdminAppointmentsView({
       return;
     }
 
+    document.querySelector<HTMLElement>(`[data-appointment-id="${appointmentId}"]`)?.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
     setSelectedAppointmentId(appointmentId);
   }, [appointments, searchParams]);
 
@@ -384,8 +388,13 @@ export default function AdminAppointmentsView({
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const weekStart = weekDates[0];
   const weekEnd = weekDates[6];
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (selectedAppointmentId) detailHeading.current?.focus({ preventScroll: true });
+  }, [selectedAppointmentId]);
   const selectedDetail =
     appointmentState.find((appointment) => appointment.id === selectedAppointmentId) ?? null;
+  const notificationHistory = Boolean(selectedDetail && isPushId(searchParams.get("notification")) && getZurichDateKeyFromIso(selectedDetail.start_at) < todayDateKey);
   const selectedFinance = selectedDetail
     ? financeSummaries.find((item) => item.appointment_id === selectedDetail.id) ?? null
     : null;
@@ -1069,6 +1078,7 @@ export default function AdminAppointmentsView({
                           return (
                             <button
                               key={appointment.id}
+                              data-appointment-id={appointment.id}
                               type="button"
                               onClick={() => setSelectedAppointmentId(appointment.id)}
                               className={`absolute z-10 overflow-hidden border px-2 py-2 text-left shadow-[0_8px_24px_rgba(0,0,0,0.16)] transition-transform hover:-translate-y-0.5 ${getStatusTone(
@@ -1186,6 +1196,7 @@ export default function AdminAppointmentsView({
                         return (
                           <button
                             key={appointment.id}
+                              data-appointment-id={appointment.id}
                             type="button"
                             onClick={() => setSelectedAppointmentId(appointment.id)}
                             className={`absolute overflow-hidden border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 ${getStatusTone(
@@ -1251,6 +1262,7 @@ export default function AdminAppointmentsView({
                     {dayAppointments.map((appointment) => (
                       <button
                         key={appointment.id}
+                              data-appointment-id={appointment.id}
                         type="button"
                         onClick={() => setSelectedAppointmentId(appointment.id)}
                         className="grid w-full grid-cols-1 gap-3 py-4 text-left transition-colors hover:bg-background/40 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_auto]"
@@ -1307,7 +1319,7 @@ export default function AdminAppointmentsView({
               <div className="space-y-2">
                 <p className="font-admin-primary text-xs uppercase tracking-[0.34em] text-foreground-secondary">
                   {ui("m2d05c593246b")}</p>
-                <h2 className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
+                <h2 ref={detailHeading} tabIndex={-1} className="font-admin-display text-2xl uppercase tracking-[-0.04em] text-foreground outline-none sm:text-3xl">
                   {selectedDetail.customer_name}
                 </h2>
                 <p className="font-admin-primary text-sm leading-7 text-foreground-secondary">
@@ -1403,6 +1415,7 @@ export default function AdminAppointmentsView({
               {receiptFeedback ? <p className="mt-3 font-admin-primary text-sm text-foreground-secondary">{uiText(receiptFeedback)}</p> : null}
             </div>
 
+            {notificationHistory ? <p role="status" className="mt-6 text-sm text-accent">{history("readOnly")}</p> : <>
             <div className="mt-6 space-y-3">
               <label className="block">
                 <span className="font-admin-primary text-xs uppercase tracking-[0.18em] text-foreground-muted">
@@ -1453,6 +1466,7 @@ export default function AdminAppointmentsView({
               </button>
             </div>
 
+            </>}
             {feedback ? (
               <p className="mt-4 font-admin-primary text-sm text-foreground-secondary">
                 {uiText(feedback)}

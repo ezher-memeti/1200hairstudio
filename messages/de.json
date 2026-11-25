@@ -1099,8 +1099,8 @@
     "m2d04f6d97e1f": "Die E-Mail-Einstellungen können derzeit nicht gespeichert werden.",
     "mbd4ee2f95e02": "Das Kundenkonto konnte nicht geladen werden.",
     "m01126f54afac": "Ungültige E-Mail-Adresse oder ungültiges Passwort.",
-    "m67fdc69a6dad": "Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde ein Link zum Zurücksetzen des Passworts gesendet.",
-    "mdd1e4aa4dbc3": "Möglicherweise existiert bereits ein Konto mit dieser E-Mail-Adresse. Versuche dich anzumelden oder setze dein Passwort zurück.",
+    "m67fdc69a6dad": "Falls ein Konto mit dieser E-Mail-Adresse besteht, wurde ein Link zum Zurücksetzen des Passworts gesendet.",
+    "mdd1e4aa4dbc3": "Ein Konto mit dieser E-Mail-Adresse besteht bereits. Bitte melde dich an oder setze dein Passwort zurück.",
     "ma9aad3e8bcd2": "Zu viele Versuche. Bitte warte einen Moment und versuche es erneut.",
     "m85f49c3ef997": "Diese Buchung liegt in der Vergangenheit oder ist nicht mehr aktiv.",
     "m09d8e558601f": "Wähle eine gültige Terminzeit.",
@@ -1541,7 +1541,8 @@
     "m916b679562b5": "Fülle vor dem Erstellen die erforderlichen englischen Ausgangsfelder aus.",
     "m694f71046af7": "Ungültige Inhaltssprache.",
     "m21d0332379ec": "Dieses Feld und die folgenden Felder konnten nicht gespeichert werden.",
-    "mdb7bfc91720b": "Der Inhalt konnte nicht geladen werden. Nachfolgende Felder wurden nicht gespeichert."
+    "mdb7bfc91720b": "Der Inhalt konnte nicht geladen werden. Nachfolgende Felder wurden nicht gespeichert.",
+    "authFormUnavailable": "Deine Anfrage kann gerade nicht bearbeitet werden. Bitte versuche es erneut."
   },
   "communication": {
     "reserved": "{count, plural, one {# Termin reserviert} other {# Termine reserviert}}",
@@ -2055,5 +2056,34 @@
     "appointment_completed_body": "Ein Termin wurde als abgeschlossen markiert.",
     "test_title": "1200 HAIRSTUDIO",
     "test_body": "Push-Benachrichtigungen sind auf diesem Gerät aktiviert."
+  },
+  "notifications": {
+    "heading": "Benachrichtigungen",
+    "bell": "Benachrichtigungen: {count, plural, =0 {keine ungelesen} one {# ungelesen} other {# ungelesen}}",
+    "unreadCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}",
+    "close": "Benachrichtigungen schliessen",
+    "filter": "Benachrichtigungsfilter",
+    "all": "Alle",
+    "unread": "Ungelesen",
+    "markRead": "Als gelesen markieren",
+    "markUnread": "Als ungelesen markieren",
+    "markAll": "Alle als gelesen markieren",
+    "loadMore": "Mehr laden",
+    "empty": "Die Aktivitäten deines Studios erscheinen hier.",
+    "emptyUnread": "Alles gelesen. Keine ungelesenen Benachrichtigungen.",
+    "loading": "Benachrichtigungen werden geladen…",
+    "error": "Die Benachrichtigungen konnten nicht aktualisiert werden. Bitte erneut versuchen.",
+    "retry": "Erneut versuchen",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "earlier": "Früher",
+    "missing": "Dieser Eintrag ist nicht mehr verfügbar. Die entsprechende Übersicht wurde geöffnet.",
+    "customer_registered_title": "Neue Kundenregistrierung",
+    "customer_registered_body": "Ein neuer Kunde hat ein Konto erstellt.",
+    "appointment_confirmed_title": "Neuer Termin",
+    "appointment_confirmed_body": "Ein neuer Termin wurde bestätigt.",
+    "appointmentTime": "Ein neuer Termin wurde für {time} (Zürich) gebucht.",
+    "appointment_completed_title": "Termin abgeschlossen",
+    "appointment_completed_body": "Ein Termin wurde abgeschlossen."
   }
 }

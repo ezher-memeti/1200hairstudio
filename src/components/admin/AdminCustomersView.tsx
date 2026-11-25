@@ -290,6 +290,9 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(() => customers.some(customer => customer.id === initialCustomerId) ? initialCustomerId! : null);
+  useEffect(() => {
+    if (initialCustomerId && customers.some(customer => customer.id === initialCustomerId)) setSelectedCustomerId(initialCustomerId);
+  }, [initialCustomerId, customers]);
   const [isEditing, setIsEditing] = useState(false);
   const [editFeedback, setEditFeedback] = useState("");
   const [localCustomers, setLocalCustomers] = useState(customers);
