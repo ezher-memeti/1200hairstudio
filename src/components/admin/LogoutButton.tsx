@@ -5,6 +5,7 @@ import { textFor as interfaceText } from "@/i18n/text";
 
 import { useRouter } from "@/i18n/navigation";
 import { useState } from "react";
+import { disableCurrentPush } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 
 type LogoutButtonProps = {
@@ -23,6 +24,7 @@ export default function LogoutButton({
   async function handleLogout() {
     setIsSubmitting(true);
     const supabase = createClient();
+    try { await disableCurrentPush(); } catch { /* Browser unsubscribe/expired-endpoint cleanup remains a fallback. */ }
     await supabase.auth.signOut();
     router.push("/admin/login");
     router.refresh();

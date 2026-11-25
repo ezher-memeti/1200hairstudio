@@ -16,9 +16,10 @@ import {
   isValidEmail,
 } from "@/lib/auth/shared";
 import { createClient } from "@/lib/supabase/client";
+import { isPushId } from "@/lib/push/preferences";
 import BrandLogo from "@/components/brand/BrandLogo";
 
-export default function LoginForm() {
+export default function LoginForm({ pushId }: { pushId?: string }) {
   const uiText = useUiText();
 
   const ui = useTranslations("ui");
@@ -69,7 +70,7 @@ export default function LoginForm() {
       .maybeSingle();
 
     const locale = await restoreAccountLocale();
-    window.location.assign(localizedPath(profile?.role === "admin" ? "/admin" : "/account", locale));
+    window.location.assign(localizedPath(profile?.role === "admin" ? (isPushId(pushId) ? `/admin/push/${pushId}` : "/admin") : "/account", locale));
   }
 
   return (

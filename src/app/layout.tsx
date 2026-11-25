@@ -1,3 +1,4 @@
+import type { Viewport } from "next";
 import AnalyticsConsent from "@/components/analytics/AnalyticsConsent";
 import { getSiteMode } from "@/lib/site-mode";
 import { getSiteUrl } from "@/lib/auth/url";
@@ -18,6 +19,8 @@ const primaryFont = Inter({
   weight: "400",
   variable: "--font-primary",
 });
+
+export const viewport: Viewport = { themeColor: "#0d0d0d" };
 
 export { localizedMetadata as generateMetadata } from "@/i18n/metadata";
 

@@ -5,6 +5,8 @@ import Footer from "@/components/layout/Footer";
 import Header from "@/components/layout/Header";
 import { getCurrentUserRole } from "@/lib/auth/customer";
 
+import { isPushId } from "@/lib/push/preferences";
+
 const adminDisplayFont = DM_Sans({
   subsets: ["latin"],
   variable: "--font-admin-display",
@@ -17,11 +19,13 @@ const adminPrimaryFont = Manrope({
   weight: ["400", "500", "600", "700"],
 });
 
-export default async function AdminLoginPage() {
+export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ push?: string }> }) {
+  const intent = (await searchParams).push;
+  const pushId = isPushId(intent) ? intent : undefined;
   const { user, role } = await getCurrentUserRole();
 
   if (user) {
-    return await redirect(role === "admin" ? "/admin" : "/account");
+    return await redirect(role === "admin" ? (pushId ? `/admin/push/${pushId}` : "/admin") : "/account");
   }
 
   return (
@@ -31,7 +35,7 @@ export default async function AdminLoginPage() {
         className={`${adminDisplayFont.variable} ${adminPrimaryFont.variable} admin-theme bg-background font-admin-primary`}
       >
         <section className="page-container flex min-h-[calc(100vh-9rem)] items-center py-12 sm:py-16">
-          <LoginForm />
+          <LoginForm pushId={pushId} />
         </section>
       </main>
       <Footer />

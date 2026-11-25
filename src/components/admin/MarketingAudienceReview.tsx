@@ -18,6 +18,7 @@ type Props = {
   activeServices: string[];
   serviceLabels?: Record<string,string>;
   campaignId?: string;
+  onCampaignId?: (id: string) => void;
   preview: React.ReactNode;
   onFiltersChange: (filters: MarketingAudienceFilters) => void;
   onBack: () => void;
@@ -27,7 +28,7 @@ type Props = {
 
 const statuses: CustomerStatus[] = ["prospect", "new", "returning", "regular", "at_risk", "inactive"];
 
-export default function MarketingAudienceReview({ content, filters, activeServices, serviceLabels = {}, campaignId, preview, onFiltersChange, onBack, onComplete, onMessage }: Props) {
+export default function MarketingAudienceReview({ content, filters, activeServices, serviceLabels = {}, campaignId, onCampaignId, preview, onFiltersChange, onBack, onComplete, onMessage }: Props) {
   const uiText = useUiText();
   const { locale: contentLocale } = useAdminContentLocale();
 
@@ -38,6 +39,7 @@ export default function MarketingAudienceReview({ content, filters, activeServic
   const [eligible, setEligible] = useState<MarketingRecipientPreview[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [isSending, setIsSending] = useState(false);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   useEffect(() => {
@@ -90,7 +92,7 @@ export default function MarketingAudienceReview({ content, filters, activeServic
         </div>
       </div>
 
-      <div>{preview}<div className="mt-5 border border-border bg-surface p-5"><div className="grid grid-cols-2 gap-3"><div className="border border-border bg-background p-4"><p className="text-[9px] uppercase tracking-[.16em] text-foreground-muted">{ui("m3e7a6e9cac73")}</p><p className="mt-2 text-2xl text-foreground">{eligible.length}</p></div><div className="border border-accent/30 bg-accent/[0.06] p-4"><p className="text-[9px] uppercase tracking-[.16em] text-accent">{ui("m23effb4f771b")}</p><p className="mt-2 text-2xl text-foreground">{selectedIds.length}</p></div></div><p className="mt-5 text-lg text-foreground">{content.campaignName}</p><p className="mt-1 text-sm text-foreground-secondary">{ui("mcdcae8570191")}{" "}{content.subject}</p><div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={onBack} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground">{ui("mb52b36b7269f")}</button><button type="button" disabled={isPending} onClick={() => startTransition(async () => { const result = await saveMarketingDraft(content, filters, campaignId, contentLocale); onMessage(result.success ? "success" : "error", result.success ? copy("saved", { language: contentLocale.toUpperCase() }) : `${copy("failed", { language: contentLocale.toUpperCase() })} ${uiText(result.message)}`); })} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground disabled:opacity-50">{ui("mcc1316dd1928")}</button><button type="button" disabled={isPending} onClick={() => startTransition(async () => { const result = await sendMarketingTest(content); onMessage(result.success ? "success" : "error", result.message); })} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground disabled:opacity-50">{ui("mc59675d51004")}</button><button type="button" disabled={isPending || !selectedIds.length} onClick={() => { if (!window.confirm(audit("sendCampaignConfirmation", { count: selectedIds.length }))) return; startTransition(async () => { const result = await sendMarketingCampaign(content, filters, selectedIds, campaignId); if (result.success) onComplete(result.message); else onMessage("error", result.message); }); }} className="ml-auto inline-flex min-h-11 items-center gap-2 bg-accent px-6 text-[10px] font-semibold uppercase tracking-[.16em] text-background disabled:opacity-40"><Send size={14} /> {" "}{ui("mb98cc23a0165")}{" "}{audit("customerCount", { count: selectedIds.length })}</button></div></div></div>
+      <div>{preview}<div className="mt-5 border border-border bg-surface p-5"><div className="grid grid-cols-2 gap-3"><div className="border border-border bg-background p-4"><p className="text-[9px] uppercase tracking-[.16em] text-foreground-muted">{ui("m3e7a6e9cac73")}</p><p className="mt-2 text-2xl text-foreground">{eligible.length}</p></div><div className="border border-accent/30 bg-accent/[0.06] p-4"><p className="text-[9px] uppercase tracking-[.16em] text-accent">{ui("m23effb4f771b")}</p><p className="mt-2 text-2xl text-foreground">{selectedIds.length}</p></div></div><p className="mt-5 text-lg text-foreground">{content.campaignName}</p><p className="mt-1 text-sm text-foreground-secondary">{ui("mcdcae8570191")}{" "}{content.subject}</p><div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={onBack} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground">{ui("mb52b36b7269f")}</button><button type="button" disabled={isPending} onClick={() => startTransition(async () => { const result = await saveMarketingDraft(content, filters, campaignId, contentLocale); onMessage(result.success ? "success" : "error", result.success ? copy("saved", { language: contentLocale.toUpperCase() }) : `${copy("failed", { language: contentLocale.toUpperCase() })} ${uiText(result.message)}`); })} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground disabled:opacity-50">{ui("mcc1316dd1928")}</button><button type="button" disabled={isPending} onClick={() => startTransition(async () => { const result = await sendMarketingTest(content, contentLocale); onMessage(result.success ? "success" : "error", result.message); })} className="min-h-11 border border-border px-5 text-[10px] uppercase tracking-[.16em] text-foreground disabled:opacity-50">{ui("mc59675d51004")}</button><button type="button" disabled={isPending || isSending || !selectedIds.length} onClick={() => { if (!window.confirm(audit("sendCampaignConfirmation", { count: selectedIds.length }))) return; if (isSending) return; setIsSending(true); startTransition(async () => { try { const result = await sendMarketingCampaign(content, filters, selectedIds, campaignId); if (result.campaignId) onCampaignId?.(result.campaignId); if (result.success) onComplete(result.message); else onMessage("error", result.message); } finally { setIsSending(false); } }); }} className="ml-auto inline-flex min-h-11 items-center gap-2 bg-accent px-6 text-[10px] font-semibold uppercase tracking-[.16em] text-background disabled:opacity-40"><Send size={14} /> {" "}{ui("mb98cc23a0165")}{" "}{audit("customerCount", { count: selectedIds.length })}</button></div></div></div>
     </div>
   );
 }

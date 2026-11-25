@@ -8,6 +8,7 @@ import { usePathname } from "@/i18n/navigation";
 import Link from "@/components/admin/AdminNavLink";
 
 const siteSettingsItems = [
+  { label: "Notifications", href: "/admin/site-settings/notifications" },
   { label: "Homepage Content", href: "/admin/site-settings/homepage-content" },
   { label: "Services", href: "/admin/site-settings/services" },
   { label: "Business Hours", href: "/admin/site-settings/business-hours" },

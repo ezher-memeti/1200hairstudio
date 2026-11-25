@@ -14,6 +14,13 @@ async function start(mode,port){
   if(!ready){child.kill();throw Error('Server startup timeout');}return child;
 }
 (async()=>{
+  // Optional read-only synthetic backend for isolated builds, never production data.
+  const api=process.env.SEO_SYNTHETIC_API==='1'?require('node:http').createServer((req,res)=>{
+    res.setHeader('Content-Type','application/json');
+    if(req.method!=='GET'){res.writeHead(405).end('{}');return;}
+    res.end(JSON.stringify(req.url.startsWith('/rest/v1/services')?[{id:'00000000-0000-4000-8000-000000000123',name:'Synthetic service',name_de:'Testdienstleistung',price:25,duration_min:30,duration_max:30,image_url:'/brand/profile.png',is_active:true,sort_order:1,created_at:'2026-01-01',updated_at:'2026-01-01'}]:[]));
+  }):null;
+  if(api)await new Promise(resolve=>api.listen(3099,'127.0.0.1',resolve));
   const browser=await chromium.launch({executablePath:process.env.CHROME_EXECUTABLE_PATH,headless:true});
   try{
     for(const [i,mode] of ['live','coming_soon','under_construction'].entries()){
@@ -27,6 +34,7 @@ async function start(mode,port){
           assert.equal(await page.locator('html').getAttribute('lang'),locale);
           assert.equal(await page.locator('h1').count(),1);
           const canonical=await page.locator('link[rel=canonical]').getAttribute('href'),origin=new URL(canonical).origin;
+          assert.equal(origin,'https://1200hairstudio.ch','Production metadata cannot inherit a localhost setting');
           const suffix=mode==='live'?route:mode==='coming_soon'?'/coming-soon':'/under-construction';
           assert.equal(canonical,origin+`/${locale}`+suffix);
           for(const [lang,prefix]of [['de-CH','de'],['en','en'],['x-default','de']])assert.equal(await page.locator(`link[rel=alternate][hreflang="${lang}"]`).getAttribute('href'),origin+`/${prefix}`+suffix);
@@ -77,5 +85,5 @@ async function start(mode,port){
         console.log(`PASS ${mode}: rendered bilingual SEO, status codes, schema, social asset, sitemap, robots, private noindex and six viewport widths`);
       }finally{await context.close();server.kill();await new Promise(r=>server.once('exit',r));}
     }
-  }finally{await browser.close();}
+  }finally{await browser.close();if(api)await new Promise(resolve=>api.close(resolve));}
 })().catch(error=>{console.error('FAIL SEO browser regression at '+checkpoint+'; assertion location:',String(error.stack).split('\n').filter(line=>line.includes('test-seo-browser.cjs')).join('\n'));process.exitCode=1;});

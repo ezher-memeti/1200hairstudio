@@ -52,11 +52,12 @@ const originalMode = process.env.APP_SITE_MODE;
       assert.equal(action.status,200,'Server Actions retain their protocol; creation is guarded separately');
     });
     await test(`${mode}: infrastructure bypasses and existing management/admin routes retain security handling`, async () => {
+      for (const asset of ['/sw.js','/manifest.webmanifest']) { const beforeAsset=calls.length; const response=await middleware(new NextRequest(`https://example.invalid${asset}`));assert.equal(response.status,200);assert.equal(calls.length,beforeAsset);assert.equal(response.headers.get('x-middleware-rewrite'),null); }
       const before=calls.length;await middleware(new NextRequest('https://example.invalid/api/webhooks/whatsapp'));assert.equal(calls.length,before,'Exact webhook bypass unchanged');
-      for(const route of ['/api/google/auth','/api/google/callback','/api/internal/appointment-reminder-email','/api/admin/whatsapp/test','/api/account/receipts/synthetic','/auth/callback','/_next/image','/images/background-work.webp','/sitemap.xml']){
+      for(const route of ['/api/google/auth','/api/google/callback','/api/internal/appointment-reminder-email','/api/admin/whatsapp/test','/api/admin/push/subscriptions','/api/internal/admin-push','/api/account/receipts/synthetic','/auth/callback','/_next/image','/images/background-work.webp','/sitemap.xml']){
         const response=await middleware(new NextRequest(`https://example.invalid${route}`));assert.equal(response.status,200);assert.equal(response.headers.get('x-test-session'),'retained');assert.equal(response.headers.get('x-middleware-rewrite'),null);
       }
-      for(const route of ['/admin','/admin/login','/account','/login','/reset-password','/booking/manage/synthetic.signature','/unsubscribe/synthetic.signature']){
+      for(const route of ['/admin','/admin/login','/admin/site-settings/notifications','/admin/push/11111111-1111-4111-8111-111111111111','/account','/login','/reset-password','/booking/manage/synthetic.signature','/unsubscribe/synthetic.signature']){
         const response=await middleware(new NextRequest(`https://example.invalid/de${route}`));assert.equal(response.headers.get('x-middleware-rewrite'),`https://example.invalid${route}`);assert.equal(response.status,200);
       }
       const legacy=await middleware(new NextRequest('https://example.invalid/book'));assert.equal(legacy.status,307);assert.equal(legacy.headers.get('location'),'https://example.invalid/de/book');

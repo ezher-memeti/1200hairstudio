@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, '..');
   await fs.mkdir(path.join(root, 'public/icons'), { recursive: true });
   const resize = size => sharp(source).rotate().resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: 'lanczos3' }).png({ compressionLevel: 9 }).toBuffer();
   for (const size of [16, 32, 192]) await fs.writeFile(path.join(root, `public/icons/favicon-${size}x${size}.png`), await resize(size));
+  await fs.writeFile(path.join(root, 'public/icons/app-512x512.png'), await resize(512));
   await fs.writeFile(path.join(root, 'public/apple-touch-icon.png'), await resize(180));
   // Standard ICO directory with PNG-compressed 16, 32 and 48px images.
   const sizes = [16, 32, 48], images = await Promise.all(sizes.map(resize));

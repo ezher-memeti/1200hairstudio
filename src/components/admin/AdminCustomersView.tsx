@@ -43,6 +43,7 @@ import RecurringBookingManager from "@/components/recurring-bookings/RecurringBo
 import type { RecurringBookingRecord } from "@/lib/recurring-bookings/types";
 
 type Props = {
+  initialCustomerId?: string;
   customers: AdminCustomerDirectoryEntry[];
   activeServices: { id: string; name: string; sourceName?: string }[];
   recurringBookings: RecurringBookingRecord[];
@@ -269,7 +270,7 @@ function getEmailStatusClasses(status: CustomerEmailLog["status"]) {
   return "border-amber-500/30 bg-amber-500/10 text-amber-200";
 }
 
-export default function AdminCustomersView({ customers, activeServices, recurringBookings, loyaltySummaries, todayIso }: Props) {
+export default function AdminCustomersView({ customers, activeServices, recurringBookings, loyaltySummaries, todayIso, initialCustomerId }: Props) {
   const locale = useLocale();
 
   const uiText = useUiText();
@@ -288,7 +289,7 @@ export default function AdminCustomersView({ customers, activeServices, recurrin
   const [sort, setSort] = useState<SortMode>("name");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(() => customers.some(customer => customer.id === initialCustomerId) ? initialCustomerId! : null);
   const [isEditing, setIsEditing] = useState(false);
   const [editFeedback, setEditFeedback] = useState("");
   const [localCustomers, setLocalCustomers] = useState(customers);

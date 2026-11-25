@@ -1,6 +1,8 @@
 "use server";
 
+import { textFor } from "@/i18n/text";
 import { safeLogDetails } from "@/lib/logging";
+import { marketingDeliveryMessage } from "@/lib/marketing/delivery-errors";
 import { contentPayload } from "@/i18n/content-editing";
 import { isLocale, type Locale } from "@/i18n/config";
 import { revalidatePath } from "next/cache";
@@ -17,21 +19,26 @@ import { buildMarketingCampaignEmail, resolveMarketingContent } from "@/lib/mark
 import { getMarketingCampaignDetail } from "@/lib/marketing/queries";
 import type { MarketingAudienceFilters, MarketingEmailContent, MarketingTemplateInput } from "@/lib/marketing/types";
 
-type ActionResult = { success: true; message: string; campaignId?: string; templateId?: string } | { success: false; message: string };
+type ActionResult = { success: true; message: string; campaignId?: string; templateId?: string } | { success: false; message: string; campaignId?: string };
 
 function clean(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-function validateContent(input: MarketingEmailContent): MarketingEmailContent {
+function validateContent(input: MarketingEmailContent, locale: Locale = "en"): MarketingEmailContent {
   const content = {
     campaignName: clean(input.campaignName, 120), templateId: clean(input.templateId, 80) || null,
     translations: input.translations?.de ? { de: { subject: clean(input.translations.de.subject, 160), preheader: clean(input.translations.de.preheader, 200), headline: clean(input.translations.de.headline, 180), content: clean(input.translations.de.content, 5000), ctaText: clean(input.translations.de.ctaText, 80) } } : undefined,
     subject: clean(input.subject, 160), preheader: clean(input.preheader, 200), headline: clean(input.headline, 180),
     content: clean(input.content, 5000), ctaText: clean(input.ctaText, 80), ctaUrl: clean(input.ctaUrl, 500),
   };
-  if (!content.campaignName || !content.subject || !content.headline || !content.content) throw new Error("Campaign name, subject, headline and content are required.");
-  if (content.ctaUrl && !/^https?:\/\//i.test(content.ctaUrl)) throw new Error("CTA URL must begin with http:// or https://.");
+  const localized = resolveMarketingContent(content, locale);
+  if (!content.campaignName || !localized.subject || !localized.headline || !localized.content) throw Object.assign(new Error("Campaign name, subject, headline and content are required."), { code: "marketing_content_required" });
+  if (/[\r\n]/.test(localized.subject)) throw Object.assign(new Error("Subject must be a single line."), { code: "marketing_subject_invalid" });
+  if (content.ctaUrl) {
+    try { const url = new URL(content.ctaUrl); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error(); }
+    catch { throw Object.assign(new Error("CTA URL must begin with http:// or https://."), { code: "marketing_cta_invalid" }); }
+  }
   return content;
 }
 
@@ -192,15 +199,28 @@ export async function deleteMarketingDraft(campaignId: string): Promise<ActionRe
   }
 }
 
-export async function sendMarketingTest(input: MarketingEmailContent): Promise<ActionResult> {
+export async function sendMarketingTest(input: MarketingEmailContent, contentLocale?: Locale): Promise<ActionResult> {
+  let stage: "authorization" | "validation" | "rendering" | "delivery" = "authorization";
+  let locale: Locale = "de";
   try {
     const { user } = await requireAdminUser();
-    const content = validateContent(input);
-    if (!user.email) return { success: false, message: "Your admin account has no email address." };
-    const email = buildMarketingCampaignEmail(resolveMarketingContent(content, await getLocale()));
-    await sendGmailMessage({ to: user.email, subject: `[TEST] ${content.subject}`, html: email.html, text: email.text });
+    locale = contentLocale ?? (await getLocale() === "en" ? "en" : "de");
+    stage = "validation";
+    if (!isLocale(locale)) throw Object.assign(new Error("Invalid content language."), { code: "marketing_locale_invalid" });
+    const content = resolveMarketingContent(validateContent(input, locale), locale);
+    if (!isValidEmail(user.email)) throw Object.assign(new Error("Invalid admin recipient."), { code: "marketing_recipient_invalid" });
+    stage = "rendering";
+    const email = buildMarketingCampaignEmail(content, locale);
+    stage = "delivery";
+    await sendGmailMessage({ to: user.email!.trim(), subject: `[TEST] ${content.subject}`, html: email.html, text: email.text });
     return { success: true, message: `Test email sent to ${user.email}.` };
-  } catch (error) { console.error("Marketing test email failed", safeLogDetails(error)); return { success: false, message: "The test email could not be sent." }; }
+  } catch (error) {
+    if (stage === "authorization") console.error("Marketing test authorization failed", safeLogDetails(error));
+    else if (stage === "validation") console.error("Marketing test validation failed before Gmail submission", safeLogDetails(error));
+    else if (stage === "rendering") console.error("Marketing test rendering failed before Gmail submission", safeLogDetails(error));
+    else console.error("Marketing test Gmail submission failed", safeLogDetails(error));
+    return { success: false, message: marketingDeliveryMessage(error, await getLocale(), stage) };
+  }
 }
 
 export async function sendMarketingCampaign(input: MarketingEmailContent, filters: MarketingAudienceFilters, selectedCustomerIdsOrCampaignId: string[] | string | undefined, campaignIdArgument?: string): Promise<ActionResult> {
@@ -209,7 +229,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
     const selectedCustomerIds = Array.isArray(selectedCustomerIdsOrCampaignId) ? selectedCustomerIdsOrCampaignId : [];
     const campaignId = Array.isArray(selectedCustomerIdsOrCampaignId) ? campaignIdArgument : selectedCustomerIdsOrCampaignId;
     const { supabase, user } = await requireAdminUser();
-    const content = validateContent(input);
+    const content = validateContent(input, input.subject?.trim() && input.headline?.trim() && input.content?.trim() ? "en" : "de");
     if (campaignId) {
       const { data: existingDraft, error: draftError } = await supabase.from("marketing_campaigns").select("id,status").eq("id", campaignId).maybeSingle();
       if (draftError) throw draftError;
@@ -220,6 +240,12 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
     const eligibleCustomerIds = new Set(eligible.map((recipient) => recipient.id));
     const selectedIds = Array.from(new Set(selectedCustomerIds.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim())));
     if (!selectedIds.length) return { success: false, message: "Select at least one eligible recipient before sending." };
+    const eligibleSelectedIds = selectedIds.filter(id => eligibleCustomerIds.has(id));
+    if (eligibleSelectedIds.length) {
+      const { data: recipients, error: localeError } = await supabase.from("customers").select("id,preferred_locale").in("id", eligibleSelectedIds);
+      if (localeError) throw localeError;
+      for (const recipient of recipients ?? []) validateContent(content, notificationLocale(recipient.preferred_locale, null));
+    }
     const payload = { ...campaignPayload(content, filters, user.id), status: "sending", recipient_count: selectedIds.length };
     const campaignQuery = campaignId ? supabase.from("marketing_campaigns").update(payload).eq("id", campaignId).eq("status", "draft").select("id").maybeSingle() : supabase.from("marketing_campaigns").insert(payload).select("id").single();
     const { data: campaign, error: campaignError } = await campaignQuery;
@@ -227,6 +253,8 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
     activeCampaignId = campaign.id;
 
     let sent = 0, failed = 0, skipped = 0, trackedRecipients = 0;
+    let lastFailure: unknown = null;
+    const processedEmails = new Set<string>();
     for (const customerId of selectedIds) {
       const { data: freshCustomer, error: customerError } = await supabase.from("customers").select("*").eq("id", customerId).maybeSingle();
       if (customerError || !freshCustomer || !isValidEmail(freshCustomer.email)) {
@@ -236,6 +264,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
       }
 
       const emailSnapshot = freshCustomer.email.trim().toLowerCase();
+      if (processedEmails.has(emailSnapshot)) { skipped += 1; continue; }
       const campaignCustomer = {
         ...freshCustomer,
         email: emailSnapshot,
@@ -255,26 +284,30 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
         skipped += 1;
         continue;
       }
+      let failureReason: string | null = null;
       try {
+        processedEmails.add(emailSnapshot);
         const locale = notificationLocale(campaignCustomer.preferred_locale, null);
-        const localized = resolveMarketingContent(content, locale);
-        const email = buildMarketingCampaignEmail(localized);
+        const localized = resolveMarketingContent(validateContent(content, locale), locale);
+        const email = buildMarketingCampaignEmail(localized, locale);
         const result = await sendMarketingEmail({ customer: campaignCustomer, subject: localized.subject, html: email.html, text: email.text });
         status = result.sent ? "sent" : "skipped";
         result.sent ? sent += 1 : skipped += 1;
-      } catch (emailError) { status = "failed"; failed += 1; console.error("Marketing recipient email failed", safeLogDetails({ campaignId: campaign.id, error: emailError })); }
+      } catch (emailError) { status = "failed"; failed += 1; lastFailure = emailError; failureReason = marketingDeliveryMessage(emailError, "en", "delivery"); console.error("Marketing recipient email failed", safeLogDetails({ campaignId: campaign.id, error: emailError })); }
       const { error: recipientUpdateError } = await supabase.from("marketing_campaign_recipients").update({
         status,
         sent_at: status === "sent" ? new Date().toISOString() : null,
-        failure_reason: status === "failed" ? "Email provider could not deliver this message." : null,
+        failure_reason: failureReason,
       }).eq("id", row.id);
       if (recipientUpdateError) console.error("Unable to persist marketing delivery status", safeLogDetails({ recipientId: row.id, status, error: recipientUpdateError }));
     }
     if (trackedRecipients === 0) throw new Error("No campaign recipients could be tracked or processed.");
-    const { error: completionError } = await supabase.from("marketing_campaigns").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", campaign.id);
+    const { error: completionError } = await supabase.from("marketing_campaigns").update({ status: failed > 0 ? "failed" : "sent", sent_at: sent > 0 ? new Date().toISOString() : null }).eq("id", campaign.id);
     if (completionError) throw completionError;
     revalidatePath("/admin/marketing");
-    return { success: true, message: `Campaign complete: ${sent} sent, ${failed} failed, ${skipped} skipped.`, campaignId: campaign.id };
+    const interfaceLocale = await getLocale();
+    const summary = textFor(interfaceLocale, `Campaign complete: ${sent} sent, ${failed} failed, ${skipped} skipped.`);
+    return { success: failed === 0, message: failed > 0 ? `${summary} ${marketingDeliveryMessage(lastFailure, interfaceLocale, lastFailure ? "delivery" : "campaign")}` : summary, campaignId: campaign.id };
   } catch (error) {
     console.error("Marketing campaign failed", safeLogDetails(error));
     if (activeCampaignId) {
@@ -285,7 +318,7 @@ export async function sendMarketingCampaign(input: MarketingEmailContent, filter
         console.error("Unable to mark marketing campaign failed", safeLogDetails(statusError));
       }
     }
-    return { success: false, message: "The campaign could not be completed." };
+    return { success: false, message: marketingDeliveryMessage(error, await getLocale(), "campaign"), ...(activeCampaignId ? { campaignId: activeCampaignId } : {}) };
   }
 }
 

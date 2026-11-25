@@ -1,9 +1,12 @@
+import { getSiteUrl } from "@/lib/auth/url";
 import { getSiteMode, siteModeDestination } from "@/lib/site-mode";
 import { type NextRequest, NextResponse } from "next/server";
 import { isNonLocalizedPath, isLocale, localizedPath, localeCookie, resolveLocale } from "@/i18n/config";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
+  // Public PWA resources must never be localized or require a browser session.
+  if (["/sw.js", "/manifest.webmanifest"].includes(request.nextUrl.pathname)) return NextResponse.next();
   // Meta authenticates this exact callback with the verification token/HMAC,
   // never a browser session. Keep all other paths on the existing auth flow.
   if (request.nextUrl.pathname === "/api/webhooks/whatsapp") {
@@ -17,7 +20,14 @@ export async function middleware(request: NextRequest) {
   const locale = isLocale(prefix) ? prefix : resolveLocale(request.cookies.get(localeCookie)?.value);
   if (!isLocale(prefix)) {
     const target = new URL(request.url);
-    target.host = request.headers.get("host") ?? target.host;
+    if (process.env.NODE_ENV === "production") {
+      const origin = new URL(getSiteUrl());
+      target.protocol = origin.protocol;
+      target.host = origin.host;
+      target.port = origin.port;
+    } else {
+      target.host = request.headers.get("host") ?? target.host;
+    }
     target.pathname = localizedPath(path, locale);
     const session = await updateSession(request);
     if (session.status !== 200) return session;

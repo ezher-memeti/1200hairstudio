@@ -42,6 +42,8 @@ export function publicMetadata(origin: string, locale: Locale, path: string): Me
   const canonicalPath = localizedPath(route, locale);
   return {
     metadataBase: new URL(origin), title, description,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { capable: true, title: "1200 HAIRSTUDIO", statusBarStyle: "black" },
     icons: {
       icon: [
         { url: "/favicon.ico", type: "image/x-icon", sizes: "16x16 32x32 48x48" },

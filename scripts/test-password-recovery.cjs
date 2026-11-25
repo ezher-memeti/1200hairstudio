@@ -58,11 +58,36 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));
     const {middleware}=load('src/middleware.ts',{'server-only':{},'@/lib/supabase/middleware':{updateSession:async(_request,response)=>response??NextResponse.next()}});
     for(const mode of ['live','coming_soon','under_construction'])for(const locale of ['de','en']) {
       process.env.APP_SITE_MODE=mode;
-      const response=await middleware(new NextRequest(`https://1200hairstudio.ch/${locale}/reset-password?code=synthetic`));
+      const response=await middleware(new NextRequest(`https://1200hairstudio.ch/${locale}/reset-password?code=synthetic`, {headers:{cookie:`1200_locale=${locale==='en'?'de':'en'}`}}));
       assert.equal(response.status,200);
       assert.equal(response.headers.get('location'),null);
+      assert.equal(response.headers.get('x-middleware-request-x-next-intl-locale'),locale,'explicit recovery locale overrides a stale language cookie');
       assert.equal(response.headers.get('x-middleware-rewrite'),'https://1200hairstudio.ch/reset-password?code=synthetic');
     }
   } finally {if(originalMode===undefined)delete process.env.APP_SITE_MODE;else process.env.APP_SITE_MODE=originalMode;}
+  const envKeys=['NODE_ENV','VERCEL_ENV','NEXT_PUBLIC_VERCEL_ENV','NEXT_PUBLIC_SITE_URL'];
+  const envBefore=Object.fromEntries(envKeys.map(key=>[key,process.env[key]]));
+  try {
+    process.env.NODE_ENV='production';process.env.VERCEL_ENV='production';delete process.env.NEXT_PUBLIC_VERCEL_ENV;
+    process.env.NEXT_PUBLIC_SITE_URL='https://www.1200hairstudio.ch';
+    const requested=getResetPasswordRedirectUrl('en');
+    const hostedAllowlist=new Set(['https://www.1200hairstudio.ch/de/reset-password','https://www.1200hairstudio.ch/en/reset-password']);
+    assert.equal(requested,'https://1200hairstudio.ch/en/reset-password');
+    assert(!hostedAllowlist.has(requested),'observed www-only allowlist rejects the actual application destination');
+    // Supabase's documented rejected-redirect fallback loses the path before Vercel sees it.
+    const fallback=new URL(hostedAllowlist.has(requested)?requested:'https://www.1200hairstudio.ch');
+    fallback.searchParams.set('code','synthetic');fallback.hostname='1200hairstudio.ch';
+    const {middleware}=load('src/middleware.ts',{'server-only':{},'@/lib/supabase/middleware':{updateSession:async(_r,response)=>response??NextResponse.next()}});
+    const landing=await middleware(new NextRequest(fallback,{headers:{cookie:'1200_locale=en'}}));
+    const location=new URL(landing.headers.get('location'));
+    assert.equal(location.origin,'https://1200hairstudio.ch');assert.equal(location.pathname,'/en');assert(location.searchParams.has('code'));
+    for(const locale of ['de','en']){
+      const allowed=getResetPasswordRedirectUrl(locale);hostedAllowlist.add(allowed);
+      assert(hostedAllowlist.has(allowed));
+      const valid=await middleware(new NextRequest(allowed+'?code=synthetic'));
+      assert.equal(valid.headers.get('location'),null);assert.equal(new URL(valid.headers.get('x-middleware-rewrite')).pathname,'/reset-password');
+    }
+  } finally {for(const key of envKeys){if(envBefore[key]===undefined)delete process.env[key];else process.env[key]=envBefore[key];}}
+  console.log('PASS observed www-only configuration mismatch and documented provider fallback chain; corrected canonical paths reach the existing reset route. Mocked fallback, no hosted mutation.');
   console.log('PASS recovery event race, invalid/expired/reused and missing-session states, implicit compatibility, unsubscribe, sign-out, URL cleanup and canonical localized destinations. Mocked auth only.');
 })().catch(error=>{console.error(error);process.exitCode=1});

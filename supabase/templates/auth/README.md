@@ -130,6 +130,24 @@ code exchange. See [Supabase PKCE documentation](https://supabase.com/docs/guide
 
 ## URLs and current application compatibility
 
+### Confirmed production configuration mismatch — 25 November 2026
+
+The authenticated hosted Dashboard was inspected read-only: Site URL is
+`https://www.1200hairstudio.ch`, with only www `/de/reset-password` and `/en/reset-password`
+allowlist entries. The canonical non-www entries are absent. Interception of the deployed
+forgot-password forms confirmed they already request the non-www localized reset URLs, with
+no real Auth request sent. Supabase rejects that host mismatch and falls back to Site URL;
+www-to-apex and locale redirects then explain the reported `/en` homepage with a code.
+The reset path is lost at the provider fallback, not by the existing reset-page guard/PKCE flow.
+
+Set hosted Site URL to `https://1200hairstudio.ch`, add both exact non-www localized reset
+URLs, and request a new email. Preserve the CTA `{{ .ConfirmationURL }}` and existing PKCE
+flow. No hosted setting was changed. Config-only correction needs no Next.js redeployment;
+existing pending code/environment changes require their normal reviewed deployment.
+See [the detailed production recovery report](../../../docs/password-recovery-production.md)
+for evidence, tests, exact signup-compatible entries and rollout steps. The older observations
+below remain dated history, not the latest hosted inspection.
+
 ### Password recovery correction — 24 November 2026
 
 The earlier hosted inspection above is historical, not a current settings read. No Management API

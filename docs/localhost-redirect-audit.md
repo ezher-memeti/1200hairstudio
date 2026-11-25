@@ -1,0 +1,198 @@
+# Localhost / redirect audit — 25 November 2026
+
+## Confirmed findings and fixes
+
+| Location | Finding | Fix |
+| --- | --- | --- |
+| `src/lib/auth/url.ts` | A missing server URL defaulted to localhost even in production. A configured localhost, malformed URL, path, credentials, query or fragment was not validated. Browser fallback trusted any current origin. | One canonical production origin: `https://1200hairstudio.ch`. Production never inherits a loopback/wrong configured origin. Validate origin-only settings. Development keeps its actual browser origin/port and configured server origin. Preview uses explicit safe HTTPS configuration or Vercel deployment/branch origins, consistently in browser/server. No usable Preview configuration falls back to the canonical domain, never localhost. |
+| `src/components/auth/PublicRegisterForm.tsx` | Signup bypassed the helper with `window.location.origin`. A www/Preview/local origin could conflict with the intended deployment and Supabase allowlist. | Signup confirmation now uses `getLocalizedSiteUrl('/login', locale)`, sharing the recovery policy. |
+| `src/middleware.ts` | Legacy, unprefixed route redirects used the request Host directly, including any local/internal origin in a production request. | Production-build redirects use the validated deployment origin and clear inherited ports. Development retains existing host behavior. Authentication/session/cookie handling and internal locale rewrites remain intact. |
+| `src/lib/marketing/email-template.ts` | Stored CTA URLs were sent unchanged, independent of the site origin setting. | Normalize internal studio/www/loopback CTAs at rendering time, preserving path/query/fragment and the recipient/content locale. Preserve intentional external HTTP(S) links. Omit invalid optional CTA URLs. |
+| `src/app/admin/(dashboard)/marketing/actions.ts` | The renderer did not receive the chosen/recipient locale for URL generation. | Pass that locale explicitly for test and campaign rendering. Earlier marketing fixes remain intact. |
+| `src/lib/email/gmail.ts` | Existing management URLs from an old localhost origin were not recognized as internal. Admin booking CTAs also omitted their already-known locale. | Use the same internal-link normalizer and add the existing locale to admin appointment URLs. Gmail authentication, MIME and send implementation are unchanged. |
+| Hosted marketing data, read-only inspection | Two template `default_cta_url` values and three historical campaign `cta_url` values pointed to loopback hosts. | Future rendering corrects them without updating any database record. Existing sent emails cannot be rewritten. No record URLs, IDs or private query values were printed. |
+| `supabase/config.toml` | Local reset URLs existed, but localized signup/login destinations were absent from the local explicit allowlist. | Add exact `/de/login` and `/en/login` on localhost and 127.0.0.1; preserve existing local redirects, local Site URL, SMTP and Auth policies. This does not update hosted Supabase. |
+| `generate-gmail-token.cjs` | An unused legacy helper registered localhost:3000 `/api/google/callback` while listening on 3001 for `/oauth2callback`; it lacked the supported app flow's state handling and printed tokens. | Retire execution with a safe instruction to use the existing development-only `/api/google/auth` flow. It no longer prints tokens, binds a callback port or performs OAuth exchange. No token file or grant was changed. |
+
+The canonical origin is defined once in the existing shared URL module. `NEXT_PUBLIC_SITE_URL`
+remains the existing setting; no competing SITE_URL variable or URL dependency was introduced.
+`getLocalizedSiteUrl` rejects external/protocol-relative/backslash callback paths.
+`localizePublicUrl` rejects credentials and non-HTTP(S) links, rebases studio/loopback links, and
+keeps intentional external links. This is not an arbitrary server redirect endpoint.
+
+## Flow audit
+
+- Login/logout/admin/customer guards: existing relative localized Next navigation remains. No
+  callbackUrl/returnTo URL parameter is used to redirect to arbitrary hosts; returnToCampaign is
+  a UI boolean, not a URL. Admin authorization is preserved.
+- Signup: localized `/de/login` or `/en/login` is passed as `emailRedirectTo`. Supabase's
+  verification link still performs verification before redirecting there.
+- Recovery: the existing `resetPasswordForEmail` uses the shared helper for localized reset
+  destinations. Existing browser PKCE verification and password-update logic are untouched.
+- Auth templates: both CTA hrefs remain `{{ .ConfirmationURL }}`; footer uses `{{ .SiteURL }}`.
+  Local template HTML cannot override the hosted project's Site URL or redirect allowlist.
+- Guest management/cancellation/rescheduling: `getBookingManagementUrl` already uses the shared
+  origin and localized path. Its token is preserved. Email rendering now also corrects a legacy
+  local-origin management URL; no token is logged or regenerated by normalization.
+- Booking, reminder, recurring and marketing unsubscribe links already share `getSiteUrl`.
+  Recurring URLs are localized before rendering. Marketing unsubscribe signing/consent rules
+  remain unchanged.
+- WhatsApp: the approved hello_world test template has no application URL parameters. Graph API
+  requests stay on Meta's official endpoint. The webhook callback is an exact nonlocalized
+  machine route; token/HMAC checks and recipient restrictions are unchanged.
+- Supabase reminder worker: reads `REMINDER_DELIVERY_URL` from Edge Function secrets; there is
+  no hardcoded localhost URL. Its hosted secret cannot be inferred from the repository. Do not
+  invoke the real worker just to test its URL, because that can send reminders.
+- Live/Coming Soon/Under Construction: the shared origin covers metadata and existing links.
+  Auth, protected pages, management links and webhooks keep their mode exemptions and security.
+- Google Places/Maps, Graph API, schema.org, Supabase APIs, LinkedIn and Instagram URLs are
+  legitimate external destinations; they were not replaced with the studio domain.
+
+## Legitimate localhost references retained
+
+- `src/lib/auth/url.ts`: final default **only in development/test**, not production.
+- `.env.local`: `NEXT_PUBLIC_SITE_URL=http://localhost:3000` and
+  `GOOGLE_REDIRECT_URI=http://localhost:3000/api/google/callback` are correct locally. No values
+  were changed. For a different local server port/hostname, configure that actual origin on the
+  server too; browser Auth uses its actual origin to retain PKCE cookies.
+- `supabase/config.toml`: local Supabase API/Studio/Site URL and exact local auth redirect paths.
+- `supabase/LOCAL_TESTING.md`, browser/unit/security-test fixtures and test URLs: intentionally
+  synthetic/local and excluded from runtime configuration. The authorization-gated disposable
+  Gmail delivery verification script's local fallback is a test-only fixture, not a sender input.
+- Existing dated audit documents and local Google OAuth instructions are historical/development
+  evidence. They do not configure a hosted deployment.
+- Localhost exclusions in Analytics are intentional and remain intact.
+
+## External configuration — verify manually
+
+No Supabase Management API credential or Vercel CLI is available in this environment. Current
+hosted private settings, Google authorized redirect URIs, and Edge Function secrets were not
+claimed as inspected or changed. Public production HTTP behavior is documented separately below.
+
+### Vercel
+
+Production `NEXT_PUBLIC_SITE_URL=https://1200hairstudio.ch`. Rebuild/redeploy through an approved
+workflow when updating build-time public variables or this code; this task did not deploy.
+Keep www → apex routing. Vercel's generated production deployment URL is not the canonical site.
+Preview may set `NEXT_PUBLIC_SITE_URL` to an explicit HTTPS preview origin, or leave it unset/use
+Vercel's `NEXT_PUBLIC_VERCEL_ENV`, `NEXT_PUBLIC_VERCEL_URL` and optional branch URL. These public
+framework variables allow browser and server to agree; server-only VERCEL_ENV/URL are fallbacks.
+Do not manually pin the public environment indicator to production in Preview. Enable Vercel's
+framework/system variable exposure if unavailable. A custom Preview hostname must be explicitly
+configured and separately allowlisted for Auth. No arbitrary request Host is a trusted fallback.
+
+See [Vercel framework environment variables](https://vercel.com/docs/environment-variables/framework-environment-variables)
+and [Next.js build-time public variables](https://nextjs.org/docs/app/guides/environment-variables).
+
+### Supabase Authentication → URL Configuration
+
+Site URL: `https://1200hairstudio.ch`.
+Keep legitimate existing entries and add/verify these exact production Redirect URLs:
+
+- `https://1200hairstudio.ch/de/login`
+- `https://1200hairstudio.ch/en/login`
+- `https://1200hairstudio.ch/de/reset-password`
+- `https://1200hairstudio.ch/en/reset-password`
+
+Allow exact required local/Preview equivalents when those environments use this Auth project.
+Avoid a broad wildcard for production. Old bare `/reset-password` links can remain as legacy
+entries if needed, but new application requests are localized. The two hosted templates must
+use `{{ .ConfirmationURL }}` as the CTA; using SiteURL or a bare page URL skips verification.
+Changing Vercel or local config does not update hosted Supabase. Request a fresh email after an
+external correction: existing emails retain their original links. PKCE requires the initiating
+browser/profile and origin; do not switch www/apex or local hostnames mid-flow.
+
+See [Supabase redirects](https://supabase.com/docs/guides/auth/redirect-urls).
+
+### Google Cloud / Gmail
+
+Gmail sending with an existing refresh token does not use a redirect URI. Existing application
+OAuth start/callback routes remain **development-only**, so their legitimate authorized URI is
+`http://localhost:3000/api/google/callback` (or the exact configured local host/port). The URI must
+match GOOGLE_REDIRECT_URI, the requesting browser origin and the callback path exactly. Do not
+add a production localhost redirect, change the sender, rotate a token or expose a public Gmail
+authorization flow to fix site links. The retired standalone helper is not the supported flow.
+No Cloud OAuth client configuration or credentials were changed.
+
+### Supabase Edge Function and Meta
+
+Verify the worker secret:
+`REMINDER_DELIVERY_URL=https://1200hairstudio.ch/api/internal/appointment-reminder-email`.
+Use no locale prefix, query string or localhost in the hosted production secret. Keep delivery
+and cron secrets unchanged. Its current hosted value is unverified.
+Meta production webhook callback (if configured): `https://1200hairstudio.ch/api/webhooks/whatsapp`;
+Preview uses its own HTTPS origin and the same path. No webhook credential/security changes
+were made. No live webhook or message was triggered.
+
+## Actual public production checks
+
+Read-only unauthenticated HTTPS GETs on 25 November 2026 showed:
+
+- www paths returned 308 to the matching apex-domain path.
+- Apex `/` returned 307 to `/de`.
+- Apex `/login`, `/register`, `/forgot-password`, `/reset-password` returned 307 to the matching
+  `/de/...` path, all on `https://1200hairstudio.ch`.
+- `/de/reset-password`, `/en/reset-password`, `/de` and `/en` returned 200.
+- Both languages' login/register/forgot-password pages returned 200. Anonymous `/de/admin` and
+  `/en/admin` returned 307 to the matching localized admin login; account pages redirected to
+  the matching localized customer login, all on the canonical origin.
+- Rendered home canonicals were `https://1200hairstudio.ch/de` and `/en`, indicating Live mode's
+  canonical behavior at the checked deployment. No production localhost redirect was observed
+  on those public routes; the unsafe fallback and stored CTAs were separate confirmed risks.
+
+These HTTP reads did not complete a real signup/recovery or inspect private dashboard settings.
+They do not prove that the unseen hosted allowlist matches every requested Auth destination.
+Existing marketing changes from the previous task were preserved; this audit's changes are
+limited to URL policy, URL-producing call sites, local redirect configuration, the obsolete helper,
+regression tests, environment documentation and this report.
+
+## Verification results and limitations
+
+Passed `node scripts/test-site-urls.cjs`: production/local/Preview server and simulated-browser
+matrix; malformed configuration; credentials/path/query/fragment rejection; wrong-host and
+loopback production settings; locale/path/query/fragment preservation; intentional external
+links; unsafe callback paths; all-mode canonical legacy redirects; actual booking confirmation,
+update/cancellation/admin, reminder, recurring and marketing unsubscribe template rendering
+with delivery/settings mocked. No rendered internal communication link resolved to localhost.
+Management tests used synthetic tokens and never read a booking record.
+
+Passed existing SEO (6 groups), site-mode (10), localization (18), Analytics (17), WhatsApp
+provider (18), webhook (21), production-logging (6), email-safety (9), Gmail OAuth mocks, password
+recovery and both marketing suites. Template validation passed for the two existing Auth bodies.
+TypeScript and ESLint passed; three existing admin image warnings remain.
+
+The standard lint-enabled production build passed in an isolated source copy using synthetic
+Supabase configuration and an intentionally wrong `NEXT_PUBLIC_SITE_URL=http://localhost:3000`.
+Its expected missing-backend public-settings fallback logs were unrelated to redirect handling.
+The development server's `.next` directory was not modified or removed.
+
+The production Chrome browser suite passed both languages, all three site modes, and six widths
+(320/375/390/430/768/1440), checking actual rendered canonical/hreflang/OG URLs, sitemap/robots,
+status codes and private noindex. It explicitly required the production canonical origin despite
+the wrong build variable. Run with `SEO_SYNTHETIC_API=1` for a build configured against
+http://127.0.0.1:3099: the test serves a synthetic service fixture and permits only GETs. An
+initial empty-content fixture lacked the existing required Services assertion; the final run
+provided synthetic service data and passed that assertion rather than disabling it.
+
+The real installed browser SDK against a synthetic Auth server also passed German/English
+signup confirmation `emailRedirectTo`, recovery `redirectTo`, S256 exchange, reset form,
+mocked password update/sign-out/login, invalid/expired/used links and callback cleanup. The
+synthetic signup fixture includes the application's required phone field. No real accounts,
+emails, WhatsApp messages, appointments, payments or notifications were created by these tests.
+
+Not verified: current hosted Supabase allowlist/template settings, actual Google Cloud redirect
+registration, private Vercel variables, hosted reminder URL secret, real Preview deployment,
+or end-to-end inbox verification. Mocked Auth/database tests do not prove hosted RLS or GoTrue
+configuration. Previously sent localhost email links remain unchanged; only new rendering after
+deployment is corrected. The five stored CTA rows remain unchanged. No hosted setting, migration,
+production record, credential, commit or deployment was changed.
+
+## Files changed for this audit
+
+- `src/lib/auth/url.ts`, `src/middleware.ts`, `src/components/auth/PublicRegisterForm.tsx`.
+- `src/lib/email/gmail.ts`, `src/lib/marketing/email-template.ts`, and the renderer call sites in
+  `src/app/admin/(dashboard)/marketing/actions.ts` (earlier marketing changes preserved).
+- `.env.example`, `supabase/config.toml`, `generate-gmail-token.cjs`.
+- `scripts/test-site-urls.cjs`, `scripts/test-password-recovery-browser.cjs`,
+  `scripts/test-seo-browser.cjs`, `scripts/test-whatsapp-webhook.cjs`.
+- This audit report. Other pre-existing uncommitted marketing files were preserved.

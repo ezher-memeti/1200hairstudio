@@ -11,6 +11,7 @@ function load(file, mocks = {}) {
   new Function("require", "module", "exports", code)((name) => {
     if (name === "server-only") return {};
     if (Object.hasOwn(mocks, name)) return mocks[name];
+    if (name === "@/lib/auth/url") return load("src/lib/auth/url.ts");
     if (name === "@/lib/site-mode") return load("src/lib/site-mode.ts");
     if (name === "@/i18n/config") return load("src/i18n/config.ts");
     if (name.startsWith("@/")) throw new Error(`Unmocked import ${name}`);

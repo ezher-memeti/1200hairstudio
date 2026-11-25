@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizePushPreferences, type PushPreferences } from "@/lib/push/preferences";
 
 import { requireAdminUser } from "@/lib/auth/customer";
 
@@ -30,6 +31,7 @@ export type BookingSettings = {
 };
 
 export type NotificationSettings = {
+  push?: PushPreferences;
   bookingConfirmationEmail: boolean;
   rescheduleEmail: boolean;
   cancellationEmail: boolean;
@@ -161,6 +163,7 @@ export function normalizeAdminSetting<K extends AdminSettingKey>(key: K, value: 
       receiptEmailEnabled: booleanValue(read(source, "receiptEmailEnabled", "receipt_email_enabled"), base.receiptEmailEnabled),
       adminBookingNotification: booleanValue(read(source, "adminBookingNotification", "admin_booking_notification"), base.adminBookingNotification),
       senderName: text(read(source, "senderName", "sender_name"), base.senderName),
+      push: normalizePushPreferences(source.push),
     } as AdminSettings[K];
   }
 
@@ -218,7 +221,7 @@ function serializeSetting<K extends AdminSettingKey>(key: K, value: AdminSetting
   }
   if (key === "notifications") {
     const item = value as NotificationSettings;
-    return { booking_confirmation_email: item.bookingConfirmationEmail, reschedule_email: item.rescheduleEmail, cancellation_email: item.cancellationEmail, receipt_email_enabled: item.receiptEmailEnabled, admin_booking_notification: item.adminBookingNotification, sender_name: item.senderName };
+    return { booking_confirmation_email: item.bookingConfirmationEmail, reschedule_email: item.rescheduleEmail, cancellation_email: item.cancellationEmail, receipt_email_enabled: item.receiptEmailEnabled, admin_booking_notification: item.adminBookingNotification, sender_name: item.senderName, push: normalizePushPreferences(item.push) };
   }
   const item = value as FinanceSettings;
   return { currency: item.currency, default_report_grouping: item.defaultReportGrouping, auto_generate_receipt: item.autoGenerateReceipt, enabled_payment_methods: item.enabledPaymentMethods };

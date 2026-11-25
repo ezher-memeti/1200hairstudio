@@ -1,4 +1,6 @@
 import "server-only";
+import { localizePublicUrl } from "@/lib/auth/url";
+import type { Locale } from "@/i18n/config";
 
 import type { MarketingEmailContent } from "./types";
 
@@ -11,12 +13,13 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-export function buildMarketingCampaignEmail(content: MarketingEmailContent) {
+export function buildMarketingCampaignEmail(content: MarketingEmailContent, locale: Locale = "de") {
   const paragraphs = content.content
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
-  const safeUrl = /^https?:\/\//i.test(content.ctaUrl) ? content.ctaUrl : "";
+  let safeUrl = "";
+  try { safeUrl = content.ctaUrl ? localizePublicUrl(content.ctaUrl, locale) : ""; } catch { /* Invalid optional CTAs are omitted. */ }
   const body = paragraphs
     .map((paragraph) => `<p style="margin:0 0 18px;color:#b7b4ae;font-size:15px;line-height:1.75;">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
     .join("");

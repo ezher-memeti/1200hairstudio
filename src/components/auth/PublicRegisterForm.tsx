@@ -17,6 +17,7 @@ import {
   validatePassword,
 } from "@/lib/auth/shared";
 import { createClient } from "@/lib/supabase/client";
+import { getLocalizedSiteUrl } from "@/lib/auth/url";
 
 function mapRegisterError(message: string) {
   const normalized = message.toLowerCase();
@@ -82,7 +83,7 @@ export default function PublicRegisterForm() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/${locale}/login`,
+        emailRedirectTo: getLocalizedSiteUrl("/login", locale),
         data: {
           preferred_locale: locale,
           full_name: fullName,

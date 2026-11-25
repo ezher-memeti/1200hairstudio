@@ -8,7 +8,7 @@ import { localizedPath, intlLocale, type Locale } from "@/i18n/config";
 import { google } from "googleapis";
 import { formatZurichDate, formatZurichTimeRange } from "@/lib/appointments/availability";
 import { formatServicePrice } from "@/lib/public/services";
-import { getSiteUrl } from "@/lib/auth/url";
+import { getSiteUrl, localizePublicUrl } from "@/lib/auth/url";
 import { getRuntimeSettings } from "@/lib/admin/runtime-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -488,7 +488,7 @@ export async function sendAdminBookingNotificationEmail(details: BookingEmailDet
     headline: t('A new appointment was booked.'),
     body: `${summary.customerName} booked ${summary.serviceName}.`,
     ctaLabel: t('View Appointments →'),
-    ctaHref: `${getSiteUrl()}/admin/appointments`,
+    ctaHref: `${getSiteUrl()}${localizedPath("/admin/appointments", locale)}`,
   } satisfies EmailTemplateContent;
   await sendGmailMessage({
     to: details.adminEmail,
@@ -499,7 +499,5 @@ export async function sendAdminBookingNotificationEmail(details: BookingEmailDet
 }
 
 function localizeEmailLink(value: string, locale: Locale) {
-  const url = new URL(value, getSiteUrl());
-  if (url.origin === new URL(getSiteUrl()).origin) url.pathname = localizedPath(url.pathname, locale);
-  return url.href;
+  return localizePublicUrl(value, locale);
 }

@@ -24,7 +24,8 @@
     "test:localization-audit": "node scripts/test-localization-audit.cjs",
     "test:site-mode": "node scripts/test-site-mode.cjs",
     "test:seo": "node scripts/test-seo.cjs",
-    "test:analytics": "node scripts/test-analytics.cjs"
+    "test:analytics": "node scripts/test-analytics.cjs",
+    "test:admin-push": "node scripts/test-admin-push.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -38,13 +39,15 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "resend": "^6.24.0",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "web-push": "^4.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "22.15.21",
     "@types/react": "18.3.23",
     "@types/react-dom": "18.3.7",
+    "@types/web-push": "^3.6.4",
     "eslint": "8.57.1",
     "eslint-config-next": "15.5.28",
     "postcss": "8.5.6",
