@@ -24,7 +24,7 @@ await test('Session refresh retains locale rewrite and forwards refreshed auth c
 });
 await test('Booking email variants localize authored copy and preserve private link parameters',async()=>{
   for(const locale of ['de','en']){
-    const settings={business:{businessName:'1200 Hairstudio',addressLine:'Synthetic address',postalCode:'0000',city:'Test',region:'',country:'Switzerland'},notifications:{senderName:'1200 Hairstudio'}};
+    const settings={business:{...load('src/lib/business/identity.ts').DEFAULT_BUSINESS_SETTINGS,businessName:'1200 Hairstudio',addressLine:'Synthetic address',postalCode:'0000',city:'Test',region:'',country:'Switzerland'},notifications:{senderName:'1200 Hairstudio'}};
     const mocks={'@/i18n/notifications':{getNotificationLocale:async()=>locale},'@/lib/admin/runtime-settings':{getRuntimeSettings:async()=>settings}};
     const gmail=load('src/lib/email/gmail.ts',mocks,'\nsendCustomerEmail = async(message) => { module.exports.lastMessage = message; };');
     const details={to:'fixture@example.invalid',customerName:'Synthetic <Guest>',serviceName:'Haircut',serviceNameDe:'Haarschnitt',startAt:'2026-11-23T12:00:00Z',endAt:'2026-11-23T12:30:00Z',price:40,bookingReference:'SYNTHETIC',manageUrl:'http://localhost:3000/booking/manage/synthetic-only?keep=yes'};
@@ -33,7 +33,7 @@ await test('Booking email variants localize authored copy and preserve private l
 });
 await test('Reminders, recurring variants and receipts render in both languages without sending',async()=>{
   for(const locale of ['de','en']){
-    let message;const pdf=new Uint8Array([1,2,3]);const business={businessName:'1200 Hairstudio',addressLine:'Synthetic address',postalCode:'0000',city:'Test',region:'',country:'Switzerland'};
+    let message;const pdf=new Uint8Array([1,2,3]);const business={...load('src/lib/business/identity.ts').DEFAULT_BUSINESS_SETTINGS,businessName:'1200 Hairstudio',addressLine:'Synthetic address',postalCode:'0000',city:'Test',region:'',country:'Switzerland'};
     const mocks={'@/i18n/notifications':{getNotificationLocale:async()=>locale},'@/lib/admin/runtime-settings':{getRuntimeSettings:async()=>({business}),getBusinessSettings:async()=>business},'@/lib/email/gmail':{sendCustomerEmail:async(value)=>{message=value}}};
     const details={to:'fixture@example.invalid',appointmentId:'synthetic-id',customerName:'Test <Guest>',serviceName:'Haircut',serviceNameDe:'Haarschnitt',startAt:'2026-11-23T12:00:00Z',endAt:'2026-11-23T12:30:00Z',registeredCustomer:true};
     await load('src/lib/email/reminder.ts',mocks).sendAppointmentReminderEmail(details);assert(message.html.includes(locale==='de'?'Terminerinnerung':'Appointment Reminder'));assert(message.html.includes('/'+locale+'/account'));

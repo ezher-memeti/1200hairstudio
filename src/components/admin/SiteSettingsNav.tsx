@@ -8,6 +8,7 @@ import { usePathname } from "@/i18n/navigation";
 import Link from "@/components/admin/AdminNavLink";
 
 const siteSettingsItems = [
+  { label: "Business", href: "/admin/site-settings/business" },
   { label: "Notifications", href: "/admin/site-settings/notifications" },
   { label: "Homepage Content", href: "/admin/site-settings/homepage-content" },
   { label: "Services", href: "/admin/site-settings/services" },
@@ -22,6 +23,7 @@ export default function SiteSettingsNav() {
   const uiText = useUiText();
 
   const ui = useTranslations("ui");
+  const business = useTranslations("businessIdentity");
 
   const pathname = usePathname();
 
@@ -55,7 +57,7 @@ export default function SiteSettingsNav() {
                     : "border-transparent text-foreground-muted hover:text-foreground"
                 }`}
               >
-                {uiText(item.label)}
+                {item.href === "/admin/site-settings/business" ? business("business") : uiText(item.label)}
               </Link>
             );
           })}

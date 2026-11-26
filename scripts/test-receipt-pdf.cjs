@@ -11,13 +11,16 @@ const end = source.indexOf(endMarker, start) + endMarker.length;
 if (start < 0 || end < endMarker.length) throw new Error("Receipt PDF implementation was not found.");
 
 const implementation = source.slice(start, end);
+const businessSource = ts.transpileModule(fs.readFileSync(require.resolve('../src/lib/business/identity.ts'),'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const identity = {};new Function('exports',businessSource)(identity);
 const compiled = ts.transpileModule(
-  `const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");\n${implementation}\nexports.generateReceiptPdf = generateReceiptPdf;`,
+  `const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");\nconst {getBusinessSettings,businessAddress}=require("synthetic-business");\n${implementation}\nexports.generateReceiptPdf = generateReceiptPdf;`,
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
 ).outputText;
 const moduleExports = {};
 const scopedRequire = (name) => {
   if (name === "pdf-lib") return pdfLib;
+  if (name === "synthetic-business") return {getBusinessSettings:async()=>identity.DEFAULT_BUSINESS_SETTINGS,businessAddress:identity.businessAddress};
   throw new Error(`Unexpected module: ${name}`);
 };
 new Function("require", "exports", compiled)(scopedRequire, moduleExports);
@@ -41,6 +44,7 @@ new Function("require", "exports", compiled)(scopedRequire, moduleExports);
     balance: 0,
     currency: "CHF",
   });
+  if (process.env.PDF_TEST_OUTPUT) fs.writeFileSync(process.env.PDF_TEST_OUTPUT, bytes);
   const parsed = await pdfLib.PDFDocument.load(bytes);
   const header = Buffer.from(bytes).subarray(0, 5).toString("ascii");
   if (header !== "%PDF-" || parsed.getPageCount() !== 1 || bytes.length < 1000) {

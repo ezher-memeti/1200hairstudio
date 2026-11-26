@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript');
+function load(file,mocks={}){const module={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText)(name=>name==='server-only'?{}:Object.hasOwn(mocks,name)?mocks[name]:name.startsWith('@/')?load('src/'+name.slice(2)+'.ts',mocks):name.startsWith('.')?load(path.join(path.dirname(file),name+'.ts'),mocks):require(name),module,module.exports);return module.exports;}
+const identity=load('src/lib/business/identity.ts');
+const settings=load('src/lib/admin/settings.ts',{'@/lib/auth/customer':{requireAdminUser:()=>{throw new Error('Writes forbidden in identity normalization test')}}});
+const actual=settings.normalizeAdminSetting('business',{business_name:'[PLACEHOLDER]',phone:'',email:null,uid:'[PLACEHOLDER]'});
+assert.equal(actual.ownerName,'Arban Shaqiri');assert.equal(actual.businessName,'1200 Hairstudio');assert.equal(actual.email,'1200hairstudio@gmail.com');assert.equal(actual.uid,'');assert.equal(identity.businessPhoneHref(actual.phone),'tel:+41799127230');assert.equal(identity.businessEmailHref(actual.email),'mailto:1200hairstudio@gmail.com');assert.equal(identity.businessCountry(actual.country,'de'),'Schweiz');
+const changed=settings.normalizeAdminSetting('business',{business_name:'Synthetic Studio',owner_name:'Synthetic Owner',uid:'SYNTHETIC-UID',phone:'+41 71 000 00 00',email:'test@example.invalid',address_line1:'Synthetic Street',city:'Test',postal_code:'0000'});assert.equal(changed.ownerName,'Synthetic Owner');assert.equal(changed.uid,'SYNTHETIC-UID');assert.equal(changed.addressLine,'Synthetic Street');
+const seo=load('src/lib/seo/business.ts').businessStructuredData('https://example.invalid','de',{visit_address_line_1:'Old stale address',visit_address_line_2:'Old'},null,[],changed);assert.equal(seo.name,'Synthetic Studio');assert.equal(seo.address.streetAddress,'Synthetic Street');assert.equal(seo.email,'test@example.invalid');assert.equal(seo.telephone,'+41710000000');
+for(const file of ['src/app/imprint/page.tsx','src/app/privacy/page.tsx'])assert(!fs.readFileSync(file,'utf8').includes('[PLACEHOLDER]'));
+console.log('PASS centralized identity: confirmed fallback, managed overrides, optional UID, Swiss localization, safe contact links, authoritative structured data and placeholder removal.');
+(async()=>{
+ let stored={business_name:'Old',businessName:'Old alias',owner_name:'Old owner',uid:'REAL-EXISTING',custom_flag:'keep'},submitted,fail=false;
+ const db={from(){const query={};query.select=()=>query;query.eq=()=>query;query.maybeSingle=async()=>({data:{settings_value:stored},error:null});query.update=row=>{submitted=row;return query;};query.then=resolve=>Promise.resolve({data:fail?[]:[{settings_key:'business'}],error:null}).then(resolve);return query;}};
+ const editor=load('src/lib/admin/settings.ts',{'@/lib/auth/customer':{requireAdminUser:async()=>({supabase:db,user:{id:'synthetic-admin'}})}});
+ await editor.updateAdminSetting('business',actual);assert.equal(submitted.settings_value.owner_name,'Arban Shaqiri');assert.equal(submitted.settings_value.custom_flag,'keep');assert(!('businessName'in submitted.settings_value));assert.equal(submitted.updated_by,'synthetic-admin');
+ fail=true;await assert.rejects(editor.updateAdminSetting('business',actual));
+ console.log('PASS authorized admin identity save preserves unrelated JSON and rejects concurrent stale writes.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

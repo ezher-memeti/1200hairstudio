@@ -1,4 +1,6 @@
 
+import { getBusinessSettings } from "@/lib/admin/runtime-settings";
+import { businessAddress } from "@/lib/business/identity";
 import { getLocale, getTranslations } from "next-intl/server";
 import { getBusinessHours, getBusinessHourDayLabel, formatBusinessHourRange } from "@/lib/public/business-hours";
 import type { HomepageContent } from "@/lib/homepage-content-defaults";
@@ -19,7 +21,8 @@ export default async function VisitStudio({ content, directionsUrl }: { content:
 
   const businessHours = await getBusinessHours();
   const hoursToRender = businessHours.length > 0 ? businessHours : fallbackHours;
-  const address = `${content.visit_address_line_1}, ${content.visit_address_line_2}, Switzerland`;
+  const business = await getBusinessSettings();
+  const address = businessAddress(business, locale).join(", ");
   const mapsUrl = directionsUrl?.trim() || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`;
 
@@ -38,10 +41,10 @@ export default async function VisitStudio({ content, directionsUrl }: { content:
             <div className="space-y-6 border-t border-border pt-6 lg:pt-8">
               <div className="space-y-1">
                 <p className="font-primary text-base leading-7 text-foreground-secondary sm:text-lg">
-                  {content.visit_address_line_1}
+                  {business.addressLine}
                 </p>
                 <p className="font-primary text-base leading-7 text-foreground-secondary sm:text-lg">
-                  {content.visit_address_line_2}
+                  {business.postalCode} {business.city}
                 </p>
               </div>
 

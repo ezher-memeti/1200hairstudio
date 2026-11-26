@@ -1,14 +1,15 @@
 import { textFor } from "@/i18n/text";
-import { useLocale } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
+import BusinessDetails from "@/components/legal/BusinessDetails";
 
-import { useTranslations } from "next-intl";
+
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
 const sections = [
   {
     title: "Responsible Party",
-    body: "The responsible party for data processing on this website is 1200 Hairstudio, Schulstrasse 2, 8599 Salmsach, Switzerland. Additional business contact details will be added here once confirmed.",
+    body: "",
   },
   {
     title: "Personal Data Collected Through Bookings",
@@ -40,7 +41,7 @@ const sections = [
   },
   {
     title: "User Data Rights",
-    body: "Depending on the applicable law, users may have rights to request access to their personal data, rectification, deletion, restriction of processing, objection to processing, and data portability. Contact details for handling such requests will be added once finalized.",
+    body: "Depending on the applicable law, users may have rights to request access to their personal data, rectification, deletion, restriction of processing, objection to processing, and data portability. Use the business contact details above for such requests.",
   },
   {
     title: "Data Security",
@@ -52,12 +53,12 @@ const sections = [
   },
 ] as const;
 
-export default function PrivacyPage() {
-  const uiLocale = useLocale();
+export default async function PrivacyPage() {
+  const uiLocale = await getLocale();
   const uiText = <T,>(value: T): T => typeof value === "string" ? textFor(uiLocale, value) as T : value;
 
-  const ui = useTranslations("ui");
-  const analytics = useTranslations("analytics");
+  const ui = await getTranslations("ui");
+  const analytics = await getTranslations("analytics");
 
   return (
     <>
@@ -83,9 +84,9 @@ export default function PrivacyPage() {
                   <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
                     {uiText(section.title)}
                   </h2>
-                  <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
+                  {section.title === "Responsible Party" ? <BusinessDetails /> : <p className="font-primary text-sm leading-7 text-foreground-secondary sm:text-base">
                     {section.title === "Cookies / Analytics" ? <>{analytics("policyBody")}<br /><br />{analytics("cookiesBody")}<br /><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">{analytics("googlePolicy")}</a></> : section.title === "Third-Party Services" ? analytics("providersBody") : section.title === "Booking System" ? analytics("bookingSystemBody") : uiText(section.body)}
-                  </p>
+                  </p>}
                 </section>
               ))}
 

@@ -1,10 +1,11 @@
 
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+import BusinessDetails from "@/components/legal/BusinessDetails";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
-export default function ImprintPage() {
-  const ui = useTranslations("ui");
+export default async function ImprintPage() {
+  const ui = await getTranslations("ui");
 
   return (
     <>
@@ -20,51 +21,7 @@ export default function ImprintPage() {
             </div>
 
             <div className="space-y-8 border-t border-border pt-8">
-              <div className="space-y-2">
-                <h2 className="font-display text-2xl uppercase tracking-[-0.04em] text-foreground sm:text-3xl">
-                  1200 Hairstudio
-                </h2>
-                <p className="font-primary text-base leading-7 text-foreground-secondary">
-                  Schulstrasse 2
-                  <br />
-                  8599 Salmsach
-                  <br />
-                  {ui("m77dcd849e550")}</p>
-              </div>
-
-              <dl className="space-y-6">
-                <div className="space-y-2 border-t border-border pt-6">
-                  <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    {ui("m924d6ae88b80")}</dt>
-                  <dd className="font-primary text-base leading-7 text-foreground-secondary">
-                    [PLACEHOLDER]
-                  </dd>
-                </div>
-
-                <div className="space-y-2 border-t border-border pt-6">
-                  <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    {ui("m84add5b29527")}</dt>
-                  <dd className="font-primary text-base leading-7 text-foreground-secondary">
-                    [PLACEHOLDER]
-                  </dd>
-                </div>
-
-                <div className="space-y-2 border-t border-border pt-6">
-                  <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    {ui("m77064d526523")}</dt>
-                  <dd className="font-primary text-base leading-7 text-foreground-secondary">
-                    [PLACEHOLDER]
-                  </dd>
-                </div>
-
-                <div className="space-y-2 border-t border-border pt-6">
-                  <dt className="font-primary text-xs uppercase tracking-[0.24em] text-foreground-muted">
-                    {ui("mf8376084c466")}</dt>
-                  <dd className="font-primary text-base leading-7 text-foreground-secondary">
-                    [PLACEHOLDER]
-                  </dd>
-                </div>
-              </dl>
+              <BusinessDetails imprint />
             </div>
           </div>
         </section>

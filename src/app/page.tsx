@@ -1,3 +1,4 @@
+import { getBusinessSettings } from "@/lib/admin/runtime-settings";
 import { getLocale } from "next-intl/server";
 import { resolveLocale } from "@/i18n/config";
 import { getSiteUrl } from "@/lib/auth/url";
@@ -21,16 +22,17 @@ import { getHomepageContent } from "@/lib/homepage-content";
 import { getPublicContactSectionSettings } from "@/lib/contact-section/settings";
 
 export default async function Home() {
-  const [content, contactSettings, businessHours, locale] = await Promise.all([
+  const [content, contactSettings, businessHours, locale, business] = await Promise.all([
     getHomepageContent(),
     getPublicContactSectionSettings(),
     getBusinessHours(),
     getLocale(),
+    getBusinessSettings(),
   ]);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(businessStructuredData(getSiteUrl(), resolveLocale(locale), content, contactSettings, businessHours)) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(businessStructuredData(getSiteUrl(), resolveLocale(locale), content, contactSettings, businessHours, business)) }} />
       <Header />
 
       <main>

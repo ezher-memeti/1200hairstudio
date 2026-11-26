@@ -62,12 +62,14 @@ const content={visit_address_line_1:'Synthetic Street 1',visit_address_line_2:'8
 test('Schema reuses visible business data, shares one entity across locales, and omits unverified attributes',()=>{
   const contact={isEnabled:true,callCtaLabel:'Call',phoneNumber:'+41 71 000 00 00',instagramEnabled:true,instagramUrl:'https://www.instagram.com/synthetic/'};
   const hours=[{day_of_week:1,is_closed:false,open_time:'09:00:00',close_time:'18:00:00'},{day_of_week:7,is_closed:true,open_time:null,close_time:null}];
-  const de=businessStructuredData(origin,'de',content,contact,hours),en=businessStructuredData(origin,'en',content,contact,hours);
-  assert.equal(de['@type'],'HairSalon');assert.equal(de['@id'],en['@id']);assert.equal(de.address.streetAddress,content.visit_address_line_1);
+  const business={...load('src/lib/business/identity.ts').DEFAULT_BUSINESS_SETTINGS,addressLine:'Managed Street 2',phone:'+41 71 000 00 00'};
+  const de=businessStructuredData(origin,'de',content,contact,hours,business),en=businessStructuredData(origin,'en',content,contact,hours,business);
+  assert.equal(de['@type'],'HairSalon');assert.equal(de['@id'],en['@id']);assert.equal(de.address.streetAddress,'Managed Street 2');
   assert.equal(de.telephone,'+41710000000');assert.equal(de.openingHoursSpecification.length,1);assert.equal(de.openingHoursSpecification[0].opens,'09:00');
   for(const key of ['geo','priceRange','aggregateRating','review'])assert(!(key in de));
   const sparse=businessStructuredData(origin,'en',{...content,visit_address_line_2:'Unknown'},null,[]);
-  for(const key of ['address','telephone','sameAs','openingHoursSpecification'])assert(!(key in sparse));
+  assert.equal(sparse.address.streetAddress,'Schulstrasse 2');assert.equal(sparse.telephone,'+41799127230');
+  for(const key of ['sameAs','openingHoursSpecification'])assert(!(key in sparse));
 });
 test('JSON-LD safely escapes script termination in managed public content',()=>{
   const value={name:'</script><script>alert(1)</script>'};assert(!serializeJsonLd(value).includes('<'));assert.deepEqual(JSON.parse(serializeJsonLd(value)),value);

@@ -1367,7 +1367,7 @@
     "m51dc59c9af75": "User Data Rights",
     "m37e6babacffc": "Data Security",
     "mc215d73fd325": "Changes to the Privacy Policy",
-    "mc657bab4d28a": "The responsible party for data processing on this website is 1200 Hairstudio, Schulstrasse 2, 8599 Salmsach, Switzerland. Additional business contact details will be added here once confirmed.",
+    "mc657bab4d28a": "The responsible person and contact details are listed above.",
     "m0d29c3b941c2": "When the booking flow is used, the website may collect personal data such as first name, last name, phone number, email address, selected service, appointment date and time, and any note entered by the customer.",
     "mf45b7591c59a": "Personal data is processed to manage booking requests, confirm appointments, communicate with customers about their session, and operate the 1200 Hairstudio website and related customer service workflows.",
     "mf3012f0a78d7": "The current booking interface is a frontend prototype. Once a production booking system is connected, this section should be updated with the technical provider, legal basis, and any relevant operational details.",
@@ -1375,7 +1375,7 @@
     "mb4a19502f2e3": "This website may later integrate third-party services for maps, booking infrastructure, analytics, email delivery, or hosting. When those services are implemented, this policy should be updated to list the providers, their roles, and the relevant privacy information.",
     "m190a48da35f9": "If service providers process data outside Switzerland or the European Economic Area, appropriate safeguards should be used where required. The exact transfer mechanisms will be documented once the final service providers are confirmed.",
     "m1ea88c13ec85": "Analytics, tracking, or non-essential cookies are not documented here yet. If analytics, advertising, or consent tools are introduced in the future, this section should be updated with the technologies used, their purpose, and any consent requirements.",
-    "mb80360628a0e": "Depending on the applicable law, users may have rights to request access to their personal data, rectification, deletion, restriction of processing, objection to processing, and data portability. Contact details for handling such requests will be added once finalized.",
+    "mb80360628a0e": "Depending on the applicable law, users may have rights to request access to their personal data, rectification, deletion, restriction of processing, objection to processing, and data portability. Use the business contact details above for such requests.",
     "m109422da46cb": "Reasonable technical and organizational measures should be used to protect personal data against unauthorized access, loss, misuse, or disclosure. This section can be expanded once the production booking, hosting, and communication stack is finalized.",
     "mfd2ed21c6af4": "This privacy policy may be updated to reflect legal, technical, or operational changes. The current version published on this page is the version that applies at the time of use.",
     "m17ca64d916ff": "Password must be at least 8 characters.",
@@ -2085,5 +2085,12 @@
     "appointmentTime": "A new appointment was booked for {time} (Zurich).",
     "appointment_completed_title": "Appointment Completed",
     "appointment_completed_body": "An appointment was completed."
+  },
+  "businessIdentity": {
+    "owner": "Owner / responsible person",
+    "uid": "Business / UID Information",
+    "email": "Email",
+    "phone": "Phone",
+    "business": "Business"
   }
 }

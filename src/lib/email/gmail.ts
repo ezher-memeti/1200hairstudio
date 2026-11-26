@@ -1,3 +1,4 @@
+import { businessCountry } from "@/lib/business/identity";
 import { safeLogDetails } from "@/lib/logging";
 import "server-only";
 import { localizedServiceName } from "@/i18n/content";
@@ -246,14 +247,16 @@ type EmailBranding = {
   addressLines: string[];
 };
 
-async function getEmailBranding(): Promise<EmailBranding> {
+async function getEmailBranding(locale = "en"): Promise<EmailBranding> {
   const { business } = await getRuntimeSettings();
   return {
     businessName: business.businessName.trim() || DEFAULT_SENDER_NAME,
     addressLines: [
       business.addressLine,
       [business.postalCode, business.city, business.region].filter(Boolean).join(" "),
-      business.country,
+      businessCountry(business.country, locale),
+      business.email,
+      business.phone,
     ].map((value) => value.trim()).filter(Boolean),
   };
 }
@@ -406,7 +409,7 @@ export async function sendBookingConfirmationEmail(details: BookingEmailDetails)
   const locale = await getNotificationLocale(details);
   const t = (value: string) => textFor(locale, value);
   const summary = buildBookingSummary(details, locale);
-  const branding = await getEmailBranding();
+  const branding = await getEmailBranding(locale);
   const content = {
     statusLabel: t('Appointment Confirmed'),
     headline: t('Your booking is locked in.'),
@@ -431,7 +434,7 @@ export async function sendBookingCancellationEmail(details: BookingEmailDetails)
   const locale = await getNotificationLocale(details);
   const t = (value: string) => textFor(locale, value);
   const summary = buildBookingSummary(details, locale);
-  const branding = await getEmailBranding();
+  const branding = await getEmailBranding(locale);
   const content = {
     statusLabel: t('Appointment Cancelled'),
     headline: t('This booking is no longer scheduled.'),
@@ -457,7 +460,7 @@ export async function sendBookingUpdateEmail(details: BookingEmailDetails) {
   const locale = await getNotificationLocale(details);
   const t = (value: string) => textFor(locale, value);
   const summary = buildBookingSummary(details, locale);
-  const branding = await getEmailBranding();
+  const branding = await getEmailBranding(locale);
   const content = {
     statusLabel: t('Appointment Updated'),
     headline: t('Your booking details have changed.'),
@@ -482,7 +485,7 @@ export async function sendAdminBookingNotificationEmail(details: BookingEmailDet
   const locale = await getNotificationLocale(details);
   const t = (value: string) => textFor(locale, value);
   const summary = buildBookingSummary(details, locale);
-  const branding = await getEmailBranding();
+  const branding = await getEmailBranding(locale);
   const content = {
     statusLabel: t('New Customer Booking'),
     headline: t('A new appointment was booked.'),

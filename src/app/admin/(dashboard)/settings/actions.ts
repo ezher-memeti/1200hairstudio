@@ -94,13 +94,14 @@ function success(section: string): SettingsActionResult {
 export async function saveBusinessSettings(input: BusinessSettings): Promise<SettingsActionResult> {
   try {
     const value: BusinessSettings = {
-      businessName: cleanText(input.businessName), addressLine: cleanText(input.addressLine), postalCode: cleanText(input.postalCode), city: cleanText(input.city), region: cleanText(input.region), country: cleanText(input.country), phone: cleanText(input.phone), email: cleanText(input.email).toLowerCase(), website: cleanText(input.website), timezone: cleanText(input.timezone), currency: "CHF",
+      ownerName: cleanText(input.ownerName ?? ""), uid: cleanText(input.uid ?? ""), businessName: cleanText(input.businessName), addressLine: cleanText(input.addressLine), postalCode: cleanText(input.postalCode), city: cleanText(input.city), region: cleanText(input.region), country: cleanText(input.country), phone: cleanText(input.phone), email: cleanText(input.email).toLowerCase(), website: cleanText(input.website), timezone: cleanText(input.timezone), currency: "CHF",
     };
     if (!value.businessName || !value.addressLine || !value.postalCode || !value.city || !value.country) return { success: false, message: "Complete the required business details." };
     if (!validEmail(value.email)) return { success: false, message: "Enter a valid business email." };
     if (!validUrl(value.website)) return { success: false, message: "Enter a valid website URL." };
     if (!validTimezone(value.timezone)) return { success: false, message: "Select a valid timezone." };
     await updateAdminSetting("business", value);
+    revalidatePath("/", "layout");
     return success("Business");
   } catch (error) { return { success: false, message: toActionError(error).error }; }
 }

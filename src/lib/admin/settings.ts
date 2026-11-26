@@ -1,4 +1,5 @@
 import "server-only";
+import { DEFAULT_BUSINESS_SETTINGS, cleanBusinessText } from "@/lib/business/identity";
 import { normalizePushPreferences, type PushPreferences } from "@/lib/push/preferences";
 
 import { requireAdminUser } from "@/lib/auth/customer";
@@ -7,6 +8,8 @@ export const ADMIN_SETTING_KEYS = ["business", "booking", "notifications", "fina
 export type AdminSettingKey = (typeof ADMIN_SETTING_KEYS)[number];
 
 export type BusinessSettings = {
+  ownerName: string;
+  uid: string;
   businessName: string;
   addressLine: string;
   postalCode: string;
@@ -59,19 +62,7 @@ export type AdminSettings = {
 };
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
-  business: {
-    businessName: "1200 Hairstudio",
-    addressLine: "Schulstrasse 2",
-    postalCode: "8599",
-    city: "Salmsach",
-    region: "Thurgau",
-    country: "Switzerland",
-    phone: "",
-    email: "",
-    website: "",
-    timezone: "Europe/Zurich",
-    currency: "CHF",
-  },
+  business: DEFAULT_BUSINESS_SETTINGS,
   booking: {
     slotIntervalMinutes: 30,
     minimumNoticeHours: 2,
@@ -127,14 +118,16 @@ export function normalizeAdminSetting<K extends AdminSettingKey>(key: K, value: 
   if (key === "business") {
     const base = defaults as BusinessSettings;
     return {
-      businessName: text(read(source, "businessName", "business_name"), base.businessName),
-      addressLine: text(source.addressLine ?? source.address_line1 ?? source.address_line, base.addressLine),
-      postalCode: text(read(source, "postalCode", "postal_code"), base.postalCode),
-      city: text(source.city, base.city),
+      ownerName: cleanBusinessText(read(source, "ownerName", "owner_name"), base.ownerName),
+      uid: cleanBusinessText(source.uid) || cleanBusinessText(source.business_uid),
+      businessName: cleanBusinessText(read(source, "businessName", "business_name"), base.businessName),
+      addressLine: cleanBusinessText(source.addressLine ?? source.address_line1 ?? source.address_line, base.addressLine),
+      postalCode: cleanBusinessText(read(source, "postalCode", "postal_code"), base.postalCode),
+      city: cleanBusinessText(source.city, base.city),
       region: text(source.region, base.region),
-      country: text(source.country, base.country),
-      phone: text(source.phone, base.phone),
-      email: text(source.email, base.email),
+      country: cleanBusinessText(source.country, base.country),
+      phone: cleanBusinessText(source.phone, base.phone),
+      email: cleanBusinessText(source.email, base.email),
       website: text(source.website, base.website),
       timezone: text(source.timezone, base.timezone),
       currency: "CHF",
@@ -213,7 +206,7 @@ export async function getAllAdminSettings(): Promise<AdminSettings> {
 function serializeSetting<K extends AdminSettingKey>(key: K, value: AdminSettings[K]) {
   if (key === "business") {
     const item = value as BusinessSettings;
-    return { business_name: item.businessName, address_line1: item.addressLine, postal_code: item.postalCode, city: item.city, region: item.region, country: item.country, phone: item.phone, email: item.email, website: item.website, timezone: item.timezone, currency: item.currency };
+    return { business_name: item.businessName, owner_name: item.ownerName, uid: item.uid, address_line1: item.addressLine, postal_code: item.postalCode, city: item.city, region: item.region, country: item.country, phone: item.phone, email: item.email, website: item.website, timezone: item.timezone, currency: item.currency };
   }
   if (key === "booking") {
     const item = value as BookingSettings;
@@ -229,6 +222,22 @@ function serializeSetting<K extends AdminSettingKey>(key: K, value: AdminSetting
 
 export async function updateAdminSetting<K extends AdminSettingKey>(key: K, value: AdminSettings[K]) {
   const { supabase, user } = await requireAdminUser();
+  if (key === "business") {
+    const { data: existing, error: readError } = await supabase.from("admin_settings").select("settings_value").eq("settings_key", key).maybeSingle();
+    if (readError) throw new Error("Unable to save business settings.");
+    const previous = objectValue(existing?.settings_value);
+    const merged = { ...previous };
+    for (const alias of ["businessName", "ownerName", "addressLine", "postalCode", "business_uid"]) delete merged[alias];
+    const row = { settings_key: key, settings_value: { ...merged, ...serializeSetting(key, value) }, updated_by: user.id };
+    if (existing) {
+      const { data, error } = await supabase.from("admin_settings").update(row).eq("settings_key", key).eq("settings_value", JSON.stringify(previous)).select("settings_key");
+      if (error || data?.length !== 1) throw new Error("Unable to save business settings. Reload and try again.");
+    } else {
+      const { error } = await supabase.from("admin_settings").insert(row);
+      if (error) throw new Error("Unable to save business settings.");
+    }
+    return;
+  }
   const { error } = await supabase.from("admin_settings").upsert(
     { settings_key: key, settings_value: serializeSetting(key, value), updated_by: user.id },
     { onConflict: "settings_key" },

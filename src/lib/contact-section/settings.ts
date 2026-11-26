@@ -1,5 +1,7 @@
 import { safeLogDetails } from "@/lib/logging";
 import "server-only";
+import { getBusinessSettings } from "@/lib/admin/runtime-settings";
+import { businessAddress } from "@/lib/business/identity";
 import { contentPayload } from "@/i18n/content-editing";
 import { type Locale } from "@/i18n/config";
 import { getLocale } from "next-intl/server";
@@ -47,7 +49,11 @@ export const getPublicContactSectionSettings = cache(async (): Promise<ContactSe
     console.error("PUBLIC CONTACT SETTINGS QUERY ERROR", safeLogDetails(error));
     return null;
   }
-  return data ? normalizeContactSectionSettings(localizeRow(data, contentFields.contact_section_settings, await getLocale()) as ContactSectionSettingsRow) : null;
+  if (!data) return null;
+  const locale = await getLocale();
+  const settings = normalizeContactSectionSettings(localizeRow(data, contentFields.contact_section_settings, locale) as ContactSectionSettingsRow);
+  const business = await getBusinessSettings();
+  return { ...settings, address: businessAddress(business, locale).join(", "), phoneNumber: business.phone, phoneDisplay: business.phone };
 });
 
 export async function getAdminContactSectionSettings(): Promise<ContactSectionSettings> {

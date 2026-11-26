@@ -1,9 +1,10 @@
 import "server-only";
+import { businessAddress } from "@/lib/business/identity";
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdminReceipt, ReceiptRecord } from "@/lib/receipts/types";
-import { getFinanceSettings } from "@/lib/admin/runtime-settings";
+import { getBusinessSettings, getFinanceSettings } from "@/lib/admin/runtime-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const money = (value: unknown) => Math.round(Number(value ?? 0) * 100) / 100;
@@ -110,8 +111,12 @@ export async function generateReceiptPdf(receipt: ReceiptRecord) {
   page.drawRectangle({ x: 0, y: 0, width: 595, height: 842, color: rgb(0.97, 0.96, 0.93) });
   page.drawText("1200", { x: 60, y: 755, size: 34, font: bold, color: rgb(0.08, 0.08, 0.07) });
   page.drawText("H A I R S T U D I O", { x: 62, y: 735, size: 8, font: regular, color: rgb(0.35, 0.33, 0.29) });
-  page.drawText("Schulstrasse 2", { x: 60, y: 700, size: 10, font: regular });
-  page.drawText("8599 Salmsach, Thurgau", { x: 60, y: 684, size: 10, font: regular });
+  const business = await getBusinessSettings();
+  const identityLines = [business.businessName, business.ownerName, ...businessAddress(business, "de"), `${business.email} · ${business.phone}`, ...(business.uid ? [business.uid] : [])];
+  identityLines.forEach((line, index) => {
+    const fontSize = Math.min(9, 350 / Math.max(1, regular.widthOfTextAtSize(line, 1)));
+    page.drawText(line, { x: 60, y: 716 - index * 10, size: fontSize, font: regular });
+  });
   drawRight(page, bold, `BELEG ${receipt.receipt_number}`, 755, 15);
   drawRight(page, regular, new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", dateStyle: "medium" }).format(new Date(receipt.issued_at)), 735, 9);
   page.drawLine({ start: { x: 60, y: 650 }, end: { x: 535, y: 650 }, thickness: 1, color: rgb(0.76, 0.69, 0.57) });
